@@ -74,6 +74,7 @@ export function saveDefaults() {
 }
 const sd = () => {
   const d = R.it.data;
+  IT.bindDestiny(d);
   (!d.fr || !Array.isArray(d.fr.owned)) && (d.fr = saveDefaults());
   d.fr.equip = { ...saveDefaults().equip, ...(d.fr.equip ?? {}) };
   for (const id of ["W01", "A01", "S01", "M01"]) d.fr.owned.includes(id) || d.fr.owned.push(id);
@@ -2034,6 +2035,27 @@ function reaction(sc, T, E, dmg) {
 }
 
 // ── 처치 시 ─────────────────────────────────────────
+// 운명 보드 명성: 낀 장비 계열마다 (무기 100% · 방어구 50% · 기술·마법 40%). 강한 적·높은 티어 지역일수록 많이
+export function fameOnKill(sc, T, mult = 1) {
+  const fr = sc.fr;
+  if (!fr || !R.it?.data) return;
+  IT.bindDestiny(R.it.data);
+  const def = T.def ?? {};
+  const lvl = sc.currentRegion?.()?.idx ?? 0;
+  const base = (0.13 * (def.hp ?? 20) + 0.4 * (def.atk ?? 8)) * (1 + 0.6 * Math.min(5, lvl)) * mult;
+  const e = fr.equip ?? {};
+  const gains = [[e.weapon, 1], [e.armor, 0.5], [e.s1, 0.4], [e.s2, 0.4], [e.magic, 0.4]];
+  for (const [it, k] of gains) {
+    const b = IT.boardOf(it);
+    const up = b && IT.addFame(b, base * k);
+    if (up) {
+      const B = IT.BOARDS.find((x) => x.id === b);
+      sc.hud?.()?.toast(`운명 보드 · ${B.name} T${up} 해금! 이제 T${up} 장비를 낄 수 있다`, IT.GRADE_CSS[up]);
+      R.j.play("levelup");
+      applyLoadout(sc);
+    }
+  }
+}
 export function onKill(sc, T) {
   const fr = sc.fr;
   if (!fr) return;
@@ -2054,6 +2076,7 @@ export function onKill(sc, T) {
   // 드롭
   const def = T.def ?? {};
   if (T.opts?.summoned) return;
+  fameOnKill(sc, T, T.opts?.midBoss ? 6 : T.isElite ? (T.rare ? 8 : 3) : 1);
   const luck = 1 + (wm.luck ?? 0);
   if (T.opts?.midBoss) {
     // 중간 보스: 아이템 잔뜩 + 융합석
@@ -2210,8 +2233,9 @@ function gainStoneDrop(sc, x, y) {
 // 지역 재료: 가방 칸을 쓰지 않는다. 쓰러지면 잃는다
 function dropMat(sc, x, y, n = 1) {
   if (!sc.fr || n <= 0) return;
-  const m = IT.matOfRegion(sc.currentRegion?.()?.idx ?? 0);
   for (let i = 0; i < n; i++) {
+    // 재료 티어도 지역 티어를 따라 굴린다 (T2 숯 · T3 철광석 · T4 결정 · T5 수정 · T6 별쇠)
+    const m = IT.matOfGrade(Math.max(2, IT.dropGrade(sc.currentRegion?.()?.idx ?? 0))) ?? IT.MATS.ember;
     const s = sc.add.image(x, y, `fr_mat_${m.id}`).setDepth(24);
     const b = sc.add.image(x, y, "fr_beam").setOrigin(0.5, 1).setTint(m.color).setDepth(23).setBlendMode(R.zt.BlendModes.ADD).setAlpha(0.6).setScale(0.7, 0.6);
     sc.fr.pickups.push({ s, b, x, y, vy: -200 - Math.random() * 90, vx: rnd(-80, 80), mat: m.id, t: 0, ground: !1 });
@@ -2289,7 +2313,7 @@ export function gain(sc, item) {
   fr.found++;
   noteFound(fr, item);
   // 비어 있는 장비 칸이면 바로 장착
-  const slot = autoSlot(fr, item);
+  const slot = IT.canEquip(item) ? autoSlot(fr, item) : null;
   if (slot) {
     fr.equip[slot] = item;
     applyLoadout(sc);
@@ -2364,6 +2388,7 @@ export function hookBuild(sc) {
   b.offerShop = () => [offerDef(sc, randomItem(sc)), offerDef(sc, randomItem(sc)), offerDef(sc, null, !0)];
 }
 export function onBossKilled(sc, T) {
+  try { fameOnKill(sc, { def: { hp: (T.def?.hp ?? 600) / 4, atk: T.def?.atk ?? 20 } }, 10); } catch (e) {}
   const fr = sc.fr;
   if (!fr) return;
   T.def?.relic && fr.relicIds.push(T.def.relic);
@@ -2880,6 +2905,7 @@ function dropOn(h, src, tgt) {
     const k = tgt.key;
     if (src.where === "eq" && src.key === k) return;
     if (!slotFits(k, it)) return fail(`${SLOT_KO[k]} 칸에는 넣을 수 없는 아이템입니다`);
+    if (!IT.canEquip(it)) return fail(IT.needText(it));
     const old = fr.equip[k];
     if (src.where === "eq") {
       if (old && !slotFits(src.key, old)) return fail("서로 바꿀 수 없습니다");

@@ -299,43 +299,104 @@ export function makeBase(id, grade = 1) {
   return withGrade({ uid: newUid(), id, kind: b.kind, name: b.name, el: b.el, tier: 0, mats: [id], traits: [...(b.traits ?? [])], power: 1, runes: [], relic: id.startsWith("B") }, grade);
 }
 
-// ── 등급 (Ⅰ~Ⅴ) ─────────────────────────────────────
-// 같은 장검이라도 등급이 높을수록 강하다. power(융합 배율)와 따로 곱한다.
-export const GRADE_MAX = 5;
-export const GRADE_ROMAN = ["", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ"];
-export const GRADE_MULT = [1, 1, 1.25, 1.55, 1.9, 2.3];
-export const GRADE_CSS = ["#e0e0e0", "#e0e0e0", "#8fe07a", "#7ab8ff", "#d090ff", "#ffb040"];
+// ── 티어 (T1~T6, 알비온식) ─────────────────────────
+// 같은 장검이라도 티어가 높을수록 강하다 (한 티어마다 x1.18). power(융합 배율)와 따로 곱한다.
+// 티어를 끼려면 그 계열의 운명 보드 숙련이 그 티어에 닿아 있어야 한다.
+export const GRADE_MAX = 6;
+export const GRADE_ROMAN = ["", "T1", "T2", "T3", "T4", "T5", "T6"];
+export const GRADE_MULT = [1, 1, 1.18, 1.39, 1.64, 1.94, 2.29];
+export const GRADE_CSS = ["#e0e0e0", "#c8c8c8", "#8fe07a", "#7ab8ff", "#d090ff", "#ffb040", "#ff6a5a"];
 export const gradeOf = (it) => Math.max(1, Math.min(GRADE_MAX, it?.grade ?? 1));
-export const gradeMult = (it) => GRADE_MULT[gradeOf(it)];
-const stripGrade = (name) => String(name ?? "").replace(/ [ⅠⅡⅢⅣⅤ]$/, "");
+export const gradeMult = (it) => GRADE_MULT[gradeOf(it)] * masteryMult(it);
+const stripGrade = (name) => String(name ?? "").replace(/ ([ⅠⅡⅢⅣⅤ]|T\d)$/, "");
 export function withGrade(it, g) {
   if (!it) return it;
   it.grade = Math.max(1, Math.min(GRADE_MAX, g | 0 || 1));
-  it.name = stripGrade(it.name) + (it.grade > 1 ? " " + GRADE_ROMAN[it.grade] : "");
+  it.name = stripGrade(it.name) + " " + GRADE_ROMAN[it.grade];
   return it;
 }
-// 지역 번호(0~11) → 떨어지는 등급
-const REGION_GRADE = [1, 1, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5];
+// 지역 난이도(lvl) → 떨어지는 티어: 그래스메어 T1~2 · 그린스텝 T3~4 · 스톤브리지 T5~6
 export function dropGrade(region) {
-  const g = REGION_GRADE[Math.max(0, Math.min(11, region | 0))];
+  const g = Math.min(GRADE_MAX, (region | 0) + 1);
   const r = Math.random();
-  return Math.max(1, Math.min(GRADE_MAX, r < 0.18 ? g - 1 : r > 0.88 ? g + 1 : g));
+  return Math.max(1, Math.min(GRADE_MAX, r < 0.1 ? g - 1 : r > 0.7 ? g + 1 : g));
+}
+
+// ── 운명 보드 ───────────────────────────────────────
+// 계열마다 명성을 쌓는다. 그 계열 장비를 끼고 싸워야만 오른다 (돈으로 못 산다).
+export const BOARDS = [
+  { id: "melee", name: "근접 무기", desc: "근접 무기를 끼고 적을 쓰러뜨리면 오른다" },
+  { id: "ranged", name: "원거리 무기", desc: "원거리 무기를 끼고 적을 쓰러뜨리면 오른다" },
+  { id: "armor", name: "방어구", desc: "어떤 방어구든 입고 싸우면 오른다" },
+  { id: "skill", name: "기술", desc: "기술을 끼고 싸우면 오른다" },
+  { id: "magic", name: "마법", desc: "마법을 끼고 싸우면 오른다" },
+];
+// 티어를 여는 누적 명성 (T1은 처음부터)
+export const FAME_NEED = [0, 0, 150, 650, 2000, 5200, 12000];
+// 한 티어 숙련마다 그 계열 위력 +4%, 티어 안 진행도도 조금 (최대 T6 +20% · 끝까지 +24%)
+let DS = null;
+export const bindDestiny = (data) => (DS = data ? (data.destiny = data.destiny ?? {}) : null);
+export function boardOf(it) {
+  if (!it) return null;
+  const id = String(it.tier ? it.primary ?? it.id : it.id ?? it).split("@")[0];
+  const b = BASE[id];
+  const kind = it.kind ?? b?.kind;
+  if (kind === "weapon") return /근접|짧음/.test(b?.range ?? "근접") ? "melee" : "ranged";
+  return kind === "armor" || kind === "skill" || kind === "magic" ? kind : null;
+}
+export const fameOf = (bid) => (DS && DS[bid]) || 0;
+export function boardTier(bid) {
+  const f = fameOf(bid);
+  let t = 1;
+  while (t < GRADE_MAX && f >= FAME_NEED[t + 1]) t++;
+  return t;
+}
+// 다음 티어까지 진행도 0~1
+export function boardProg(bid) {
+  const t = boardTier(bid);
+  if (t >= GRADE_MAX) return 1;
+  return Math.max(0, Math.min(1, (fameOf(bid) - FAME_NEED[t]) / (FAME_NEED[t + 1] - FAME_NEED[t])));
+}
+export function masteryMult(it) {
+  const b = boardOf(it);
+  if (!b || !DS) return 1;
+  const t = boardTier(b);
+  return 1 + 0.04 * (t - 1) + (t >= GRADE_MAX ? 0.04 : 0.04 * boardProg(b));
+}
+// 장비 티어가 보드 숙련보다 높으면 못 낀다
+export function canEquip(it) {
+  const b = boardOf(it);
+  return !b || gradeOf(it) <= boardTier(b);
+}
+export function needText(it) {
+  const b = boardOf(it);
+  const B = BOARDS.find((x) => x.id === b);
+  return B ? `운명 보드 「${B.name}」 T${gradeOf(it)} 필요 (지금 T${boardTier(b)})` : "";
+}
+// 명성 더하기: 티어가 오르면 새 티어 번호를 돌려준다
+export function addFame(bid, n) {
+  if (!DS || !bid || !(n > 0)) return 0;
+  const t0 = boardTier(bid);
+  DS[bid] = fameOf(bid) + n;
+  const t1 = boardTier(bid);
+  return t1 > t0 ? t1 : 0;
 }
 
 // ── 지역 재료 ───────────────────────────────────────
-// 상점에서 Ⅱ 등급 이상을 사려면 골드와 함께 그 등급의 재료가 필요하다.
+// 상점에서 T2 이상을 사려면 골드와 함께 그 등급의 재료가 필요하다.
 export const MATS = {
   ember: { id: "ember", name: "잿불 숯", grade: 2, color: 0xff8a3a, css: "#ffa060", regions: [0, 1] },
   ore: { id: "ore", name: "울림 철광석", grade: 3, color: 0x9ab0c8, css: "#b8cce0", regions: [2, 3] },
   frost: { id: "frost", name: "서리불 결정", grade: 4, color: 0x70e0ff, css: "#90e8ff", regions: [4, 5, 6] },
   storm: { id: "storm", name: "뇌정 수정", grade: 5, color: 0xd090ff, css: "#d8a8ff", regions: [7, 8, 9, 10, 11] },
+  star: { id: "star", name: "별쇠 조각", grade: 6, color: 0xff6a5a, css: "#ff8a7a", regions: [] },
 };
 export const MAT_LIST = Object.values(MATS);
 export const matOfRegion = (region) => MAT_LIST.find((m) => m.regions.includes(Math.max(0, Math.min(11, region | 0)))) ?? MATS.ember;
 export const matOfGrade = (g) => MAT_LIST.find((m) => m.grade === g) ?? null;
 // 등급별 상점 값: 골드 배율, 재료 개수
-export const GRADE_PRICE = [0, 1, 2.5, 6, 14, 30];
-export const GRADE_MATN = [0, 0, 4, 6, 8, 10];
+export const GRADE_PRICE = [0, 1, 2.2, 4.8, 10, 21, 45];
+export const GRADE_MATN = [0, 0, 3, 5, 7, 9, 12];
 export const kindLetter = (k) => KC[k];
 const catOf = (a, b) => {
   const ka = KORD.indexOf(a.kind),

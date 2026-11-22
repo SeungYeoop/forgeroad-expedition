@@ -75,6 +75,7 @@ export const ZONES = []; // 줄 위 순서 (던전·구역 모두)
 // 공사 중 (파랑 지역 다시 짓기 중, 아직 확인받지 않은 곳): 들어갈 수 없고 지도에 표시한다
 //   확인받으면 여기서 빼면 열린다. 개발 도구는 window.__devUnlock = 1 로 들어간다
 export const LOCKED = new Set(["gm1_m1", "gm1_0", "g0_1", "g1_1", "gm1_1"]);
+export const OPEN_LVL = { g1_0: 0, g0_m1: 2, g1_m1: 4 };
 export const isLocked = (id) => LOCKED.has(id) && !(typeof window !== "undefined" && window.__devUnlock);
 export const BY_ID = {};
 export const CELLS = {}; // "x,y" → 구역
@@ -112,7 +113,8 @@ export const roll = (...a) => hash(...a) / 4294967296;
   for (const [x, y] of cells) {
     const r = ring([x, y]);
     // 고리 안 세부 난이도 0~11 (드롭 등급·재료·적 세기 기준)
-    const lvl = Math.min(11, (r - 1) * 4 + Math.min(3, Math.abs(x) + Math.abs(y) - r));
+    // 열린 세 지역은 티어 사다리로: 그래스메어 T1~2 → 그린스텝 T3~4 → 스톤브리지 T5~6 (적 세기·드롭 티어·재료 모두)
+    const lvl = OPEN_LVL[`g${x}_${y}`.replace(/-/g, "m")] ?? Math.min(11, (r - 1) * 4 + Math.min(3, Math.abs(x) + Math.abs(y) - r));
     const g = GROUND[x], L = LAYER[y];
     const artI = y === 0 ? g[0] : L[0];
     const art = FR_REGIONS[artI];

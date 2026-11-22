@@ -4698,7 +4698,7 @@ function buildDestiny(scene) {
     return { on: lv > 0, lv, prog: IT.specProg(n.id), col: hex(IT.GRADE_CSS[Math.max(1, Math.min(6, 1 + Math.floor(lv / 20)))]) };
   };
   for (const [a, b] of L.links) {
-    const lit = st(b).on;
+    const lit = st(a).on && st(b).on; // 양쪽이 다 열려야 금빛 (길이 끊겨 보이지 않게)
     const w = b.kind === "class" ? 6 : b.kind === "line" ? 4 : 2.5;
     g.lineStyle(w + 4, 0x000000, 0.5).lineBetween(a.x, a.y, b.x, b.y);
     g.lineStyle(w, lit ? 0xd8a840 : 0x2c3048, 1).lineBetween(a.x, a.y, b.x, b.y);

@@ -4705,11 +4705,12 @@ function buildDestiny(scene) {
     lit && g.lineStyle(w * 0.35, 0xfff0b0, 0.9).lineBetween(a.x, a.y, b.x, b.y);
   }
   const hexPts = (x, y, r) => Array.from({ length: 6 }, (_, i) => ({ x: x + Math.cos(Math.PI / 6 + (i * Math.PI) / 3) * r, y: y + Math.sin(Math.PI / 6 + (i * Math.PI) / 3) * r }));
-  const label = (x, y, s, size, col, o = {}, minZ = 0) => {
+  const label = (x, y, s, size, col, o = {}, minZ = 0, dy = 0) => {
     const t = add(ct(scene, 0, 0, s, size, col, { stroke: "#05060c", strokeThickness: 4, ...o }), 3);
-    D.labels.push({ t, x, y, minZ });
+    D.labels.push({ t, x, y, minZ, dy });
     return t;
   };
+  const plate = { backgroundColor: "#05060cd8", padding: { x: 3, y: 1 }, strokeThickness: 0 };
   for (const n of L.nodes) {
     const s = st(n);
     const { x, y, r } = n;
@@ -4723,15 +4724,25 @@ function buildDestiny(scene) {
     const dark = { stroke: "#ffffff", strokeThickness: 2 };
     if (n.kind === "root") label(x, y, "운명", "body", "#140e08", { stroke: "#ffe6a0", strokeThickness: 2 }).setOrigin(0.5, 0.5);
     else if (n.kind === "spec") {
-      label(x, y, `${s.lv}`, "small", s.on ? "#140e08" : "#8a8ea8", s.on ? dark : {}, 0.5).setOrigin(0.5, 0.5);
+      label(x, y, `${s.lv}`, "small", s.on ? "#140e08" : "#8a8ea8", s.on ? dark : {}, 0.7).setOrigin(0.5, 0.5);
       const out = Math.cos(n.ang) >= 0;
-      label(x + Math.cos(n.ang) * (r + 10), y + Math.sin(n.ang) * (r + 10), IT.BASE[n.id]?.name ?? n.id, "small", s.on ? "#fff4d8" : "#8a8ea8", {}, 0.6).setOrigin(out ? 0 : 1, 0.5);
+      label(x, y + r + 4, IT.BASE[n.id]?.name ?? n.id, "tiny", s.on ? "#fff4d8" : "#a8acc8", plate, 1.15, 4).setOrigin(0.5, 0);
     } else {
-      label(x, y, `T${n.t}`, n.kind === "class" ? "body" : "small", s.on ? "#140e08" : "#8a8ea8", s.on ? dark : {}, n.kind === "class" ? 0 : 0.5).setOrigin(0.5, 0.5);
-      if (n.kind === "class" && n.t === 1) label(x + Math.cos(n.ang + Math.PI / 2) * (r + 56), y + Math.sin(n.ang + Math.PI / 2) * (r + 34), n.C.name, "big", "#ffe6a0").setOrigin(0.5, 0.5);
-      if (n.kind === "line" && n.t === 3) label(x + Math.cos(n.ang + Math.PI / 2) * (r + 18), y + Math.sin(n.ang + Math.PI / 2) * (r + 18), n.L.name, "small", "#d8d0f0", {}, 0.55).setOrigin(0.5, 0.5);
+      label(x, y, `T${n.t}`, n.kind === "class" ? "body" : "small", s.on ? "#140e08" : "#8a8ea8", s.on ? dark : {}, n.kind === "class" ? 0.3 : 0.7).setOrigin(0.5, 0.5);
+      if (n.kind === "class" && n.t === 1) {
+        const pa = n.ang + Math.PI / 2, px = Math.cos(pa), py = Math.sin(pa);
+        label(x + px * (r + 10), y + py * (r + 10), n.C.name, "big", "#ffe6a0", plate, 0).setOrigin(px > 0.3 ? 0 : px < -0.3 ? 1 : 0.5, py > 0.3 ? 0 : py < -0.3 ? 1 : 0.5);
+      }
+      if (n.kind === "line" && n.t === 3) label(x, y + r + 4, n.L.name, "small", "#d8d0f0", plate, 0.8, 4).setOrigin(0.5, 0);
     }
   }
+  const size = Math.ceil(L.R * 2.3);
+  const key = "fr_destiny_rt";
+  const rt = scene.add.renderTexture(0, 0, size, size).setOrigin(0.5);
+  world.remove(g);
+  rt.draw(g, size / 2, size / 2);
+  g.destroy();
+  world.addAt(rt, 0);
   D.hl = scene.add.graphics();
   world.add(D.hl);
   const ui = (x, y, s, size, col, o = {}) => add(ct(scene, x, y, s, size, col, { stroke: "#05060c", strokeThickness: 3, ...o }), 6);
@@ -4764,7 +4775,7 @@ function buildDestiny(scene) {
     D.y = Math.max(-lim, Math.min(lim, D.y));
     world.setPosition(W / 2 + D.x, H / 2 + D.y).setScale(D.z);
     for (const l of D.labels) {
-      const sx = W / 2 + D.x + l.x * D.z, sy = H / 2 + D.y + l.y * D.z;
+      const sx = W / 2 + D.x + l.x * D.z, sy = H / 2 + D.y + (l.y - (l.dy ?? 0)) * D.z + (l.dy ?? 0);
       const vis = D.z >= l.minZ && sx > -80 && sx < W + 80 && sy > 30 && sy < H - 50;
       l.t.setVisible(vis);
       vis && l.t.setPosition(Math.round(sx), Math.round(sy));
@@ -4781,21 +4792,28 @@ function buildDestiny(scene) {
     }
     return best;
   };
-  const hover = (n) => {
+  D.tip = add(ct(scene, 0, 0, "", "small", "#ffffff", { backgroundColor: "#141020ee", padding: { x: 5, y: 3 } }), 8).setVisible(!1);
+  const tipName = (n) => (n.kind === "root" ? "운명" : n.kind === "class" ? `${n.C.name} T${n.t}` : n.kind === "line" ? `${n.L.name} T${n.t}` : `${IT.BASE[n.id]?.name ?? n.id}  ${IT.specLevel(n.id)}/${IT.SPEC_MAX}`);
+  const hover = (n, px, py) => {
+    n && D.tip.setPosition(Math.min(W - D.tip.width - 4, px + 12), Math.max(36, py - 22));
     if (n === D.hover) return;
     D.hover = n;
     D.hl.clear();
     n && D.hl.lineStyle(3, 0xffffff, 0.95).strokePoints(hexPts(n.x, n.y, n.r + 6), !0);
+    D.tip.setVisible(!!n);
+    n && (D.tip.setText(tipName(n)), D.tip.setPosition(Math.min(W - D.tip.width - 4, px + 12), Math.max(36, py - 22)));
     D.info(n);
   };
   D.onDown = (p) => (D.drag = { x: p.x, y: p.y, ox: D.x, oy: D.y, moved: 0 });
   D.onMove = (p) => {
     if (D.drag && p.isDown) {
       D.drag.moved = Math.max(D.drag.moved, Math.hypot(p.x - D.drag.x, p.y - D.drag.y));
+      D.tip.setVisible(!1);
       D.x = D.drag.ox + (p.x - D.drag.x);
       D.y = D.drag.oy + (p.y - D.drag.y);
       apply();
-    } else if (p.y > 34 && p.y < H - 52) hover(pick(p.x, p.y));
+    } else if (p.y > 34 && p.y < H - 52) hover(pick(p.x, p.y), p.x, p.y);
+    else hover(null);
   };
   D.onUp = (p) => {
     const dr = D.drag;

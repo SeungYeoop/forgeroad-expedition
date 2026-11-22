@@ -2048,11 +2048,10 @@ export function fameOnKill(sc, T, mult = 1) {
   const h = sc.hud?.();
   for (const [it, k] of gains) {
     const u = it && IT.addFame(it, base * k);
-    if (!u || !(u.classUp || u.lineUp || u.specUp)) continue;
-    if (u.classUp) (h?.toast(`운명 보드 · ${u.className} T2 해금! 계통 사슬이 열렸다`, IT.GRADE_CSS[2]), R.j.play("levelup"));
-    else if (u.lineUp) (h?.toast(`운명 보드 · ${u.className} › ${u.lineName} T${u.lineUp} 해금! 이제 T${u.lineUp} 장비를 낄 수 있다`, IT.GRADE_CSS[u.lineUp]), R.j.play("levelup"));
-    else if (u.specUp % 10 === 0) h?.toast(`전문화 · ${u.itemName} ${u.specUp}`, "#ffe0a0");
-    else continue;
+    if (!u || !(u.tierUp || u.lineUp || u.specUp)) continue;
+    if (u.tierUp) (h?.toast(`운명 보드 · ${u.lineName} ${u.lineUp}레벨 · T${u.tierUp} 장비를 낄 수 있다!`, IT.GRADE_CSS[u.tierUp]), R.j.play("levelup"));
+    else if (u.lineUp) (h?.toast(`운명 보드 · ${u.lineName} ${u.lineUp}레벨`, "#ffe6a0"), R.j.play("buff"));
+    else if (u.specUp) h?.toast(`전문화 · ${u.itemName} ${u.specUp}레벨`, "#ffe0a0");
     applyLoadout(sc);
   }
 }
@@ -4601,7 +4600,7 @@ export function toggleDestiny(scene) {
   if (scene.frDestiny) return void closeDestiny(scene);
   if (scene.frBag || (scene.run && (scene.run.player?.dead || scene.run.dying))) return;
   IT.bindDestiny(R.it.data);
-  const D = (scene.frDestiny = { objs: [], z: 0.42, x: 0, y: 0, drag: null, hover: null });
+  const D = (scene.frDestiny = { objs: [], z: 0.45, x: 0, y: 0, drag: null, hover: null });
   D.esc = () => closeDestiny(scene);
   scene.input.keyboard.on("keydown-ESC", D.esc);
   R.j.play("open");
@@ -4627,40 +4626,31 @@ function destinyLayout() {
   const P = (r, ang) => [Math.cos(ang) * r, Math.sin(ang) * r];
   const root = { kind: "root", x: 0, y: 0, r: 34 };
   nodes.push(root);
-  const C1 = 150, CS = 80, L0 = 420, LS = 74, S0 = 760;
+  const C1 = 190, L1 = 460, S1 = 720;
   web.forEach((C, ci) => {
     const cnt = C.lines.reduce((t, L) => t + L.items.length, 0);
     const slot = (SEC * 0.92) / cnt;
     let a = -Math.PI / 2 + ci * SEC - SEC * 0.46;
     const ca = -Math.PI / 2 + ci * SEC;
-    let prev = root;
-    for (let t = 1; t <= 2; t++) {
-      const [x, y] = P(C1 + (t - 1) * CS, ca);
-      const n = { kind: "class", C, t, x, y, r: t === 2 ? 26 : 22, ang: ca };
-      nodes.push(n), links.push([prev, n]);
-      prev = n;
-    }
-    const cn = prev;
+    const [cx, cy] = P(C1, ca);
+    const cn = { kind: "class", C, x: cx, y: cy, r: 30, ang: ca };
+    nodes.push(cn), links.push([root, cn]);
     for (const L of C.lines) {
       const a0 = a;
       a += slot * L.items.length;
       const la = (a0 + a) / 2;
-      let lp = cn;
-      for (let t = 3; t <= IT.GRADE_MAX; t++) {
-        const [x, y] = P(L0 + (t - 3) * LS, la);
-        const n = { kind: "line", C, L, t, x, y, r: t === IT.GRADE_MAX ? 19 : 15, ang: la };
-        nodes.push(n), links.push([lp, n]);
-        lp = n;
-      }
+      const [x, y] = P(L1, la);
+      const ln = { kind: "line", C, L, x, y, r: 22, ang: la };
+      nodes.push(ln), links.push([cn, ln]);
       L.items.forEach((id, k) => {
         const ia = a0 + slot * (k + 0.5);
-        const [x, y] = P(S0 + (L.items.length > 2 ? (k % 2) * 58 : 0), ia);
-        const n = { kind: "spec", C, L, id, x, y, r: 17, ang: ia };
-        nodes.push(n), links.push([lp, n]);
+        const [sx, sy] = P(S1 + (L.items.length > 2 ? (k % 2) * 64 : 0), ia);
+        const n = { kind: "spec", C, L, id, x: sx, y: sy, r: 17, ang: ia };
+        nodes.push(n), links.push([ln, n]);
       });
     }
   });
-  return { nodes, links, R: S0 + 160 };
+  return { nodes, links, R: S1 + 170 };
 }
 function buildDestiny(scene) {
   const D = scene.frDestiny;
@@ -4684,22 +4674,19 @@ function buildDestiny(scene) {
     const b = -Math.PI / 2 + ci * SEC + SEC / 2;
     g.lineStyle(1, 0x2a3054, 0.7).lineBetween(Math.cos(b) * 110, Math.sin(b) * 110, Math.cos(b) * L.R, Math.sin(b) * L.R);
   });
+  const lvCol = (lv) => hex(IT.GRADE_CSS[Math.max(1, Math.min(6, 1 + Math.floor(lv / 17)))]);
   const st = (n) => {
     if (n.kind === "root") return { on: 1, prog: 0, col: 0xffe6a0 };
     if (n.kind === "class") {
-      const t = IT.classTier(n.C.id), f = IT.fameOf(`c:${n.C.id}`);
-      return { on: n.t === 1 ? 1 : t >= 2, prog: n.t === 2 && t < 2 ? IT.classProg(n.C.id) : 0, col: hex(IT.GRADE_CSS[n.t]), f };
+      const k = `c:${n.C.id}`, lv = IT.levelOf(k);
+      return { on: 1, lv, prog: IT.progOf(k), col: lvCol(lv) };
     }
-    if (n.kind === "line") {
-      const t = IT.lineTier(n.L.key);
-      return { on: n.t <= t, prog: n.t === t + 1 ? IT.lineProg(n.L.key) : 0, col: hex(IT.GRADE_CSS[n.t]) };
-    }
-    const lv = IT.specLevel(n.id);
-    return { on: lv > 0, lv, prog: IT.specProg(n.id), col: hex(IT.GRADE_CSS[Math.max(1, Math.min(6, 1 + Math.floor(lv / 20)))]) };
+    const k = n.kind === "line" ? n.L.key : `i:${n.id}`, lv = IT.levelOf(k);
+    return { on: IT.fameOf(k) > 0, lv, prog: IT.progOf(k), col: lvCol(lv) };
   };
   for (const [a, b] of L.links) {
     const lit = st(a).on && st(b).on; // 양쪽이 다 열려야 금빛 (길이 끊겨 보이지 않게)
-    const w = b.kind === "class" ? 6 : b.kind === "line" ? 4 : 2.5;
+    const w = b.kind === "class" ? 7 : b.kind === "line" ? 5 : 3;
     g.lineStyle(w + 4, 0x000000, 0.5).lineBetween(a.x, a.y, b.x, b.y);
     g.lineStyle(w, lit ? 0xd8a840 : 0x2c3048, 1).lineBetween(a.x, a.y, b.x, b.y);
     lit && g.lineStyle(w * 0.35, 0xfff0b0, 0.9).lineBetween(a.x, a.y, b.x, b.y);
@@ -4723,17 +4710,13 @@ function buildDestiny(scene) {
     if (s.prog > 0 && s.prog < 1) g.lineStyle(3, 0xffd060, 1).beginPath().arc(x, y, r + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * s.prog).strokePath();
     const dark = { stroke: "#ffffff", strokeThickness: 2 };
     if (n.kind === "root") label(x, y, "운명", "body", "#140e08", { stroke: "#ffe6a0", strokeThickness: 2 }).setOrigin(0.5, 0.5);
-    else if (n.kind === "spec") {
-      label(x, y, `${s.lv}`, "small", s.on ? "#140e08" : "#8a8ea8", s.on ? dark : {}, 0.7).setOrigin(0.5, 0.5);
-      const out = Math.cos(n.ang) >= 0;
-      label(x, y + r + 4, IT.BASE[n.id]?.name ?? n.id, "tiny", s.on ? "#fff4d8" : "#a8acc8", plate, 1.15, 4).setOrigin(0.5, 0);
-    } else {
-      label(x, y, `T${n.t}`, n.kind === "class" ? "body" : "small", s.on ? "#140e08" : "#8a8ea8", s.on ? dark : {}, n.kind === "class" ? 0.3 : 0.7).setOrigin(0.5, 0.5);
-      if (n.kind === "class" && n.t === 1) {
+    else {
+      label(x, y, `${s.lv}`, n.kind === "class" ? "body" : "small", s.on ? "#140e08" : "#8a8ea8", s.on ? dark : {}, n.kind === "class" ? 0.3 : n.kind === "line" ? 0.45 : 0.7).setOrigin(0.5, 0.5);
+      if (n.kind === "class") {
         const pa = n.ang + Math.PI / 2, px = Math.cos(pa), py = Math.sin(pa);
         label(x + px * (r + 10), y + py * (r + 10), n.C.name, "big", "#ffe6a0", plate, 0).setOrigin(px > 0.3 ? 0 : px < -0.3 ? 1 : 0.5, py > 0.3 ? 0 : py < -0.3 ? 1 : 0.5);
-      }
-      if (n.kind === "line" && n.t === 3) label(x, y + r + 4, n.L.name, "small", "#d8d0f0", plate, 0.8, 4).setOrigin(0.5, 0);
+      } else if (n.kind === "line") label(x, y + r + 4, `${n.L.name} · T${IT.lineTier(n.L.key)}`, "small", "#d8d0f0", plate, 0.6, 4).setOrigin(0.5, 0);
+      else label(x, y + r + 4, IT.BASE[n.id]?.name ?? n.id, "tiny", s.on ? "#fff4d8" : "#a8acc8", plate, 1.0, 4).setOrigin(0.5, 0);
     }
   }
   const size = Math.ceil(L.R * 2.3);
@@ -4754,19 +4737,19 @@ function buildDestiny(scene) {
   D.t1 = ui(14, H - 46, "", "body", "#ffffff");
   D.t2 = ui(14, H - 24, "", "tiny", "#c8c0e0");
   const fp = (f, nxt) => (nxt ? `명성 ${Math.floor(f)} / ${nxt}` : `명성 ${Math.floor(f)}`);
+  const nextTier = (lv) => IT.TIER_LV.findIndex((x, t) => t >= 2 && lv < x);
   D.info = (n) => {
-    if (!n) return (D.t1.setText("운명 보드"), D.t2.setText("직업 사슬이 T2를 열고, 계통 사슬이 T3~T6 장착을 연다 · 끝 마디는 장비 하나하나의 전문화(0~100) · 끼고 싸울 때만 오른다"));
+    if (!n) return (D.t1.setText("운명 보드"), D.t2.setText("직업 → 계통 → 장비 전문화 · 계통 레벨이 오르면 그 계통의 장착 티어가 열린다 · 끼고 싸울 때만 오른다"));
     if (n.kind === "root") return (D.t1.setText("운명"), D.t2.setText("높은 티어 지역의 강한 적일수록 명성을 많이 준다 · 정예 x3 · 희귀 정예 x8 · 보스 x10"));
-    if (n.kind === "class") {
-      const f = IT.fameOf(`c:${n.C.id}`);
-      return (D.t1.setText(`${n.C.name} · T${n.t}`), D.t2.setText(n.t === 1 ? `${n.C.desc} · 처음부터 T1 장비를 낄 수 있다` : `${fp(f, IT.CLASS_NEED[2])} · 열리면 ${n.C.name} 계통 전부 T2 장착 · 계통 사슬이 열린다`));
-    }
+    const k = n.kind === "class" ? `c:${n.C.id}` : n.kind === "line" ? n.L.key : `i:${n.id}`;
+    const lv = IT.levelOf(k), f = IT.fameOf(k), nx = lv < IT.LV_MAX ? IT.levelNeed(lv + 1) : 0;
+    const fame = nx ? `명성 ${Math.floor(f)} / ${nx}` : `명성 ${Math.floor(f)}`;
+    if (n.kind === "class") return (D.t1.setText(`${n.C.name} · ${lv}레벨`), D.t2.setText(`${fame} · ${n.C.desc} · 아래 계통 전부의 명성이 모인다`));
     if (n.kind === "line") {
-      const f = IT.fameOf(n.L.key), t = IT.lineTier(n.L.key);
-      return (D.t1.setText(`${n.C.name} › ${n.L.name} · T${n.t} ${n.t <= t ? "(열림)" : ""}`), D.t2.setText(`${IT.classTier(n.C.id) < 2 ? `먼저 ${n.C.name} T2가 필요 · ` : ""}${fp(f, IT.LINE_NEED[n.t])} · 열리면 ${n.L.name} T${n.t} 장착 · 계통 위력 +${4 * (n.t - 1)}%`));
+      const t = IT.lineTier(n.L.key), nt = nextTier(lv);
+      return (D.t1.setText(`${n.C.name} › ${n.L.name} · ${lv}레벨 · T${t} 장착`), D.t2.setText(`${fame} · ${nt > 0 ? `${IT.TIER_LV[nt]}레벨에 T${nt}` : "T6까지 열림"} · 계통 위력 +${(lv * 0.2).toFixed(1)}% · 장비 ${n.L.items.length}개`));
     }
-    const lv = IT.specLevel(n.id), f = IT.fameOf(`i:${n.id}`);
-    return (D.t1.setText(`${IT.BASE[n.id]?.name ?? n.id} 전문화 · ${lv}/${IT.SPEC_MAX}`), D.t2.setText(`${fp(f, lv < IT.SPEC_MAX ? IT.specNeed(lv + 1) : 0)} · 이 장비 위력 +${(lv * 0.2).toFixed(1)}% · 같은 계통 다른 장비에도 조금씩 · ${n.C.name} › ${n.L.name}`));
+    return (D.t1.setText(`${IT.BASE[n.id]?.name ?? n.id} 전문화 · ${lv}레벨`), D.t2.setText(`${fame} · 이 장비 위력 +${(lv * 0.2).toFixed(1)}% · 같은 계통 다른 장비에도 조금씩 · ${n.C.name} › ${n.L.name}`));
   };
   D.info(null);
   const apply = () => {
@@ -4793,7 +4776,7 @@ function buildDestiny(scene) {
     return best;
   };
   D.tip = add(ct(scene, 0, 0, "", "small", "#ffffff", { backgroundColor: "#141020ee", padding: { x: 5, y: 3 } }), 8).setVisible(!1);
-  const tipName = (n) => (n.kind === "root" ? "운명" : n.kind === "class" ? `${n.C.name} T${n.t}` : n.kind === "line" ? `${n.L.name} T${n.t}` : `${IT.BASE[n.id]?.name ?? n.id}  ${IT.specLevel(n.id)}/${IT.SPEC_MAX}`);
+  const tipName = (n) => (n.kind === "root" ? "운명" : n.kind === "class" ? `${n.C.name}  ${IT.levelOf(`c:${n.C.id}`)}레벨` : n.kind === "line" ? `${n.L.name}  ${IT.levelOf(n.L.key)}레벨 · T${IT.lineTier(n.L.key)}` : `${IT.BASE[n.id]?.name ?? n.id}  ${IT.specLevel(n.id)}레벨`);
   const hover = (n, px, py) => {
     n && D.tip.setPosition(Math.min(W - D.tip.width - 4, px + 12), Math.max(36, py - 22));
     if (n === D.hover) return;

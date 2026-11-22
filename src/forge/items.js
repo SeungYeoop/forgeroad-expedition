@@ -323,25 +323,27 @@ export function dropGrade(region) {
 }
 
 // ── 운명 보드 ───────────────────────────────────────
-// 구조: 가운데 → 직업(전사·사냥꾼·마법사·무술가) 사슬 T1~T2 → 계통마다 갈라지는 티어 사슬 T3~T6 → 장비 하나하나의 전문화(0~100)
-// 직업 사슬이 T2까지 열고, T3부터는 계통 사슬이 그 계통 장비의 장착 티어를 연다. 명성은 끼고 싸울 때만 쌓인다.
+// 구조: 가운데 → 직업 마디 → 계통 마디(레벨 0~100) → 장비 전문화 마디(레벨 0~100)
+// 계통 레벨이 오르면 그 계통의 장착 티어가 열린다. 명성은 끼고 싸울 때 직업·계통·장비에 함께 쌓인다.
 export const CLASSES = [
   { id: "warrior", name: "전사", desc: "근접 무기 · 판금 갑주 · 방패" },
   { id: "hunter", name: "사냥꾼", desc: "원거리 무기 · 가죽옷" },
   { id: "mage", name: "마법사", desc: "마법 · 천옷" },
   { id: "martial", name: "무술가", desc: "기술" },
 ];
-export const CLASS_NEED = [0, 0, 220]; // 직업 T2
-export const LINE_NEED = [0, 0, 0, 700, 2100, 5200, 11500]; // 계통 T3~T6
-export const SPEC_MAX = 100;
-export const specNeed = (lv) => Math.round(6 * Math.pow(lv, 1.8)); // lv까지 누적
+export const LV_MAX = 100;
+export const SPEC_MAX = LV_MAX;
+// lv까지 누적 명성
+export const levelNeed = (lv) => Math.round(5 * Math.pow(lv, 1.8));
+export const specNeed = levelNeed;
+// 계통 레벨 → 장착 티어 (T1은 처음부터)
+export const TIER_LV = [0, 0, 5, 15, 30, 55, 85];
 let DS = null;
 export const bindDestiny = (data) => (DS = data ? (data.destiny = data.destiny ?? {}) : null);
 const baseIdOf = (it) => String(it?.tier ? it.primary ?? it.id : it?.id ?? it).split("@")[0];
 const EL_KO = { fire: "화염", ice: "냉기", lightning: "번개", wind: "바람", earth: "대지", poison: "독", light: "빛", dark: "어둠" };
 const ARMOR_G = [[/방패/, "방패", "warrior"], [/로브|도복|법의|앞치마|왕관/, "천옷", "mage"], [/망토|외투|작업복/, "가죽옷", "hunter"], [/.*/, "판금 갑주", "warrior"]];
-// [직업, 계통 이름]
-// 장비가 하나뿐인 계통은 「그 밖의 …」로 합친다 (계통이 너무 잘게 쪼개지지 않게)
+// 장비가 하나뿐인 계통은 「그 밖의 …」로 합친다
 let LCOUNT = null;
 function placeOf(id) {
   const p = rawPlace(id);
@@ -375,7 +377,6 @@ export function lineKeyOf(it) {
   return p ? `l:${p[0]}:${p[1]}` : null;
 }
 let WEB = null;
-// [{ id, name, desc, lines: [{ key, name, items: [id…] }] }]
 export function destinyWeb() {
   if (WEB) return WEB;
   const m = new Map(CLASSES.map((C) => [C.id, new Map()]));
@@ -390,48 +391,40 @@ export function destinyWeb() {
   return WEB;
 }
 export const fameOf = (k) => (DS && DS[k]) || 0;
-export const classTier = (cid) => (fameOf(`c:${cid}`) >= CLASS_NEED[2] ? 2 : 1);
-export function lineTier(lk) {
-  const cid = lk.split(":")[1];
-  if (classTier(cid) < 2) return 1;
-  const f = fameOf(lk);
-  let t = 2;
-  while (t < GRADE_MAX && f >= LINE_NEED[t + 1]) t++;
-  return t;
-}
-export function specLevel(id) {
-  const f = fameOf(`i:${id}`);
-  let lo = 0, hi = SPEC_MAX;
+// 명성 → 레벨 0~100
+export function levelOf(k) {
+  const f = fameOf(k);
+  let lo = 0, hi = LV_MAX;
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
-    f >= specNeed(mid) ? (lo = mid) : (hi = mid - 1);
+    f >= levelNeed(mid) ? (lo = mid) : (hi = mid - 1);
   }
   return lo;
 }
-export function classProg(cid) {
-  return classTier(cid) >= 2 ? 1 : Math.min(1, fameOf(`c:${cid}`) / CLASS_NEED[2]);
+export function progOf(k) {
+  const lv = levelOf(k);
+  return lv >= LV_MAX ? 1 : Math.max(0, Math.min(1, (fameOf(k) - levelNeed(lv)) / (levelNeed(lv + 1) - levelNeed(lv))));
 }
-export function lineProg(lk) {
-  const t = lineTier(lk);
-  if (t < 2) return 0;
-  if (t >= GRADE_MAX) return 1;
-  const f = fameOf(lk);
-  return Math.max(0, Math.min(1, (f - LINE_NEED[t]) / (LINE_NEED[t + 1] - LINE_NEED[t])));
+export const classLevel = (cid) => levelOf(`c:${cid}`);
+export const lineLevel = (lk) => levelOf(lk);
+export const specLevel = (id) => levelOf(`i:${id}`);
+export const specProg = (id) => progOf(`i:${id}`);
+export function lineTier(lk) {
+  const lv = lineLevel(lk);
+  let t = 1;
+  while (t < GRADE_MAX && lv >= TIER_LV[t + 1]) t++;
+  return t;
 }
-export function specProg(id) {
-  const lv = specLevel(id);
-  return lv >= SPEC_MAX ? 1 : Math.max(0, Math.min(1, (fameOf(`i:${id}`) - specNeed(lv)) / (specNeed(lv + 1) - specNeed(lv))));
-}
-// 위력: 계통 티어마다 +4% · 이 장비 전문화 레벨마다 +0.2% · 같은 계통 다른 장비 전문화 합의 0.05%(최대 +10%)
+// 위력: 계통 레벨마다 +0.2% · 이 장비 전문화 레벨마다 +0.2% · 같은 계통 다른 장비 전문화 합의 0.05%(최대 +10%)
 export function masteryMult(it) {
   const lk = lineKeyOf(it);
   if (!lk || !DS) return 1;
   const id = baseIdOf(it);
   const line = destinyWeb().flatMap((C) => C.lines).find((L) => L.key === lk);
   const others = (line?.items ?? []).reduce((s, x) => (x === id ? s : s + specLevel(x)), 0);
-  return (1 + 0.04 * (lineTier(lk) - 1)) * (1 + 0.002 * specLevel(id) + Math.min(0.1, 0.0005 * others));
+  return (1 + 0.002 * lineLevel(lk)) * (1 + 0.002 * specLevel(id) + Math.min(0.1, 0.0005 * others));
 }
-// 장비 티어가 그 계통 사슬보다 높으면 못 낀다
+// 장비 티어가 그 계통 레벨로 열린 티어보다 높으면 못 낀다
 export function canEquip(it) {
   const lk = lineKeyOf(it);
   return !lk || gradeOf(it) <= lineTier(lk);
@@ -439,24 +432,22 @@ export function canEquip(it) {
 export function needText(it) {
   const lk = lineKeyOf(it);
   if (!lk) return "";
-  const [, cid, name] = lk.split(":");
-  const C = CLASSES.find((x) => x.id === cid);
   const g = gradeOf(it);
-  return g <= 2 ? `운명 보드 「${C.name}」 T2 필요 · B키` : `운명 보드 「${C.name} › ${name}」 T${g} 필요 (지금 T${lineTier(lk)}) · B키`;
+  return `운명 보드 「${lk.split(":")[2]}」 ${TIER_LV[g]}레벨에 T${g} (지금 ${lineLevel(lk)}레벨) · B키`;
 }
-// 명성 더하기: 직업 · 계통 · 장비 전문화에 함께 쌓인다
+// 명성 더하기: 직업 · 계통 · 장비에 함께 쌓인다
 export function addFame(it, n) {
   const lk = lineKeyOf(it);
   if (!DS || !lk || !(n > 0)) return null;
   const id = baseIdOf(it), cid = lk.split(":")[1], ck = `c:${cid}`, ik = `i:${id}`;
-  const c0 = classTier(cid), l0 = lineTier(lk), s0 = specLevel(id);
+  const t0 = lineTier(lk), l0 = lineLevel(lk), s0 = specLevel(id);
   DS[ck] = fameOf(ck) + n;
   DS[lk] = fameOf(lk) + n;
   DS[ik] = fameOf(ik) + n;
-  const c1 = classTier(cid), l1 = lineTier(lk), s1 = specLevel(id);
+  const t1 = lineTier(lk), l1 = lineLevel(lk), s1 = specLevel(id);
   return {
     className: CLASSES.find((x) => x.id === cid).name, lineName: lk.split(":")[2], itemName: BASE[id]?.name,
-    classUp: c1 > c0 ? c1 : 0, lineUp: l1 > l0 && l1 >= 3 ? l1 : 0, specUp: s1 > s0 ? s1 : 0,
+    tierUp: t1 > t0 ? t1 : 0, lineUp: l1 > l0 ? l1 : 0, specUp: s1 > s0 ? s1 : 0,
   };
 }
 

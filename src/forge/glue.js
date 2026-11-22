@@ -2045,15 +2045,15 @@ export function fameOnKill(sc, T, mult = 1) {
   const base = (0.13 * (def.hp ?? 20) + 0.4 * (def.atk ?? 8)) * (1 + 0.6 * Math.min(5, lvl)) * mult;
   const e = fr.equip ?? {};
   const gains = [[e.weapon, 1], [e.armor, 0.5], [e.s1, 0.4], [e.s2, 0.4], [e.magic, 0.4]];
+  const h = sc.hud?.();
   for (const [it, k] of gains) {
-    const b = IT.boardOf(it);
-    const up = b && IT.addFame(b, base * k);
-    if (up) {
-      const B = IT.BOARDS.find((x) => x.id === b);
-      sc.hud?.()?.toast(`운명 보드 · ${B.name} T${up} 해금! 이제 T${up} 장비를 낄 수 있다`, IT.GRADE_CSS[up]);
-      R.j.play("levelup");
-      applyLoadout(sc);
-    }
+    const u = it && IT.addFame(it, base * k);
+    if (!u || !(u.board || u.group || u.item)) continue;
+    const B = IT.BOARDS.find((x) => x.id === u.bid);
+    if (u.board) (h?.toast(`운명 보드 · ${B.name} T${u.board} 해금! 이제 T${u.board} 장비를 낄 수 있다`, IT.GRADE_CSS[u.board]), R.j.play("levelup"));
+    else if (u.group) (h?.toast(`운명 보드 · ${B.name} › ${u.groupName} 갈래 T${u.group}`, IT.GRADE_CSS[u.group]), R.j.play("buff"));
+    else h?.toast(`숙련 · ${u.itemName} ${u.item}단계`, "#ffe0a0");
+    applyLoadout(sc);
   }
 }
 export function onKill(sc, T) {
@@ -2532,7 +2532,7 @@ export function hudCreate(hud) {
   miniCreate(hud);
   hud.input.keyboard.addCapture("TAB");
   hud.input.keyboard.on("keydown-TAB", () => toggleBag(hud.run));
-  hud.input.keyboard.on("keydown-B", () => toggleBag(hud.run));
+  hud.input.keyboard.on("keydown-B", () => toggleDestiny(hud));
   hud.input.keyboard.on("keydown-M", () => toggleMap(hud));
   hud.events.once("shutdown", () => (hud.frMap = null));
 }
@@ -4591,4 +4591,108 @@ function whenPlanned(sc, z, f) {
     loadingNote(sc, !1);
     sc.sys?.isActive?.() !== !1 && sc.world && f();
   });
+}
+
+
+// ── 운명 보드 (B키): 알비온식 그물 ──────────────────────
+// 가운데 → 계열 5개 → 갈래들(바깥 고리). 갈래를 누르면 그 갈래의 장비 하나하나가 그물로 펼쳐진다.
+export function toggleDestiny(scene) {
+  if (scene.frDestiny) return void closeDestiny(scene);
+  if (scene.frBag || (scene.run && (scene.run.player?.dead || scene.run.dying))) return;
+  IT.bindDestiny(R.it.data);
+  const D = (scene.frDestiny = { objs: [], focus: null });
+  D.esc = () => (D.focus ? ((D.focus = null), drawDestiny(scene)) : closeDestiny(scene));
+  scene.input.keyboard.on("keydown-ESC", D.esc);
+  R.j.play("open");
+  drawDestiny(scene);
+}
+function closeDestiny(scene) {
+  const D = scene.frDestiny;
+  if (!D) return;
+  for (const o of D.objs) o.destroy();
+  scene.input.keyboard.off("keydown-ESC", D.esc);
+  scene.frDestiny = null;
+  R.j.play("click");
+}
+function drawDestiny(scene) {
+  const D = scene.frDestiny;
+  for (const o of D.objs) o.destroy();
+  D.objs = [];
+  const { ct, ot: W, xt: H } = R;
+  const DEP = 300;
+  const add = (o, d = 0) => (o.setScrollFactor?.(0), o.setDepth?.(DEP + d), D.objs.push(o), o);
+  const txt = (x, y, s, size, col, o = {}) => add(ct(scene, x, y, s, size, col, { stroke: "#06040a", strokeThickness: 3, ...o }), 6);
+  const hex = (css) => Number("0x" + css.slice(1));
+  add(scene.add.rectangle(0, 0, W, H, 0x07060e, 0.93).setOrigin(0).setInteractive(), 0);
+  for (let i = 0; i < 70; i++) add(scene.add.circle((i * 97.13) % W, (i * 53.71) % H, (i % 3) * 0.4 + 0.4, 0x8a9ad8, 0.25 + (i % 5) * 0.06), 0);
+  txt(16, 10, "운명 보드", "big", "#ffe6a0");
+  txt(W - 16, 14, "B 닫기 · Esc 뒤로 · 갈래를 눌러 펼치기", "tiny", "#9a96b8").setOrigin(1, 0);
+  const web = IT.destinyWeb();
+  const line = add(scene.add.graphics(), 1);
+  const info = { t1: txt(16, H - 44, "", "small", "#ffffff"), t2: txt(16, H - 26, "", "tiny", "#c8c0e0") };
+  const setInfo = (a, b) => (info.t1.setText(a), info.t2.setText(b));
+  const node = (x, y, r, fill, on, label, onOver, onDown) => {
+    on && add(scene.add.circle(x, y, r + 5, fill, 0.18), 2);
+    const c = add(scene.add.circle(x, y, r, on ? fill : 0x2a2838).setStrokeStyle(2, on ? 0xfff0c0 : 0x5a5878), 3);
+    c.setInteractive({ useHandCursor: !0 }).on("pointerover", () => (c.setStrokeStyle(3, 0xffffff), onOver())).on("pointerout", () => c.setStrokeStyle(2, on ? 0xfff0c0 : 0x5a5878));
+    onDown && c.on("pointerdown", onDown);
+    label && txt(x, y + r + 2, label, "tiny", on ? "#ffffff" : "#9a96b8").setOrigin(0.5, 0);
+    return c;
+  };
+  const ring = (x, y, r, p, col) => {
+    if (!(p > 0)) return;
+    const g = add(scene.add.graphics(), 4);
+    g.lineStyle(2, col, 1).beginPath().arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p).strokePath();
+  };
+  const famePart = (f, nxt) => (nxt ? `명성 ${Math.floor(f)} / ${nxt}` : `명성 ${Math.floor(f)} · 끝까지 올림`);
+  if (!D.focus) {
+    // 전체 그물: 가운데 → 계열 → 갈래
+    const cx = W / 2, cy = H / 2 + 6, r1 = 64;
+    web.forEach((B, i) => {
+      const a = -Math.PI / 2 + (i / web.length) * Math.PI * 2;
+      const bx = cx + Math.cos(a) * r1, by = cy + Math.sin(a) * r1;
+      const t = IT.boardTier(B.id), col = hex(IT.GRADE_CSS[t]);
+      line.lineStyle(2, t > 1 ? col : 0x4a4868, 0.8).lineBetween(cx, cy, bx, by);
+      const n = B.groups.length, span = Math.min(1.15, 0.2 * n);
+      B.groups.forEach((G, k) => {
+        const ga = a + (n > 1 ? (k / (n - 1) - 0.5) * span : 0);
+        const r2 = 132 + (k % 2) * 26;
+        const gx = cx + Math.cos(ga) * r2 * 1.35, gy = cy + Math.sin(ga) * r2 * 0.8;
+        const gt = IT.groupTier(G.key), gcol = hex(IT.GRADE_CSS[gt]);
+        line.lineStyle(1, gt > 1 ? gcol : 0x3a3858, 0.7).lineBetween(bx, by, gx, gy);
+        node(gx, gy, 7, gcol, IT.fameOf(G.key) > 0, G.name,
+          () => setInfo(`${B.name} › ${G.name} 갈래 · T${gt}`, `${famePart(IT.fameOf(G.key), IT.GROUP_NEED[gt + 1])} · 갈래 장비 위력 +${2 * (gt - 1)}% · 장비 ${G.items.length}개 · 눌러서 펼치기`),
+          () => ((D.focus = { B, G }), R.j.play("click"), drawDestiny(scene)));
+        ring(gx, gy, 10, IT.groupProg(G.key), 0xffd060);
+      });
+      node(bx, by, 15, col, !0, "", () => setInfo(`${B.name} · T${t}`, `${famePart(IT.fameOf(B.id), IT.FAME_NEED[t + 1])} · T${t} 장비까지 장착 · 위력 +${4 * (t - 1)}% · ${B.desc}`));
+      txt(bx, by - 6, `T${t}`, "small", "#140e18", { stroke: "#ffffff", strokeThickness: 2 }).setOrigin(0.5, 0);
+      txt(bx, by + 17, B.name, "small", "#ffe6a0").setOrigin(0.5, 0);
+      ring(bx, by, 19, IT.boardProg(B.id), 0xffd060);
+    });
+    node(cx, cy, 11, 0xffe6a0, !0, "", () => setInfo("운명 보드", "계열 숙련이 장착 티어를 연다 · 갈래·장비 숙련은 위력을 더한다 · 끼고 싸울 때만 오른다"));
+    setInfo("운명 보드", "계열(안쪽)이 장착 티어를 연다 · 바깥 마디는 갈래 · 높은 티어 지역의 강한 적일수록 명성이 많다");
+  } else {
+    // 갈래 하나 펼치기: 장비 하나하나
+    const { B, G } = D.focus;
+    const cx = W / 2, cy = H / 2 - 2;
+    const gt = IT.groupTier(G.key), gcol = hex(IT.GRADE_CSS[gt]);
+    txt(cx, 40, `${B.name} › ${G.name}`, "body", "#ffe6a0").setOrigin(0.5, 0);
+    const n = G.items.length, rr = Math.min(118, 50 + n * 9);
+    G.items.forEach((id, k) => {
+      const a = -Math.PI / 2 + (k / n) * Math.PI * 2;
+      const x = cx + Math.cos(a) * rr * 1.25, y = cy + Math.sin(a) * rr * 0.78;
+      const lv = IT.itemLevel(id), f = IT.fameOf(`i:${id}`);
+      line.lineStyle(1, lv > 0 ? gcol : 0x3a3858, 0.8).lineBetween(cx, cy, x, y);
+      const nm = IT.BASE[id]?.name ?? id;
+      node(x, y, 9, gcol, f > 0, nm,
+        () => setInfo(`${nm} · 숙련 ${lv}/${IT.ITEM_MAX}단계`, `${famePart(f, lv < IT.ITEM_MAX ? IT.itemNeed(lv + 1) : 0)} · 이 장비만 위력 +${lv}% · 장착 티어는 「${B.name}」 계열 T${IT.boardTier(B.id)}까지`));
+      ring(x, y, 12, IT.itemProg(id), 0xffd060);
+      lv > 0 && txt(x, y - 6, `${lv}`, "tiny", "#140e18", { stroke: "#ffffff", strokeThickness: 2 }).setOrigin(0.5, 0);
+    });
+    node(cx, cy, 16, gcol, !0, "", () => setInfo(`${G.name} 갈래 · T${gt}`, `${famePart(IT.fameOf(G.key), IT.GROUP_NEED[gt + 1])} · 갈래 장비 위력 +${2 * (gt - 1)}%`), () => ((D.focus = null), drawDestiny(scene)));
+    txt(cx, cy - 7, `T${gt}`, "small", "#140e18", { stroke: "#ffffff", strokeThickness: 2 }).setOrigin(0.5, 0);
+    ring(cx, cy, 20, IT.groupProg(G.key), 0xffd060);
+    setInfo(`${G.name} 갈래 · T${gt}`, "가운데를 누르거나 Esc로 돌아가기 · 마디에 마우스를 올려 숙련 보기");
+  }
 }

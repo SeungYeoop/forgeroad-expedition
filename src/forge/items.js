@@ -336,34 +336,77 @@ export const FAME_NEED = [0, 0, 150, 650, 2000, 5200, 12000];
 // 한 티어 숙련마다 그 계열 위력 +4%, 티어 안 진행도도 조금 (최대 T6 +20% · 끝까지 +24%)
 let DS = null;
 export const bindDestiny = (data) => (DS = data ? (data.destiny = data.destiny ?? {}) : null);
+const baseIdOf = (it) => String(it?.tier ? it.primary ?? it.id : it?.id ?? it).split("@")[0];
 export function boardOf(it) {
   if (!it) return null;
-  const id = String(it.tier ? it.primary ?? it.id : it.id ?? it).split("@")[0];
-  const b = BASE[id];
+  const b = BASE[baseIdOf(it)];
   const kind = it.kind ?? b?.kind;
   if (kind === "weapon") return /근접|짧음/.test(b?.range ?? "근접") ? "melee" : "ranged";
   return kind === "armor" || kind === "skill" || kind === "magic" ? kind : null;
 }
+// ── 그물: 계열 → 갈래 → 장비 하나하나 ──
+// 계열 숙련 = 장착 티어 해금 · 갈래 숙련 = 갈래 전체 위력 · 장비 숙련 = 그 장비만 위력
+const EL_KO = { fire: "화염", ice: "냉기", lightning: "번개", wind: "바람", earth: "대지", poison: "독", light: "빛", dark: "어둠" };
+const ARMOR_G = [[/방패/, "방패"], [/로브|도복|법의|앞치마|왕관/, "천옷"], [/망토|외투|작업복/, "가죽옷"], [/.*/, "판금·갑주"]];
+export function groupOf(id) {
+  const b = BASE[id];
+  if (!b) return "기타";
+  if (b.kind === "magic") return EL_KO[b.el] ?? "비전";
+  if (b.kind === "armor") return ARMOR_G.find(([re]) => re.test(b.name))[1];
+  return b.traits?.[0] ?? "기타";
+}
+let WEB = null;
+// [{ id, name, groups: [{ key, name, items: [id…] }] }]
+export function destinyWeb() {
+  if (WEB) return WEB;
+  WEB = BOARDS.map((B) => {
+    const ids = Object.keys(BASE).filter((id) => !id.startsWith("B") && boardOf({ id }) === B.id);
+    const gm = new Map();
+    for (const id of ids) {
+      const g = groupOf(id);
+      gm.has(g) || gm.set(g, []);
+      gm.get(g).push(id);
+    }
+    return { ...B, groups: [...gm].map(([name, items]) => ({ key: `g:${B.id}:${name}`, name, items })) };
+  });
+  return WEB;
+}
+export const GROUP_NEED = FAME_NEED.map((x) => Math.round(x * 0.45));
+export const ITEM_MAX = 10;
+export const itemNeed = (lv) => Math.round(30 * Math.pow(lv, 1.7)); // lv 단계까지 누적
 export const fameOf = (bid) => (DS && DS[bid]) || 0;
-export function boardTier(bid) {
-  const f = fameOf(bid);
+const tierBy = (f, need) => {
   let t = 1;
-  while (t < GRADE_MAX && f >= FAME_NEED[t + 1]) t++;
+  while (t < GRADE_MAX && f >= need[t + 1]) t++;
   return t;
+};
+export const boardTier = (bid) => tierBy(fameOf(bid), FAME_NEED);
+export const groupTier = (key) => tierBy(fameOf(key), GROUP_NEED);
+export function itemLevel(id) {
+  const f = fameOf(`i:${id}`);
+  let lv = 0;
+  while (lv < ITEM_MAX && f >= itemNeed(lv + 1)) lv++;
+  return lv;
 }
-// 다음 티어까지 진행도 0~1
-export function boardProg(bid) {
-  const t = boardTier(bid);
-  if (t >= GRADE_MAX) return 1;
-  return Math.max(0, Math.min(1, (fameOf(bid) - FAME_NEED[t]) / (FAME_NEED[t + 1] - FAME_NEED[t])));
+const progBy = (f, t, need) => (t >= GRADE_MAX ? 1 : Math.max(0, Math.min(1, (f - need[t]) / (need[t + 1] - need[t]))));
+export const boardProg = (bid) => progBy(fameOf(bid), boardTier(bid), FAME_NEED);
+export const groupProg = (key) => progBy(fameOf(key), groupTier(key), GROUP_NEED);
+export function itemProg(id) {
+  const lv = itemLevel(id), f = fameOf(`i:${id}`);
+  return lv >= ITEM_MAX ? 1 : Math.max(0, Math.min(1, (f - itemNeed(lv)) / (itemNeed(lv + 1) - itemNeed(lv))));
 }
+export const groupKeyOf = (it) => {
+  const b = boardOf(it);
+  return b ? `g:${b}:${groupOf(baseIdOf(it))}` : null;
+};
+// 위력: 계열 티어마다 +4% · 갈래 티어마다 +2% · 장비 숙련 단계마다 +1%  (전부 끝까지: +20% +10% +10%)
 export function masteryMult(it) {
   const b = boardOf(it);
   if (!b || !DS) return 1;
-  const t = boardTier(b);
-  return 1 + 0.04 * (t - 1) + (t >= GRADE_MAX ? 0.04 : 0.04 * boardProg(b));
+  const id = baseIdOf(it);
+  return (1 + 0.04 * (boardTier(b) - 1)) * (1 + 0.02 * (groupTier(groupKeyOf(it)) - 1)) * (1 + 0.01 * itemLevel(id));
 }
-// 장비 티어가 보드 숙련보다 높으면 못 낀다
+// 장비 티어가 계열 숙련보다 높으면 못 낀다
 export function canEquip(it) {
   const b = boardOf(it);
   return !b || gradeOf(it) <= boardTier(b);
@@ -371,15 +414,19 @@ export function canEquip(it) {
 export function needText(it) {
   const b = boardOf(it);
   const B = BOARDS.find((x) => x.id === b);
-  return B ? `운명 보드 「${B.name}」 T${gradeOf(it)} 필요 (지금 T${boardTier(b)})` : "";
+  return B ? `운명 보드 「${B.name}」 T${gradeOf(it)} 필요 (지금 T${boardTier(b)}) · B키` : "";
 }
-// 명성 더하기: 티어가 오르면 새 티어 번호를 돌려준다
-export function addFame(bid, n) {
-  if (!DS || !bid || !(n > 0)) return 0;
-  const t0 = boardTier(bid);
+// 명성 더하기: 계열·갈래·장비에 함께 쌓인다. 무엇이 올랐는지 돌려준다
+export function addFame(it, n) {
+  const bid = boardOf(it);
+  if (!DS || !bid || !(n > 0)) return null;
+  const id = baseIdOf(it), gk = groupKeyOf(it), ik = `i:${id}`;
+  const t0 = boardTier(bid), g0 = groupTier(gk), l0 = itemLevel(id);
   DS[bid] = fameOf(bid) + n;
-  const t1 = boardTier(bid);
-  return t1 > t0 ? t1 : 0;
+  DS[gk] = fameOf(gk) + n;
+  DS[ik] = fameOf(ik) + n;
+  const t1 = boardTier(bid), g1 = groupTier(gk), l1 = itemLevel(id);
+  return { bid, board: t1 > t0 ? t1 : 0, group: g1 > g0 ? g1 : 0, groupName: groupOf(id), item: l1 > l0 ? l1 : 0, itemName: BASE[id]?.name };
 }
 
 // ── 지역 재료 ───────────────────────────────────────

@@ -15114,6 +15114,7 @@ class pr extends zt.Scene {
         exit: () => (this.startRun(), null),
       };
     this.facilities = H2.facilities.map((f) => ({ ...f, open: OPEN[f.id] }));
+    this.input.keyboard.on("keydown-B", () => this.panelOpen || FG.toggleDestiny(this));
     const t = (i, e, r) => null;
     const a = FG.hubStats(this);
     ((this.player = new Ws(this, a, 1200, bt)),
@@ -18667,7 +18668,7 @@ class Er extends zt.Scene {
             ? void 0
             : v.banner(
                 "조작법",
-                "A/D 이동 · Space 점프(2단 가능) · ↓ 막기(방패) · Shift 대시 · 좌클릭 공격 · 우클릭 특수 · Q/E 스킬 · R 마법 · Tab 가방·융합 · Esc 일시정지",
+                "A/D 이동 · Space 점프(2단 가능) · ↓ 막기(방패) · Shift 대시 · 좌클릭 공격 · 우클릭 특수 · Q/E 스킬 · R 마법 · Tab 가방·융합 · B 운명 보드 · Esc 일시정지",
                 "#80c0ff",
               );
         }),

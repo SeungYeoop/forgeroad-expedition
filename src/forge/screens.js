@@ -135,7 +135,7 @@ export function makeScreens(R, D) {
       const [id, price] = this.list()[this.sel];
       if (FREE.has(id)) return void ((this.say = "그건 처음부터 자네 것일세. 돈 받을 물건이 아니야."), this.render());
       const need = IT.boardOf({ id: String(id).split("@")[0] });
-      if (need && this.grade > IT.boardTier(need)) return void (j.play("error"), (this.say = `아직 자네 손에 맞지 않아. ${IT.needText({ id: String(id).split("@")[0], grade: this.grade })}. 기록 게시판의 운명 보드를 보게.`), this.render());
+      if (need && this.grade > IT.boardTier(need)) return void (j.play("error"), (this.say = `아직 자네 손에 맞지 않아. ${IT.needText({ id: String(id).split("@")[0], grade: this.grade })}. B키로 운명 보드를 보게.`), this.render());
       const c = matCost(this.grade);
       if (c && (matsOf()[c.mat.id] ?? 0) < c.n) return void (j.play("error"), (this.say = `${c.mat.name}가 모자라. ${c.n}개는 있어야 하네.`), this.render());
       if (!SAVE.spend(price)) return void (j.play("error"), (this.say = "골드가 모자라는군. 탐험을 더 다녀오게."), this.render());
@@ -462,14 +462,14 @@ export function makeScreens(R, D) {
     constructor(scene, onClose) {
       super(scene, "기록 게시판", onClose);
       this.R = R;
-      this.tab = 4;
+      this.tab = 0;
       this.render();
     }
     count() {
-      return 5;
+      return 4;
     }
     primary() {
-      this.tab = (this.tab + 1) % 5;
+      this.tab = (this.tab + 1) % 4;
       this.render();
     }
     render() {
@@ -480,42 +480,13 @@ export function makeScreens(R, D) {
       stopCodex(this);
       super.close();
     }
-    // 운명 보드: 계열마다 T1~T6 사다리. 명성은 그 계열을 끼고 싸울 때만 오른다
-    destiny() {
-      const sc = this.scene;
-      IT.bindDestiny(SAVE.data);
-      const top = Y0 + 34, rowH = 46, lx = X0 + 22, bw = X1 - X0 - 44;
-      this.t(lx, top - 2, "장비 티어는 운명 보드 숙련이 닿아야 낄 수 있다. 숙련 티어마다 그 계열 위력 +4%.", "tiny", "#3a2414").setDepth(206);
-      IT.BOARDS.forEach((B, r) => {
-        const y = top + 14 + r * rowH;
-        const t = IT.boardTier(B.id), f = Math.floor(IT.fameOf(B.id)), pr = IT.boardProg(B.id);
-        A(this, sc.add.rectangle(lx, y, bw, rowH - 6, 0xf4e8c8, 0.92).setOrigin(0).setStrokeStyle(1, 0x7a5434), 204);
-        this.t(lx + 8, y + 4, B.name, "small", "#2a1408").setDepth(206);
-        this.t(lx + 8, y + 22, B.desc, "tiny", "#6a5040").setDepth(206);
-        // T1~T6 마디
-        const nx = lx + 200, nw = 52;
-        for (let g = 1; g <= IT.GRADE_MAX; g++) {
-          const cx = nx + (g - 1) * nw, on = g <= t;
-          g > 1 && A(this, sc.add.rectangle(cx - nw + 12, y + 16, nw - 24, 3, on ? 0xc89a3a : 0xb8a888).setOrigin(0, 0.5), 205);
-          A(this, sc.add.circle(cx, y + 16, 11, on ? Number("0x" + IT.GRADE_CSS[g].slice(1)) : 0xd8ccb0).setStrokeStyle(2, on ? 0x2a1408 : 0x9a8a70), 205);
-          this.t(cx, y + 10, `T${g}`, "tiny", on ? "#1a0e06" : "#8a7a6a").setOrigin(0.5, 0).setDepth(206);
-          g >= 2 && this.t(cx, y + 28, `${IT.FAME_NEED[g]}`, "tiny", g <= t ? "#6a5040" : "#9a8a70").setOrigin(0.5, 0).setDepth(206);
-        }
-        // 다음 티어 진행 막대
-        const px = nx + IT.GRADE_MAX * nw - 14, pw = lx + bw - px - 10;
-        A(this, sc.add.rectangle(px, y + 12, pw, 8, 0x3a2414).setOrigin(0), 205);
-        A(this, sc.add.rectangle(px + 1, y + 13, Math.max(0, (pw - 2) * pr), 6, 0xffc850).setOrigin(0), 206);
-        this.t(px, y + 22, t >= IT.GRADE_MAX ? `명성 ${f} · 끝` : `명성 ${f} / ${IT.FAME_NEED[t + 1]}`, "tiny", "#3a2414").setDepth(206);
-      });
-      this.hintText?.setText("높은 티어 지역의 강한 적일수록 명성을 많이 준다 · 정예 x3 · 희귀 정예 x8 · 보스 x10");
-    }
     build() {
       const sc = this.scene, T = SAVE.data;
       A(this, sc.add.image(X0 + 8, Y0 + 8, PAPER.corkKey(sc, X1 - X0 - 16, Y1 - Y0 - 16)).setOrigin(0), 202);
       frameWood(this, X0, Y0, X1 - X0, Y1 - Y0, 8, 0x6a4022);
       const done = R.We.filter((a) => T.achievements.includes(a.id)).length;
-      ["기록", `업적 ${done}/${R.We.length}`, "도감", "전투 지식", "운명 보드"].forEach((s, i) => {
-        const x = 110 + i * 86;
+      ["기록", `업적 ${done}/${R.We.length}`, "도감", "전투 지식"].forEach((s, i) => {
+        const x = 128 + i * 86;
         const on = i === this.tab;
         const n = A(this, sc.add.image(x + 42, 22, PAPER.noteKey(sc, 84, 22, 20 + i)).setRotation((i - 1) * 0.03).setInteractive({ useHandCursor: !0 }), 204);
         n.on("pointerdown", () => ((this.tab = i), j.play("click"), this.render()));
@@ -526,8 +497,7 @@ export function makeScreens(R, D) {
       if (this.tab === 0) this.records(T);
       else if (this.tab === 1) this.achieve(T);
       else if (this.tab === 2) drawCodex(this, { A, note, pin, R, q, j, SAVE, describe, itemIcon, mkItem, X0, Y0, X1, Y1 });
-      else if (this.tab === 3) this.codex();
-      else this.destiny();
+      else this.codex();
       this.hintText?.setText(this.tab === 2 ? "책갈피로 지역 · 쪽지로 분류 · 움직임 단추로 동작을 골라 보세요" : "");
     }
     records(T) {

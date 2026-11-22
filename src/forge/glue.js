@@ -4595,104 +4595,244 @@ function whenPlanned(sc, z, f) {
 
 
 // ── 운명 보드 (B키): 알비온식 그물 ──────────────────────
-// 가운데 → 계열 5개 → 갈래들(바깥 고리). 갈래를 누르면 그 갈래의 장비 하나하나가 그물로 펼쳐진다.
+// 가운데에서 계열 5개가 뻗는다: 계열 티어 사슬(T1~T6) → 끝에서 갈래들이 갈라져 갈래 티어 사슬(T1~T6) → 끝에 장비 마디.
+// 끌어서 움직이고 휠로 확대·축소. 마디에 올리면 정보, 누르면 그 마디로 이동.
 export function toggleDestiny(scene) {
   if (scene.frDestiny) return void closeDestiny(scene);
   if (scene.frBag || (scene.run && (scene.run.player?.dead || scene.run.dying))) return;
   IT.bindDestiny(R.it.data);
-  const D = (scene.frDestiny = { objs: [], focus: null });
-  D.esc = () => (D.focus ? ((D.focus = null), drawDestiny(scene)) : closeDestiny(scene));
+  const D = (scene.frDestiny = { objs: [], z: 0.5, x: 0, y: 0, drag: null, hover: null });
+  D.esc = () => closeDestiny(scene);
   scene.input.keyboard.on("keydown-ESC", D.esc);
   R.j.play("open");
-  drawDestiny(scene);
+  buildDestiny(scene);
 }
 function closeDestiny(scene) {
   const D = scene.frDestiny;
   if (!D) return;
   for (const o of D.objs) o.destroy();
   scene.input.keyboard.off("keydown-ESC", D.esc);
+  scene.input.off("pointerdown", D.onDown);
+  scene.input.off("pointermove", D.onMove);
+  scene.input.off("pointerup", D.onUp);
+  scene.input.off("wheel", D.onWheel);
   scene.frDestiny = null;
   R.j.play("click");
 }
-function drawDestiny(scene) {
-  const D = scene.frDestiny;
-  for (const o of D.objs) o.destroy();
-  D.objs = [];
-  const { ct, ot: W, xt: H } = R;
-  const DEP = 300;
-  const add = (o, d = 0) => (o.setScrollFactor?.(0), o.setDepth?.(DEP + d), D.objs.push(o), o);
-  const txt = (x, y, s, size, col, o = {}) => add(ct(scene, x, y, s, size, col, { stroke: "#06040a", strokeThickness: 3, ...o }), 6);
-  const hex = (css) => Number("0x" + css.slice(1));
-  add(scene.add.rectangle(0, 0, W, H, 0x07060e, 0.93).setOrigin(0).setInteractive(), 0);
-  for (let i = 0; i < 70; i++) add(scene.add.circle((i * 97.13) % W, (i * 53.71) % H, (i % 3) * 0.4 + 0.4, 0x8a9ad8, 0.25 + (i % 5) * 0.06), 0);
-  txt(16, 10, "운명 보드", "big", "#ffe6a0");
-  txt(W - 16, 14, "B 닫기 · Esc 뒤로 · 갈래를 눌러 펼치기", "tiny", "#9a96b8").setOrigin(1, 0);
+// 그물 배치: 장비마다 같은 각도 몫 → 갈래 각도 = 장비 평균, 계열 각도 = 갈래 평균 (빈틈 없이 고르게)
+function destinyLayout() {
   const web = IT.destinyWeb();
-  const line = add(scene.add.graphics(), 1);
-  const info = { t1: txt(16, H - 44, "", "small", "#ffffff"), t2: txt(16, H - 26, "", "tiny", "#c8c0e0") };
-  const setInfo = (a, b) => (info.t1.setText(a), info.t2.setText(b));
-  const node = (x, y, r, fill, on, label, onOver, onDown) => {
-    on && add(scene.add.circle(x, y, r + 5, fill, 0.18), 2);
-    const c = add(scene.add.circle(x, y, r, on ? fill : 0x2a2838).setStrokeStyle(2, on ? 0xfff0c0 : 0x5a5878), 3);
-    c.setInteractive({ useHandCursor: !0 }).on("pointerover", () => (c.setStrokeStyle(3, 0xffffff), onOver())).on("pointerout", () => c.setStrokeStyle(2, on ? 0xfff0c0 : 0x5a5878));
-    onDown && c.on("pointerdown", onDown);
-    label && txt(x, y + r + 2, label, "tiny", on ? "#ffffff" : "#9a96b8").setOrigin(0.5, 0);
-    return c;
-  };
-  const ring = (x, y, r, p, col) => {
-    if (!(p > 0)) return;
-    const g = add(scene.add.graphics(), 4);
-    g.lineStyle(2, col, 1).beginPath().arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p).strokePath();
-  };
-  const famePart = (f, nxt) => (nxt ? `명성 ${Math.floor(f)} / ${nxt}` : `명성 ${Math.floor(f)} · 끝까지 올림`);
-  if (!D.focus) {
-    // 전체 그물: 가운데 → 계열 → 갈래
-    const cx = W / 2, cy = H / 2 + 6, r1 = 64;
-    web.forEach((B, i) => {
-      const a = -Math.PI / 2 + (i / web.length) * Math.PI * 2;
-      const bx = cx + Math.cos(a) * r1, by = cy + Math.sin(a) * r1;
-      const t = IT.boardTier(B.id), col = hex(IT.GRADE_CSS[t]);
-      line.lineStyle(2, t > 1 ? col : 0x4a4868, 0.8).lineBetween(cx, cy, bx, by);
-      const n = B.groups.length, span = Math.min(1.15, 0.2 * n);
-      B.groups.forEach((G, k) => {
-        const ga = a + (n > 1 ? (k / (n - 1) - 0.5) * span : 0);
-        const r2 = 132 + (k % 2) * 26;
-        const gx = cx + Math.cos(ga) * r2 * 1.35, gy = cy + Math.sin(ga) * r2 * 0.8;
-        const gt = IT.groupTier(G.key), gcol = hex(IT.GRADE_CSS[gt]);
-        line.lineStyle(1, gt > 1 ? gcol : 0x3a3858, 0.7).lineBetween(bx, by, gx, gy);
-        node(gx, gy, 7, gcol, IT.fameOf(G.key) > 0, G.name,
-          () => setInfo(`${B.name} › ${G.name} 갈래 · T${gt}`, `${famePart(IT.fameOf(G.key), IT.GROUP_NEED[gt + 1])} · 갈래 장비 위력 +${2 * (gt - 1)}% · 장비 ${G.items.length}개 · 눌러서 펼치기`),
-          () => ((D.focus = { B, G }), R.j.play("click"), drawDestiny(scene)));
-        ring(gx, gy, 10, IT.groupProg(G.key), 0xffd060);
+  // 계열마다 같은 각도(72°), 그 안에서 장비마다 같은 몫
+  const SEC = (Math.PI * 2) / web.length;
+  let a = -Math.PI / 2 - SEC / 2, slot = 0;
+  const nodes = [], links = [];
+  const P = (r, ang) => [Math.cos(ang) * r, Math.sin(ang) * r];
+  const root = { kind: "root", x: 0, y: 0, r: 30 };
+  nodes.push(root);
+  const C1 = 150, CS = 66, G0 = 600, GS = 60, I0 = 1010;
+  for (const B of web) {
+    const cnt = B.groups.reduce((t, G) => t + G.items.length, 0);
+    slot = (SEC * 0.9) / cnt;
+    a += SEC * 0.05; // 계열 사이 틈
+    const gs = B.groups.map((G) => {
+      const a0 = a;
+      a += slot * G.items.length;
+      return { G, a0, a1: a };
+    });
+    a += SEC * 0.05;
+    const ca = (gs[0].a0 + gs[gs.length - 1].a1) / 2;
+    let prev = root;
+    for (let t = 1; t <= IT.GRADE_MAX; t++) {
+      const [x, y] = P(C1 + (t - 1) * CS, ca);
+      const n = { kind: "board", B, t, x, y, r: t === IT.GRADE_MAX ? 24 : 19, ang: ca };
+      nodes.push(n), links.push([prev, n, "board", B.id, t]);
+      prev = n;
+    }
+    const hubN = prev;
+    for (const { G, a0, a1 } of gs) {
+      const ga = (a0 + a1) / 2;
+      // 계열 끝에서 갈래 첫 마디로 휘어 나간다
+      let gp = hubN;
+      for (let t = 1; t <= IT.GRADE_MAX; t++) {
+        const [x, y] = P(G0 + (t - 1) * GS, ga);
+        const n = { kind: "group", B, G, t, x, y, r: t === IT.GRADE_MAX ? 17 : 13, ang: ga };
+        nodes.push(n), links.push([gp, n, "group", G.key, t]);
+        gp = n;
+      }
+      G.items.forEach((id, k) => {
+        const ia = a0 + slot * (k + 0.5);
+        const rr = I0 + (G.items.length > 1 ? (k % 2) * 46 : 0);
+        const [x, y] = P(rr, ia);
+        const n = { kind: "item", B, G, id, x, y, r: 15, ang: ia };
+        nodes.push(n), links.push([gp, n, "item", id, 1]);
       });
-      node(bx, by, 15, col, !0, "", () => setInfo(`${B.name} · T${t}`, `${famePart(IT.fameOf(B.id), IT.FAME_NEED[t + 1])} · T${t} 장비까지 장착 · 위력 +${4 * (t - 1)}% · ${B.desc}`));
-      txt(bx, by - 6, `T${t}`, "small", "#140e18", { stroke: "#ffffff", strokeThickness: 2 }).setOrigin(0.5, 0);
-      txt(bx, by + 17, B.name, "small", "#ffe6a0").setOrigin(0.5, 0);
-      ring(bx, by, 19, IT.boardProg(B.id), 0xffd060);
-    });
-    node(cx, cy, 11, 0xffe6a0, !0, "", () => setInfo("운명 보드", "계열 숙련이 장착 티어를 연다 · 갈래·장비 숙련은 위력을 더한다 · 끼고 싸울 때만 오른다"));
-    setInfo("운명 보드", "계열(안쪽)이 장착 티어를 연다 · 바깥 마디는 갈래 · 높은 티어 지역의 강한 적일수록 명성이 많다");
-  } else {
-    // 갈래 하나 펼치기: 장비 하나하나
-    const { B, G } = D.focus;
-    const cx = W / 2, cy = H / 2 - 2;
-    const gt = IT.groupTier(G.key), gcol = hex(IT.GRADE_CSS[gt]);
-    txt(cx, 40, `${B.name} › ${G.name}`, "body", "#ffe6a0").setOrigin(0.5, 0);
-    const n = G.items.length, rr = Math.min(118, 50 + n * 9);
-    G.items.forEach((id, k) => {
-      const a = -Math.PI / 2 + (k / n) * Math.PI * 2;
-      const x = cx + Math.cos(a) * rr * 1.25, y = cy + Math.sin(a) * rr * 0.78;
-      const lv = IT.itemLevel(id), f = IT.fameOf(`i:${id}`);
-      line.lineStyle(1, lv > 0 ? gcol : 0x3a3858, 0.8).lineBetween(cx, cy, x, y);
-      const nm = IT.BASE[id]?.name ?? id;
-      node(x, y, 9, gcol, f > 0, nm,
-        () => setInfo(`${nm} · 숙련 ${lv}/${IT.ITEM_MAX}단계`, `${famePart(f, lv < IT.ITEM_MAX ? IT.itemNeed(lv + 1) : 0)} · 이 장비만 위력 +${lv}% · 장착 티어는 「${B.name}」 계열 T${IT.boardTier(B.id)}까지`));
-      ring(x, y, 12, IT.itemProg(id), 0xffd060);
-      lv > 0 && txt(x, y - 6, `${lv}`, "tiny", "#140e18", { stroke: "#ffffff", strokeThickness: 2 }).setOrigin(0.5, 0);
-    });
-    node(cx, cy, 16, gcol, !0, "", () => setInfo(`${G.name} 갈래 · T${gt}`, `${famePart(IT.fameOf(G.key), IT.GROUP_NEED[gt + 1])} · 갈래 장비 위력 +${2 * (gt - 1)}%`), () => ((D.focus = null), drawDestiny(scene)));
-    txt(cx, cy - 7, `T${gt}`, "small", "#140e18", { stroke: "#ffffff", strokeThickness: 2 }).setOrigin(0.5, 0);
-    ring(cx, cy, 20, IT.groupProg(G.key), 0xffd060);
-    setInfo(`${G.name} 갈래 · T${gt}`, "가운데를 누르거나 Esc로 돌아가기 · 마디에 마우스를 올려 숙련 보기");
+    }
   }
+  return { nodes, links, R: I0 + 120 };
+}
+function buildDestiny(scene) {
+  const D = scene.frDestiny;
+  const { ct, ot: W, xt: H } = R;
+  const DEP = 9000;
+  const add = (o, d = 0) => (o.setScrollFactor?.(0), o.setDepth?.(DEP + d), D.objs.push(o), o);
+  const hex = (css) => Number("0x" + css.slice(1));
+  D.labels = [];
+  const L = (D.L = D.L ?? destinyLayout());
+  // 바탕: 짙은 남색 + 별 + 바깥 고리
+  add(scene.add.rectangle(0, 0, W, H, 0x05060c, 1).setOrigin(0).setInteractive(), 0);
+  const world = add(scene.add.container(W / 2, H / 2), 1);
+  D.world = world;
+  const g = scene.add.graphics();
+  world.add(g);
+  for (let i = 0; i < 520; i++) {
+    const a = i * 2.39996, r = Math.sqrt(i / 520) * L.R * 1.15;
+    g.fillStyle(0x9aa8e0, 0.12 + (i % 7) * 0.035).fillCircle(Math.cos(a) * r + ((i * 37) % 23) - 11, Math.sin(a) * r + ((i * 53) % 19) - 9, (i % 4) * 0.5 + 0.6);
+  }
+  for (const rr of [150 + 5 * 66 + 40, 600 + 5 * 60 + 40]) g.lineStyle(1, 0x2a3054, 0.6).strokeCircle(0, 0, rr);
+  // 상태
+  const st = (n) => {
+    if (n.kind === "root") return { on: 1, prog: 0, col: 0xffe6a0 };
+    if (n.kind === "board") {
+      const t = IT.boardTier(n.B.id);
+      return { on: n.t <= t, prog: n.t === t + 1 ? IT.boardProg(n.B.id) : 0, col: hex(IT.GRADE_CSS[n.t]) };
+    }
+    if (n.kind === "group") {
+      const t = IT.groupTier(n.G.key);
+      return { on: n.t <= t && IT.fameOf(n.G.key) > 0, prog: n.t === t + 1 ? IT.groupProg(n.G.key) : 0, col: hex(IT.GRADE_CSS[n.t]) };
+    }
+    const lv = IT.itemLevel(n.id);
+    return { on: lv > 0, lv, prog: IT.itemProg(n.id), col: hex(IT.GRADE_CSS[Math.max(1, Math.min(6, Math.ceil(lv / 2) + 1))]) };
+  };
+  // 잇는 선: 열린 길은 금빛, 닫힌 길은 어둡게
+  for (const [a, b, kind] of L.links) {
+    const sb = st(b);
+    const lit = sb.on;
+    const w = kind === "board" ? 5 : kind === "group" ? 3.5 : 2;
+    g.lineStyle(w + 4, 0x000000, 0.5).lineBetween(a.x, a.y, b.x, b.y);
+    g.lineStyle(w, lit ? 0xd8a840 : 0x2c3048, 1).lineBetween(a.x, a.y, b.x, b.y);
+    lit && g.lineStyle(w * 0.35, 0xfff0b0, 0.9).lineBetween(a.x, a.y, b.x, b.y);
+  }
+  // 육각 마디
+  const hexPts = (x, y, r) => Array.from({ length: 6 }, (_, i) => ({ x: x + Math.cos(Math.PI / 6 + (i * Math.PI) / 3) * r, y: y + Math.sin(Math.PI / 6 + (i * Math.PI) / 3) * r }));
+  // 글자는 확대하지 않고 따로 띄운다 (늘 선명하게). minZ보다 작게 보면 숨긴다
+  const label = (x, y, s, size, col, o = {}, minZ = 0) => {
+    const t = add(ct(scene, 0, 0, s, size, col, { stroke: "#05060c", strokeThickness: 4, ...o }), 3);
+    D.labels.push({ t, x, y, minZ });
+    return t;
+  };
+  for (const n of L.nodes) {
+    const s = st(n);
+    const { x, y, r } = n;
+    s.on && g.fillStyle(s.col, 0.16).fillCircle(x, y, r * 1.6);
+    g.fillStyle(0x000000, 0.6).fillPoints(hexPts(x, y + 3, r + 4), !0);
+    g.fillStyle(s.on ? 0x2a2214 : 0x12141e, 1).fillPoints(hexPts(x, y, r + 3), !0);
+    g.lineStyle(2, s.on ? 0xe8c060 : 0x3a3e58, 1).strokePoints(hexPts(x, y, r + 3), !0);
+    g.fillStyle(s.on ? s.col : 0x1e2232, 1).fillPoints(hexPts(x, y, r * 0.78), !0);
+    s.on && g.fillStyle(0xffffff, 0.25).fillPoints(hexPts(x, y - r * 0.15, r * 0.42), !0);
+    if (s.prog > 0 && s.prog < 1) g.lineStyle(3, 0xffd060, 1).beginPath().arc(x, y, r + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * s.prog).strokePath();
+    if (n.kind === "root") label(x, y, "운명", "body", "#140e08", { stroke: "#ffe6a0", strokeThickness: 2 }).setOrigin(0.5, 0);
+    else if (n.kind === "item") {
+      const nm = IT.BASE[n.id]?.name ?? n.id;
+      s.lv && label(x, y, `${s.lv}`, "small", "#140e08", { stroke: "#ffffff", strokeThickness: 2 }, 0.4).setOrigin(0.5, 0.5);
+      const out = Math.cos(n.ang) >= 0;
+      label(x + Math.cos(n.ang) * (r + 10), y + Math.sin(n.ang) * (r + 10), nm, "small", s.on ? "#fff4d8" : "#8a8ea8", {}, 0.42).setOrigin(out ? 0 : 1, 0.5);
+    } else {
+      label(x, y, `T${n.t}`, n.kind === "board" ? "small" : "tiny", s.on ? "#140e08" : "#8a8ea8", s.on ? { stroke: "#ffffff", strokeThickness: 2 } : {}, n.kind === "board" ? 0.3 : 0.5).setOrigin(0.5, 0.5);
+      if (n.t === 1) {
+        const nm = n.kind === "board" ? n.B.name : n.G.name;
+        label(x + Math.cos(n.ang + Math.PI / 2) * (r + 30), y + Math.sin(n.ang + Math.PI / 2) * (r + 30), nm, n.kind === "board" ? "body" : "small", n.kind === "board" ? "#ffe6a0" : "#d8d0f0", {}, n.kind === "board" ? 0 : 0.28).setOrigin(0.5, 0.5);
+      }
+    }
+  }
+  D.hl = scene.add.graphics();
+  world.add(D.hl);
+  // 고정 UI: 제목 · 도움말 · 아래 정보판
+  const ui = (x, y, s, size, col, o = {}) => add(ct(scene, x, y, s, size, col, { stroke: "#05060c", strokeThickness: 3, ...o }), 6);
+  add(scene.add.rectangle(0, 0, W, 34, 0x05060c, 0.85).setOrigin(0), 5);
+  ui(14, 8, "운명 보드", "big", "#ffe6a0");
+  ui(W - 14, 13, "끌어서 이동 · 휠 확대/축소 · B·Esc 닫기", "tiny", "#9a96b8").setOrigin(1, 0);
+  add(scene.add.rectangle(0, H - 52, W, 52, 0x05060c, 0.88).setOrigin(0), 5);
+  add(scene.add.rectangle(0, H - 52, W, 1, 0xd8a840, 0.7).setOrigin(0), 5);
+  D.t1 = ui(14, H - 46, "", "body", "#ffffff");
+  D.t2 = ui(14, H - 24, "", "tiny", "#c8c0e0");
+  const famePart = (f, nxt) => (nxt ? `명성 ${Math.floor(f)} / ${nxt}` : `명성 ${Math.floor(f)}`);
+  D.info = (n) => {
+    if (!n) return (D.t1.setText("운명 보드"), D.t2.setText("안쪽 사슬 = 계열 (장착 티어를 연다) · 바깥 사슬 = 갈래 · 끝 마디 = 장비 하나하나. 끼고 싸울 때만 오른다"));
+    if (n.kind === "root") return (D.t1.setText("운명"), D.t2.setText("높은 티어 지역의 강한 적일수록 명성을 많이 준다 · 정예 x3 · 희귀 정예 x8 · 보스 x10"));
+    if (n.kind === "board") {
+      const t = IT.boardTier(n.B.id), f = IT.fameOf(n.B.id);
+      return (D.t1.setText(`${n.B.name} · T${n.t} ${n.t <= t ? "(열림)" : ""}`), D.t2.setText(`${famePart(f, IT.FAME_NEED[n.t])} · 열리면 ${n.B.name} T${n.t} 장비 장착 · 계열 위력 +${4 * (n.t - 1)}% · ${n.B.desc}`));
+    }
+    if (n.kind === "group") {
+      const t = IT.groupTier(n.G.key), f = IT.fameOf(n.G.key);
+      return (D.t1.setText(`${n.B.name} › ${n.G.name} · T${n.t} ${n.t <= t && f > 0 ? "(열림)" : ""}`), D.t2.setText(`${famePart(f, IT.GROUP_NEED[n.t])} · 열리면 ${n.G.name} 갈래 장비 위력 +${2 * (n.t - 1)}% · 장비 ${n.G.items.length}개`));
+    }
+    const lv = IT.itemLevel(n.id), f = IT.fameOf(`i:${n.id}`);
+    return (D.t1.setText(`${IT.BASE[n.id]?.name ?? n.id} · 숙련 ${lv}/${IT.ITEM_MAX}`), D.t2.setText(`${famePart(f, lv < IT.ITEM_MAX ? IT.itemNeed(lv + 1) : 0)} · 이 장비만 위력 +${lv}% · ${n.B.name} › ${n.G.name}`));
+  };
+  D.info(null);
+  // 보기 적용 · 고르기
+  const apply = () => {
+    const lim = L.R * D.z;
+    D.x = Math.max(-lim, Math.min(lim, D.x));
+    D.y = Math.max(-lim, Math.min(lim, D.y));
+    world.setPosition(W / 2 + D.x, H / 2 + D.y).setScale(D.z);
+    for (const l of D.labels) {
+      const sx = W / 2 + D.x + l.x * D.z, sy = H / 2 + D.y + l.y * D.z;
+      const vis = D.z >= l.minZ && sx > -80 && sx < W + 80 && sy > 30 && sy < H - 50;
+      l.t.setVisible(vis);
+      vis && l.t.setPosition(Math.round(sx), Math.round(sy));
+    }
+  };
+  D.apply = apply;
+  apply();
+  const pick = (px, py) => {
+    const wx = (px - W / 2 - D.x) / D.z, wy = (py - H / 2 - D.y) / D.z;
+    let best = null, bd = 1e9;
+    for (const n of L.nodes) {
+      const d = Math.hypot(n.x - wx, n.y - wy);
+      d < n.r + 8 && d < bd && ((bd = d), (best = n));
+    }
+    return best;
+  };
+  const hover = (n) => {
+    if (n === D.hover) return;
+    D.hover = n;
+    D.hl.clear();
+    n && D.hl.lineStyle(3, 0xffffff, 0.95).strokePoints(hexPts(n.x, n.y, n.r + 6), !0);
+    D.info(n);
+  };
+  D.onDown = (p) => (D.drag = { x: p.x, y: p.y, ox: D.x, oy: D.y, moved: 0 });
+  D.onMove = (p) => {
+    if (D.drag && p.isDown) {
+      D.drag.moved = Math.max(D.drag.moved, Math.hypot(p.x - D.drag.x, p.y - D.drag.y));
+      D.x = D.drag.ox + (p.x - D.drag.x);
+      D.y = D.drag.oy + (p.y - D.drag.y);
+      apply();
+    } else if (p.y > 34 && p.y < H - 52) hover(pick(p.x, p.y));
+  };
+  D.onUp = (p) => {
+    const dr = D.drag;
+    D.drag = null;
+    if (!dr || dr.moved > 5) return;
+    const n = pick(p.x, p.y);
+    if (!n) return;
+    // 누른 마디로 부드럽게 이동
+    R.j.play("click");
+    const tx = -n.x * D.z, ty = -n.y * D.z, o = { x: D.x, y: D.y };
+    scene.tweens.add({ targets: o, x: tx, y: ty, duration: 260, ease: "Cubic.easeOut", onUpdate: () => ((D.x = o.x), (D.y = o.y), apply()) });
+  };
+  D.onWheel = (p, _o, _dx, dy) => {
+    const z0 = D.z, z1 = Math.max(0.16, Math.min(2.2, z0 * (dy > 0 ? 0.88 : 1.14)));
+    // 커서 아래 지점을 붙잡고 확대
+    const cx = p.x - W / 2, cy = p.y - H / 2;
+    D.x = cx - ((cx - D.x) * z1) / z0;
+    D.y = cy - ((cy - D.y) * z1) / z0;
+    D.z = z1;
+    apply();
+  };
+  scene.input.on("pointerdown", D.onDown);
+  scene.input.on("pointermove", D.onMove);
+  scene.input.on("pointerup", D.onUp);
+  scene.input.on("wheel", D.onWheel);
 }

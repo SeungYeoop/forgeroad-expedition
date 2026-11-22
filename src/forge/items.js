@@ -323,110 +323,141 @@ export function dropGrade(region) {
 }
 
 // ── 운명 보드 ───────────────────────────────────────
-// 계열마다 명성을 쌓는다. 그 계열 장비를 끼고 싸워야만 오른다 (돈으로 못 산다).
-export const BOARDS = [
-  { id: "melee", name: "근접 무기", desc: "근접 무기를 끼고 적을 쓰러뜨리면 오른다" },
-  { id: "ranged", name: "원거리 무기", desc: "원거리 무기를 끼고 적을 쓰러뜨리면 오른다" },
-  { id: "armor", name: "방어구", desc: "어떤 방어구든 입고 싸우면 오른다" },
-  { id: "skill", name: "기술", desc: "기술을 끼고 싸우면 오른다" },
-  { id: "magic", name: "마법", desc: "마법을 끼고 싸우면 오른다" },
+// 구조: 가운데 → 직업(전사·사냥꾼·마법사·무술가) 사슬 T1~T2 → 계통마다 갈라지는 티어 사슬 T3~T6 → 장비 하나하나의 전문화(0~100)
+// 직업 사슬이 T2까지 열고, T3부터는 계통 사슬이 그 계통 장비의 장착 티어를 연다. 명성은 끼고 싸울 때만 쌓인다.
+export const CLASSES = [
+  { id: "warrior", name: "전사", desc: "근접 무기 · 판금 갑주 · 방패" },
+  { id: "hunter", name: "사냥꾼", desc: "원거리 무기 · 가죽옷" },
+  { id: "mage", name: "마법사", desc: "마법 · 천옷" },
+  { id: "martial", name: "무술가", desc: "기술" },
 ];
-// 티어를 여는 누적 명성 (T1은 처음부터)
-export const FAME_NEED = [0, 0, 150, 650, 2000, 5200, 12000];
-// 한 티어 숙련마다 그 계열 위력 +4%, 티어 안 진행도도 조금 (최대 T6 +20% · 끝까지 +24%)
+export const CLASS_NEED = [0, 0, 220]; // 직업 T2
+export const LINE_NEED = [0, 0, 0, 700, 2100, 5200, 11500]; // 계통 T3~T6
+export const SPEC_MAX = 100;
+export const specNeed = (lv) => Math.round(6 * Math.pow(lv, 1.8)); // lv까지 누적
 let DS = null;
 export const bindDestiny = (data) => (DS = data ? (data.destiny = data.destiny ?? {}) : null);
 const baseIdOf = (it) => String(it?.tier ? it.primary ?? it.id : it?.id ?? it).split("@")[0];
-export function boardOf(it) {
-  if (!it) return null;
-  const b = BASE[baseIdOf(it)];
-  const kind = it.kind ?? b?.kind;
-  if (kind === "weapon") return /근접|짧음/.test(b?.range ?? "근접") ? "melee" : "ranged";
-  return kind === "armor" || kind === "skill" || kind === "magic" ? kind : null;
-}
-// ── 그물: 계열 → 갈래 → 장비 하나하나 ──
-// 계열 숙련 = 장착 티어 해금 · 갈래 숙련 = 갈래 전체 위력 · 장비 숙련 = 그 장비만 위력
 const EL_KO = { fire: "화염", ice: "냉기", lightning: "번개", wind: "바람", earth: "대지", poison: "독", light: "빛", dark: "어둠" };
-const ARMOR_G = [[/방패/, "방패"], [/로브|도복|법의|앞치마|왕관/, "천옷"], [/망토|외투|작업복/, "가죽옷"], [/.*/, "판금·갑주"]];
-export function groupOf(id) {
+const ARMOR_G = [[/방패/, "방패", "warrior"], [/로브|도복|법의|앞치마|왕관/, "천옷", "mage"], [/망토|외투|작업복/, "가죽옷", "hunter"], [/.*/, "판금 갑주", "warrior"]];
+// [직업, 계통 이름]
+// 장비가 하나뿐인 계통은 「그 밖의 …」로 합친다 (계통이 너무 잘게 쪼개지지 않게)
+let LCOUNT = null;
+function placeOf(id) {
+  const p = rawPlace(id);
+  if (!p) return p;
+  if (!LCOUNT) {
+    LCOUNT = {};
+    for (const x of Object.keys(BASE)) {
+      const q = rawPlace(x);
+      q && (LCOUNT[q.join(":")] = (LCOUNT[q.join(":")] ?? 0) + 1);
+    }
+  }
+  if (LCOUNT[p.join(":")] >= 2) return p;
+  const tail = { warrior: "근접 무기", hunter: "원거리 무기", mage: "마법", martial: "기술" }[p[0]];
+  return [p[0], BASE[id].kind === "armor" ? p[1] : `그 밖의 ${tail}`];
+}
+function rawPlace(id) {
   const b = BASE[id];
-  if (!b) return "기타";
-  if (b.kind === "magic") return EL_KO[b.el] ?? "비전";
-  if (b.kind === "armor") return ARMOR_G.find(([re]) => re.test(b.name))[1];
-  return b.traits?.[0] ?? "기타";
+  if (!b || id.startsWith("B")) return null;
+  if (b.kind === "weapon") return /근접|짧음/.test(b.range ?? "근접") ? ["warrior", `${b.traits?.[0] ?? "무기"} 무기`] : ["hunter", `${b.traits?.[0] ?? "무기"} 무기`];
+  if (b.kind === "magic") return ["mage", `${EL_KO[b.el] ?? "비전"} 마법`];
+  if (b.kind === "armor") {
+    const g = ARMOR_G.find(([re]) => re.test(b.name));
+    return [g[2], g[1]];
+  }
+  if (b.kind === "skill") return ["martial", `${b.traits?.[0] ?? "기술"} 기술`];
+  return null;
+}
+export const classOf = (it) => (it ? placeOf(baseIdOf(it))?.[0] ?? null : null);
+export function lineKeyOf(it) {
+  const p = it && placeOf(baseIdOf(it));
+  return p ? `l:${p[0]}:${p[1]}` : null;
 }
 let WEB = null;
-// [{ id, name, groups: [{ key, name, items: [id…] }] }]
+// [{ id, name, desc, lines: [{ key, name, items: [id…] }] }]
 export function destinyWeb() {
   if (WEB) return WEB;
-  WEB = BOARDS.map((B) => {
-    const ids = Object.keys(BASE).filter((id) => !id.startsWith("B") && boardOf({ id }) === B.id);
-    const gm = new Map();
-    for (const id of ids) {
-      const g = groupOf(id);
-      gm.has(g) || gm.set(g, []);
-      gm.get(g).push(id);
-    }
-    return { ...B, groups: [...gm].map(([name, items]) => ({ key: `g:${B.id}:${name}`, name, items })) };
-  });
+  const m = new Map(CLASSES.map((C) => [C.id, new Map()]));
+  for (const id of Object.keys(BASE)) {
+    const p = placeOf(id);
+    if (!p) continue;
+    const L = m.get(p[0]);
+    L.has(p[1]) || L.set(p[1], []);
+    L.get(p[1]).push(id);
+  }
+  WEB = CLASSES.map((C) => ({ ...C, lines: [...m.get(C.id)].map(([name, items]) => ({ key: `l:${C.id}:${name}`, name, items })) }));
   return WEB;
 }
-export const GROUP_NEED = FAME_NEED.map((x) => Math.round(x * 0.45));
-export const ITEM_MAX = 10;
-export const itemNeed = (lv) => Math.round(30 * Math.pow(lv, 1.7)); // lv 단계까지 누적
-export const fameOf = (bid) => (DS && DS[bid]) || 0;
-const tierBy = (f, need) => {
-  let t = 1;
-  while (t < GRADE_MAX && f >= need[t + 1]) t++;
+export const fameOf = (k) => (DS && DS[k]) || 0;
+export const classTier = (cid) => (fameOf(`c:${cid}`) >= CLASS_NEED[2] ? 2 : 1);
+export function lineTier(lk) {
+  const cid = lk.split(":")[1];
+  if (classTier(cid) < 2) return 1;
+  const f = fameOf(lk);
+  let t = 2;
+  while (t < GRADE_MAX && f >= LINE_NEED[t + 1]) t++;
   return t;
-};
-export const boardTier = (bid) => tierBy(fameOf(bid), FAME_NEED);
-export const groupTier = (key) => tierBy(fameOf(key), GROUP_NEED);
-export function itemLevel(id) {
+}
+export function specLevel(id) {
   const f = fameOf(`i:${id}`);
-  let lv = 0;
-  while (lv < ITEM_MAX && f >= itemNeed(lv + 1)) lv++;
-  return lv;
+  let lo = 0, hi = SPEC_MAX;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    f >= specNeed(mid) ? (lo = mid) : (hi = mid - 1);
+  }
+  return lo;
 }
-const progBy = (f, t, need) => (t >= GRADE_MAX ? 1 : Math.max(0, Math.min(1, (f - need[t]) / (need[t + 1] - need[t]))));
-export const boardProg = (bid) => progBy(fameOf(bid), boardTier(bid), FAME_NEED);
-export const groupProg = (key) => progBy(fameOf(key), groupTier(key), GROUP_NEED);
-export function itemProg(id) {
-  const lv = itemLevel(id), f = fameOf(`i:${id}`);
-  return lv >= ITEM_MAX ? 1 : Math.max(0, Math.min(1, (f - itemNeed(lv)) / (itemNeed(lv + 1) - itemNeed(lv))));
+export function classProg(cid) {
+  return classTier(cid) >= 2 ? 1 : Math.min(1, fameOf(`c:${cid}`) / CLASS_NEED[2]);
 }
-export const groupKeyOf = (it) => {
-  const b = boardOf(it);
-  return b ? `g:${b}:${groupOf(baseIdOf(it))}` : null;
-};
-// 위력: 계열 티어마다 +4% · 갈래 티어마다 +2% · 장비 숙련 단계마다 +1%  (전부 끝까지: +20% +10% +10%)
+export function lineProg(lk) {
+  const t = lineTier(lk);
+  if (t < 2) return 0;
+  if (t >= GRADE_MAX) return 1;
+  const f = fameOf(lk);
+  return Math.max(0, Math.min(1, (f - LINE_NEED[t]) / (LINE_NEED[t + 1] - LINE_NEED[t])));
+}
+export function specProg(id) {
+  const lv = specLevel(id);
+  return lv >= SPEC_MAX ? 1 : Math.max(0, Math.min(1, (fameOf(`i:${id}`) - specNeed(lv)) / (specNeed(lv + 1) - specNeed(lv))));
+}
+// 위력: 계통 티어마다 +4% · 이 장비 전문화 레벨마다 +0.2% · 같은 계통 다른 장비 전문화 합의 0.05%(최대 +10%)
 export function masteryMult(it) {
-  const b = boardOf(it);
-  if (!b || !DS) return 1;
+  const lk = lineKeyOf(it);
+  if (!lk || !DS) return 1;
   const id = baseIdOf(it);
-  return (1 + 0.04 * (boardTier(b) - 1)) * (1 + 0.02 * (groupTier(groupKeyOf(it)) - 1)) * (1 + 0.01 * itemLevel(id));
+  const line = destinyWeb().flatMap((C) => C.lines).find((L) => L.key === lk);
+  const others = (line?.items ?? []).reduce((s, x) => (x === id ? s : s + specLevel(x)), 0);
+  return (1 + 0.04 * (lineTier(lk) - 1)) * (1 + 0.002 * specLevel(id) + Math.min(0.1, 0.0005 * others));
 }
-// 장비 티어가 계열 숙련보다 높으면 못 낀다
+// 장비 티어가 그 계통 사슬보다 높으면 못 낀다
 export function canEquip(it) {
-  const b = boardOf(it);
-  return !b || gradeOf(it) <= boardTier(b);
+  const lk = lineKeyOf(it);
+  return !lk || gradeOf(it) <= lineTier(lk);
 }
 export function needText(it) {
-  const b = boardOf(it);
-  const B = BOARDS.find((x) => x.id === b);
-  return B ? `운명 보드 「${B.name}」 T${gradeOf(it)} 필요 (지금 T${boardTier(b)}) · B키` : "";
+  const lk = lineKeyOf(it);
+  if (!lk) return "";
+  const [, cid, name] = lk.split(":");
+  const C = CLASSES.find((x) => x.id === cid);
+  const g = gradeOf(it);
+  return g <= 2 ? `운명 보드 「${C.name}」 T2 필요 · B키` : `운명 보드 「${C.name} › ${name}」 T${g} 필요 (지금 T${lineTier(lk)}) · B키`;
 }
-// 명성 더하기: 계열·갈래·장비에 함께 쌓인다. 무엇이 올랐는지 돌려준다
+// 명성 더하기: 직업 · 계통 · 장비 전문화에 함께 쌓인다
 export function addFame(it, n) {
-  const bid = boardOf(it);
-  if (!DS || !bid || !(n > 0)) return null;
-  const id = baseIdOf(it), gk = groupKeyOf(it), ik = `i:${id}`;
-  const t0 = boardTier(bid), g0 = groupTier(gk), l0 = itemLevel(id);
-  DS[bid] = fameOf(bid) + n;
-  DS[gk] = fameOf(gk) + n;
+  const lk = lineKeyOf(it);
+  if (!DS || !lk || !(n > 0)) return null;
+  const id = baseIdOf(it), cid = lk.split(":")[1], ck = `c:${cid}`, ik = `i:${id}`;
+  const c0 = classTier(cid), l0 = lineTier(lk), s0 = specLevel(id);
+  DS[ck] = fameOf(ck) + n;
+  DS[lk] = fameOf(lk) + n;
   DS[ik] = fameOf(ik) + n;
-  const t1 = boardTier(bid), g1 = groupTier(gk), l1 = itemLevel(id);
-  return { bid, board: t1 > t0 ? t1 : 0, group: g1 > g0 ? g1 : 0, groupName: groupOf(id), item: l1 > l0 ? l1 : 0, itemName: BASE[id]?.name };
+  const c1 = classTier(cid), l1 = lineTier(lk), s1 = specLevel(id);
+  return {
+    className: CLASSES.find((x) => x.id === cid).name, lineName: lk.split(":")[2], itemName: BASE[id]?.name,
+    classUp: c1 > c0 ? c1 : 0, lineUp: l1 > l0 && l1 >= 3 ? l1 : 0, specUp: s1 > s0 ? s1 : 0,
+  };
 }
 
 // ── 지역 재료 ───────────────────────────────────────

@@ -359,7 +359,7 @@ function placeProps(P) {
     out.push({ x: Math.round(q.x), y: Math.round(hang ? q.y - 6 : q.y + 2), k: q.k, s, v: q.v ?? 0, sc, acc: q.acc ?? null, hang, g: 0 });
   }
   // 지역 장식 표: 그린스텝은 고원 풀밭 소품, 굴·계단엔 종유석·수정 대신 이끼·뿌리·고사리
-  const GS = P.z?.reg?.look === "greenstep";
+  const GS = P.z?.reg?.look === "greenstep" || P.z?.reg?.deco === "green";
   // 스톤브리지: 돌 도시 — 바위 방엔 수정·종유석 대신 무너진 석재·항아리, 천장엔 사슬
   const SB = P.z?.reg?.look === "stonebridge";
   // 리프크라운: 나무 속·잎 방 — 버섯·고사리·둥지, 천장엔 뿌리·이끼
@@ -370,13 +370,13 @@ function placeProps(P) {
   const SHR = CS === "root" ? [0x60f0c0, 0xc070f0, 0xffb040, 0x80e0ff] : [0xc060e0, 0x40e0c0, 0xffa040];
   const CAVE_FLOOR = {
     drip: [["p_stalag", 44], ["p_boulder", 16], ["p_crystal", 10], ["p_rubble", 8], ["p_bones", 5], ["p_shroom", 4]],
-    mine: [["p_crates", 16], ["p_rubble", 18], ["p_crystal", 20], ["p_boulder", 10], ["p_rack", 8], ["p_log", 8], ["p_bones", 6], ["p_skulls", 3], ["p_stalag", 6]],
+    mine: [["p_crates", 16], ["p_rubble", 18], ["p_ore", 14], ["p_boulder", 10], ["p_rack", 8], ["p_cart", 6], ["p_log", 6], ["p_bones", 5], ["p_anvil", 3]],
     root: [["p_shroom", 34], ["p_fern", 18], ["p_log", 10], ["p_boulder", 8], ["p_flowers", 6], ["p_stalag", 6], ["p_bones", 5]],
     green: [["p_fern", 18], ["p_boulder", 14], ["p_rubble", 10], ["p_crates", 6], ["p_flowers", 4]],
     grove: [["p_shroom", 22], ["p_fern", 20], ["p_log", 10], ["p_nest", 6], ["p_flowers", 10], ["p_bush", 8], ["p_hive", 3]],
     stone: [["p_rubble", 18], ["p_urn", 14], ["p_brokencol", 10], ["p_crates", 10], ["p_boulder", 8], ["p_statue", 5], ["p_candles", 5]],
   }[GS ? "green" : SB ? "stone" : LC ? "grove" : CS];
-  const CAVE_CEIL = { drip: [["p_stalac", 70], ["p_moss", 8], ["p_web", 6]], mine: [["p_chain", 20], ["p_web", 18], ["p_stalac", 14], ["p_cage", 6], ["p_moss", 6]], root: [["p_roots", 50], ["p_moss", 26], ["p_web", 8], ["p_stalac", 6]], green: [["p_roots", 44], ["p_moss", 36], ["p_web", 6]], stone: [["p_chain", 24], ["p_web", 12], ["p_moss", 6]], grove: [["p_roots", 40], ["p_moss", 30], ["p_web", 10]] }[GS ? "green" : SB ? "stone" : LC ? "grove" : CS];
+  const CAVE_CEIL = { drip: [["p_stalac", 70], ["p_moss", 8], ["p_web", 6]], mine: [["p_chain", 24], ["p_web", 18], ["p_cage", 8], ["p_moss", 4]], root: [["p_roots", 50], ["p_moss", 26], ["p_web", 8], ["p_stalac", 6]], green: [["p_roots", 44], ["p_moss", 36], ["p_web", 6]], stone: [["p_chain", 24], ["p_web", 12], ["p_moss", 6]], grove: [["p_roots", 40], ["p_moss", 30], ["p_web", 10]] }[GS ? "green" : SB ? "stone" : LC ? "grove" : CS];
   const woodAt = (x, y) => (gAt(WL, x, y) & 2) > 0;
   // 구름 디딤돌: 위에도 아래에도 아무것도 두지 않는다
   const CL = (P.spec ?? []).filter((s) => s.t === 2);
@@ -425,9 +425,9 @@ function placeProps(P) {
           bgAt.push({ x, y: yy });
           const tap = clear >= 170 && R() < 0.35;
           out.push({ x, y: tap ? yy - clear + 6 : yy - 30 - R.int(0, 20), k: tap ? "p_tapestry" : "p_niche", s: 1, v: R.int(0, 1), sc: tap ? 1 : R() < 0.5 ? 1 : 1.25, acc: null, hang: tap ? 1 : 0, bg: 1, g: 1 });
-        } else if (ctx === "cave" && !GS && !SB && !LC && clear >= 150 && !out.some((q) => q.bg && !q.hang && Math.abs(q.x - x) < 170 && Math.abs(q.y - yy) < 140) && R() < 0.85) {
+        } else if (ctx === "cave" && !GS && !SB && !LC && !(CS === "mine" && woodAt(x, yy - 24)) && clear >= 150 && !out.some((q) => q.bg && !q.hang && Math.abs(q.x - x) < 170 && Math.abs(q.y - yy) < 140) && R() < 0.85) {
           const big = Math.min(2.6, clear / 70);
-          const bk = CS === "root" ? (R() < 0.6 ? "p_shroom" : "p_stalag") : CS === "mine" ? (R() < 0.6 ? "p_crystal" : "p_rockcol") : R() < (CS === "drip" ? 0.85 : 0.7) ? "p_stalag" : "p_crystal";
+          const bk = CS === "root" ? (R() < 0.6 ? "p_shroom" : "p_stalag") : CS === "mine" ? "p_rockcol" : R() < (CS === "drip" ? 0.85 : 0.7) ? "p_stalag" : "p_crystal";
           bk === "p_rockcol"
             ? clear >= 170 && clear < 316 && out.push({ x, y: yy + 2, k: "p_rockcol", s: Math.round((clear + 8) / 8) * 8, v: 18, acc: null, hang: 0, bg: 1, dim: 0.04, ext: 1, g: 1 })
             : out.push({ x, y: yy + 2, k: bk, s: 2, v: R.int(0, 1), sc: snapSc(Math.max(1.25, big * (0.6 + R() * 0.4))), acc: bk === "p_shroom" ? SHR[R.int(0, SHR.length - 1)] : CRY[R.int(0, 2)], hang: 0, bg: 1, g: 1 });
@@ -457,7 +457,7 @@ function placeProps(P) {
         if ((GS || SB || LC) && !wallAt(x, yy + 30)) continue;
         const ctx = brk ? (ug ? "ugb" : "skb") : "cave";
         // 큰 동굴 천장 뒷벽: 흐릿한 큰 종유석 (바위에 묻혀 붙는다)
-        if (ctx === "cave" && !GS && !SB && !LC && below >= 170 && !out.some((q) => q.bg && q.hang && Math.abs(q.x - x) < (CS === "drip" ? 130 : 190) && Math.abs(q.y - yy) < 120) && R() < (CS === "mine" ? 0.35 : 0.8) && ceilOK(x, yy, 30, 60))
+        if (ctx === "cave" && !GS && !SB && !LC && below >= 170 && !out.some((q) => q.bg && q.hang && Math.abs(q.x - x) < (CS === "drip" ? 130 : 190) && Math.abs(q.y - yy) < 120) && CS !== "mine" && R() < 0.8 && ceilOK(x, yy, 30, 60))
           out.push({ x, y: yy - 6, k: CS === "root" && R() < 0.7 ? "p_roots" : "p_stalac", s: 2, v: R.int(0, 1), sc: snapSc(Math.min(2.6, 1.25 + R() * below / 160)), acc: null, hang: 1, bg: 1, g: 1 });
         if (R() > (ctx === "cave" ? (CS === "drip" ? 0.2 : 0.12) : 0.08)) continue;
         const tall = below > 170;

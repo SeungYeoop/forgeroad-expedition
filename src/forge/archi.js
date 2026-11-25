@@ -5,6 +5,26 @@ import { rng } from "./noise.js";
 import { greenstep as greenstepTepui } from "./archi_greenstep.js";
 import { stonebridge as stonebridgeCity } from "./archi_stonebridge.js";
 import { leafcrown as leafcrownForest } from "./archi_leafcrown.js";
+import { ironvein as ironveinCity } from "./archi_ironvein.js";
+import { dripstone as dripstoneCave } from "./archi_dripstone.js";
+import { roothollow as roothollowDeep } from "./archi_roothollow.js";
+import { mossbark as mossbarkWood } from "./archi_mossbark.js";
+import { lightgarden } from "./archi_lightgarden.js";
+import { abyss } from "./archi_abyss.js";
+import { fossil } from "./archi_fossil.js";
+import { spider } from "./archi_spider.js";
+import { ashsky } from "./archi_ashsky.js";
+import { hourglass } from "./archi_hourglass.js";
+import { mangrove } from "./archi_mangrove.js";
+import { mirage } from "./archi_mirage.js";
+import { bogsky } from "./archi_bogsky.js";
+import { monastery } from "./archi_monastery.js";
+import { mirror } from "./archi_mirror.js";
+import { sporesky } from "./archi_sporesky.js";
+import { mistgrove } from "./archi_mistgrove.js";
+import { citadel } from "./archi_citadel.js";
+import { blackmarsh } from "./archi_blackmarsh.js";
+import { glassdune } from "./archi_glassdune.js";
 
 export function kit(P, C) {
   const { cell, NX, NY } = C;
@@ -1115,4 +1135,4 @@ function mossbark(K, o) {
   return rooms;
 }
 
-export const ARCHI = { g0_1: ironvein, gm1_1: roothollow, g1_1: dripstone, g1_m1: stonebridgeCity, g0_m1: greenstepTepui, gm1_m1: leafcrownForest, gm1_0: mossbark };
+export const ARCHI = { g0_1: ironveinCity, gm1_1: roothollowDeep, g1_1: dripstoneCave, g1_m1: stonebridgeCity, g0_m1: greenstepTepui, gm1_m1: leafcrownForest, gm1_0: mossbarkWood, g0_m2: lightgarden, g0_2: abyss, g1_2: fossil, gm1_2: spider, g1_m2: ashsky, g2_1: hourglass, gm2_1: mangrove, g2_m1: mirage, gm2_m1: bogsky, gm1_m2: monastery, g2_2: mirror, gm2_m2: sporesky, gm2_2: mistgrove, g2_m2: citadel, gm2_0: blackmarsh, g2_0: glassdune };

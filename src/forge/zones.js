@@ -48,6 +48,16 @@ const REMADE = {
   gm1_1: { name: "루트홀로우", look: "roothollow", particle: "spores",
     pal: { sky: [0x16101a, 0x3a2a40], far: 0x2e2232, mid: 0x221a26, near: 0x140e16, top: 0x6a5a3a, topHi: 0x9a8a5a, soil: 0x5a4030, soilDark: 0x2a1c14, soilHi: 0x7a5a40, rock: 0x5e5048, accent: 0x7af0a0, fog: 0x9a7ab0, glow: 0xb0ffd0, ugRock: 0x7a6e58, ugWall: 0x2a2018 } },
 };
+// 노랑 지역 손 설계 구역: 원래 지역 그림(배경·음악)은 그대로, 땅 덮개·윗면 색만 덧씌운다
+const TWEAK = {
+  g2_m2: { theme: "plains", pal: { top: 0x9a8a5a, topHi: 0xd8c890, accent: 0xff7030 } },
+  gm2_m2: { theme: "plains", deco: "green", pal: { top: 0xb05a8a, topHi: 0xf0a0d0, accent: 0x90ffd0 } },
+  gm1_m2: { theme: "plains", deco: "green", pal: { top: 0x5aa850, topHi: 0xa8e080, accent: 0xff8040 } },
+  gm2_m1: { theme: "plains", deco: "green", pal: { top: 0x5a7a3a, topHi: 0x9ab860, accent: 0xb0ff80 } },
+  g2_m1: { theme: "desert", pal: { top: 0xe8c890, topHi: 0xfff0c8, accent: 0x80f0ff } },
+  g1_m2: { theme: "plains", pal: { top: 0x8a8a6a, topHi: 0xc0b890, accent: 0xff9040 } },
+  g0_m2: { theme: "plains", deco: "green", pal: { top: 0x7ad0a0, topHi: 0xc8f4d0, accent: 0xffe0f8 } },
+};
 // 층 띠별 몬스터 목록 (bestiary.js → 엔진·배치가 쓰는 꼴)
 function layersOf(zid) {
   const B = BESTIARY[zid];
@@ -76,7 +86,10 @@ export const ZONES = []; // 줄 위 순서 (던전·구역 모두)
 //   확인받으면 여기서 빼면 열린다. 개발 도구는 window.__devUnlock = 1 로 들어간다
 export const LOCKED = new Set(["gm1_m1", "gm1_0", "g0_1", "g1_1", "gm1_1"]);
 export const OPEN_LVL = { g1_0: 0, g0_m1: 2, g1_m1: 4 };
-export const isLocked = (id) => LOCKED.has(id) && !(typeof window !== "undefined" && window.__devUnlock);
+// 빨강(고리 3) 지역은 봉인: 들어갈 수 없다 (공사 중과 따로 표시)
+export const isSealed = (id) => BY_ID[id]?.kind === "zone" && BY_ID[id].ring >= 3;
+export const isLocked = (id) => (LOCKED.has(id) || isSealed(id)) && !(typeof window !== "undefined" && window.__devUnlock);
+export const lockTag = (id) => (isSealed(id) ? "봉인" : "공사 중");
 export const BY_ID = {};
 export const CELLS = {}; // "x,y" → 구역
 export const FR_WORLD = []; // 엔진 지역 목록 (칸마다 하나: 던전 + 구역)
@@ -149,6 +162,8 @@ export const roll = (...a) => hash(...a) / 4294967296;
       zone: z,
     };
     // 새 지역 설계로 다시 만든 구역: 이름·색·배경 (docs/REGIONS.md) + 층 띠별 몬스터
+    const TW = TWEAK[id];
+    TW && (reg.theme = TW.theme ?? reg.theme, reg.deco = TW.deco, reg.pal = { ...reg.pal, ...(TW.pal ?? {}) });
     const NEW = REMADE[id];
     if (NEW) {
       Object.assign(reg, NEW);
@@ -268,7 +283,7 @@ export function drawMap(hud, R, cur, seen, extra = {}) {
   const info = (z) => {
     if (!z) return void (iName.setText("거점").setColor("#ffe08a"), iSub.setText("안전 지대"), iMore.setText("동·서 문은 지상, 위 계단은 하늘, 아래 갱도는 지하로 이어진다."));
     const D = dangerOf(z), s = seen[z.id] || here === z;
-    if (isLocked(z.id)) return void (iName.setText(`${z.name} (공사 중)`).setColor("#9a9aa0"), iSub.setText(`${LAYER_NAME(z.y)} · 아직 갈 수 없다`), iMore.setText("이 지역은 다시 짓는 중이라 문이 닫혀 있다."));
+    if (isLocked(z.id)) return void (iName.setText(`${z.name} (${lockTag(z.id)})`).setColor(isSealed(z.id) ? "#d07a70" : "#9a9aa0"), iSub.setText(`${LAYER_NAME(z.y)} · 아직 갈 수 없다`), iMore.setText(isSealed(z.id) ? "붉은 봉인이 길을 막고 있다. 아직 아무도 이 너머로 가지 못했다." : "이 지역은 다시 짓는 중이라 문이 닫혀 있다."));
     iSub.setText(`${LAYER_NAME(z.y)} · ${D.name} ${D.label}`);
     iName.setText(s ? z.name : "가 보지 않은 땅").setColor(s ? D.css : "#a89070");
     const m = [];
@@ -293,9 +308,10 @@ export function drawMap(hud, R, cur, seen, extra = {}) {
       const z = CELLS[key(x, y)], D = dangerOf(z), s = seen[z.id];
       if (isLocked(z.id)) {
         // 공사 중: 어두운 칸 + 빗금 + 자물쇠
-        g.fillStyle(0x1c1a20, 1).fillRect(px - h2, py - h2, SZ, SZ);
-        g.lineStyle(1, 0x5a5860, 1).strokeRect(px - h2, py - h2, SZ, SZ);
-        for (let k = -SZ; k < SZ; k += 7) g.lineStyle(1, 0x3a3840, 1).lineBetween(px - h2 + Math.max(0, k), py - h2 + Math.max(0, -k), px - h2 + Math.min(SZ, k + SZ), py - h2 + Math.min(SZ, SZ - k));
+        const sl = isSealed(z.id);
+        g.fillStyle(sl ? 0x2a1214 : 0x1c1a20, 1).fillRect(px - h2, py - h2, SZ, SZ);
+        g.lineStyle(1, sl ? 0x7a3a34 : 0x5a5860, 1).strokeRect(px - h2, py - h2, SZ, SZ);
+        for (let k = -SZ; k < SZ; k += 7) g.lineStyle(1, sl ? 0x4a2024 : 0x3a3840, 1).lineBetween(px - h2 + Math.max(0, k), py - h2 + Math.max(0, -k), px - h2 + Math.min(SZ, k + SZ), py - h2 + Math.min(SZ, SZ - k));
         g.fillStyle(0x9a9aa0, 1).fillRect(px - 5, py - 1, 10, 8);
         g.lineStyle(2, 0x9a9aa0, 1).strokeCircle(px, py - 3, 4);
         g.fillStyle(0x1c1a20, 1).fillRect(px - 4, py - 3, 8, 2);
@@ -327,6 +343,6 @@ export function drawMap(hud, R, cur, seen, extra = {}) {
     ly += 12;
   }
   add(ct(hud, IX, ly + 2, "■ 보스  ▲ 숨은 던전  · 가 본 곳", "tiny", "#a89070"), 2);
-  add(ct(hud, IX, ly + 14, "빗금 칸 = 공사 중 (갈 수 없다)", "tiny", "#9a9aa0"), 2);
+  add(ct(hud, IX, ly + 14, "빗금 칸 = 공사 중 · 붉은 빗금 = 봉인 (갈 수 없다)", "tiny", "#9a9aa0"), 2);
   return objs;
 }

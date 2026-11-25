@@ -4267,7 +4267,7 @@ export function travel(sc, to, back) {
   if (sc.zoneBusy || sc.dying) return;
   const z = ZN.BY_ID[to];
   if (!z) return;
-  if (ZN.isLocked(to)) return void sc.hud?.()?.toast(`${z.name}: 공사 중인 지역이라 아직 갈 수 없다`, "#c8c8d0");
+  if (ZN.isLocked(to)) return void sc.hud?.()?.toast(ZN.isSealed(to) ? `${z.name}: 붉은 봉인이 막고 있어 들어갈 수 없다` : `${z.name}: 공사 중인 지역이라 아직 갈 수 없다`, "#c8c8d0");
   sc.zoneBusy = 1;
   R.j.play("portal");
   ensurePlan(sc, z);
@@ -4402,7 +4402,7 @@ function exitObj(sc, chunk, x, y, z, e) {
   const what = !dst ? "거점으로 귀환 (안전)" : e.at === "DG" ? "숨은 던전" : z.kind === "dungeon" ? "던전 밖으로" : dst.name;
   const prompt = `${L.arrow} ${what}${dst && z.kind !== "dungeon" ? ` · ${D.name}` : ""}`;
   const shut = dst && ZN.isLocked(dst.id);
-  const tagTxt = (!dst ? "거점" : e.at === "DG" ? "숨은 던전" : e.at === "U" ? `▲ ${dst.short}` : e.at === "D" ? `▼ ${dst.short}` : dst.short) + (shut ? " · 공사 중" : "");
+  const tagTxt = (!dst ? "거점" : e.at === "DG" ? "숨은 던전" : e.at === "U" ? `▲ ${dst.short}` : e.at === "D" ? `▼ ${dst.short}` : dst.short) + (shut ? ` · ${ZN.lockTag(dst.id)}` : "");
   shut && (glow.setTint(0x6a6a72), arch.setTint(0x8a8a90));
   const tag = R.ct(sc, x, y - 52, tagTxt, "tiny", shut ? "#9a9aa0" : D.css, { stroke: "#140e18", strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(6);
   e.at === "DG" && sc.fr && ((sc.fr.dgSeen ??= []).includes(z.id) || sc.fr.dgSeen.push(z.id));

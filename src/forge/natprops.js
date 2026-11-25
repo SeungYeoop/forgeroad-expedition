@@ -922,6 +922,55 @@ const KINDS = {
     }
     return { W: 34, H: 26, parts, mats: [{ c: 0x7a5a3a, tex: woodTex(17) }, { c: 0xf0ece2, tex: leafTex(8) }] };
   },
+  // ── 광산 ──
+  // 광차 (철 바퀴 넷 · 나무 통 · 광석 무더기)
+  p_cart(s, R, c) {
+    const parts = [
+      { d: S.box(0, 9, 0, 11, 5, 5.5, 0.6), m: 0 },
+      { d: S.box(0, 10.5, 0, 9.6, 4.2, 4.2), m: 0, sub: 1 },
+      { d: S.box(0, 4, 0, 11.6, 0.8, 6, 0.2), m: 1 },
+      { d: S.box(0, 14, 0, 11.4, 0.7, 5.8, 0.2), m: 1 },
+    ];
+    for (const sx of [-7, 7]) for (const sz of [-5, 5]) parts.push({ d: S.capsule(sx, 3, sz - 0.8, sx, 3, sz + 0.8, 3), m: 1 });
+    for (let k = 0; k < 7; k++) parts.push({ d: S.sphere(-7 + k * 2.4 + (R() - 0.5), 14 + R() * 2.5, (R() - 0.5) * 5, 2.2 + R() * 1.2), m: 2, k: 1.2 });
+    R() < 0.6 && parts.push({ d: S.sphere(1, 17, 0, 1.6), m: 3 });
+    return { W: 34, H: 26, parts, mats: [{ c: 0x7a5434, tex: (x, y, z) => (Math.abs(((x + 12) % 6) - 3) < 0.5 ? -0.2 : woodTex(41)(x, y, z)) }, { c: 0x4a4a54, gloss: 0.6 }, { c: 0x5a5260, tex: stoneTex(43) }, { c: 0xffa040, emit: [0xffe8b0, 0xffb060, 0xd06a2a] }], glow: 0xffb060 };
+  },
+  // 광석 바위 (거친 바위 몸에 빛나는 광맥 조각)
+  p_ore(s, R, c) {
+    const r = 7 + s * 3, parts = [{ d: ((f) => (x, y, z) => f(x, y, z) + (vn3(x * 0.35, y * 0.35, z * 0.35, 51) - 0.5) * 3.2)(S.ellip(0, r * 0.7, 0, r * 1.3, r, r)), m: 0 }];
+    for (let k = 0; k < 4 + s * 2; k++) {
+      const a = R() * Math.PI * 2, b = R() * 1.2;
+      parts.push({ d: S.sphere(Math.cos(a) * r * 1.05 * Math.cos(b), r * 0.7 + Math.sin(b) * r * 0.85, Math.sin(a) * r * 0.6 + 2, 1.2 + R() * 1.4), m: 1, k: 0.6 });
+    }
+    const vein = [[0xffd8a0, 0xe88a3a, 0xa04a1a], [0xe0f4ff, 0x80c8f0, 0x3a70b0], [0xfff0a0, 0xe0b030, 0x8a6a10]][s % 3];
+    return { W: r * 3 + 8, H: r * 2 + 6, parts, mats: [{ c: mix(c.rock, 0x4a4450, 0.4), tex: stoneTex(53) }, { c: vein[1], emit: vein }], glow: vein[0] };
+  },
+  // 모루 (받침 통나무 + 쇠 모루 + 망치)
+  p_anvil(s, R, c) {
+    const parts = [
+      { d: S.cyl(0, 0, 6, 0, 8, 0.6), m: 0 },
+      { d: S.box(0, 10, 0, 4.5, 2, 3, 0.4), m: 1 },
+      { d: S.box(0, 13, 0, 9, 1.6, 3.4, 0.4), m: 1 },
+      { d: S.capsule(9, 13, 0, 13, 13.4, 0, 1.2), m: 1 },
+      { d: S.capsule(-4, 15, 3, 3, 21, 4, 0.6), m: 0 },
+      { d: S.box(3.5, 21.5, 4, 2.4, 1.3, 1.3, 0.3), m: 1 },
+    ];
+    return { W: 34, H: 28, parts, mats: [{ c: 0x6a4a30, tex: woodTex(47) }, { c: 0x3e3e48, gloss: 0.8 }] };
+  },
+  // 증기 굴착기 (보일러 통 · 굴뚝 · 앞에 나사 송곳)
+  p_drill(s, R, c) {
+    const parts = [
+      { d: S.capsule(-8, 9, 0, 6, 9, 0, 7), m: 0 },
+      { d: S.cyl(-8, 0, 2.4, 14, 26, 0.4), m: 1 },
+      { d: S.torus(-8, 26, 0, 2.6, 0.7), m: 1 },
+      { d: (x, y, z) => { const t = clamp((x - 12) / 14, 0, 1), rr = 6 * (1 - t) + 0.4; return Math.max(Math.hypot(y - 9, z) - rr - Math.sin(x * 1.6 + Math.atan2(z, y - 9)) * 0.9, 12 - x, x - 27); }, m: 2 },
+      { d: S.box(-2, 1.4, 0, 12, 1.4, 6, 0.3), m: 1 },
+      { d: S.sphere(-1, 12, 6.2, 2), m: 3 },
+    ];
+    for (const sx of [-14, 2]) parts.push({ d: S.capsule(sx, 3, -6, sx, 3, 6, 3), m: 1 });
+    return { W: 50, H: 36, parts, mats: [{ c: 0x8a5a3a, gloss: 0.7, tex: (x, y) => (Math.abs(((x + 20) % 5) - 2.5) < 0.4 ? -0.25 : 0) }, { c: 0x3e3e48, gloss: 0.6 }, { c: 0x9a9aa8, gloss: 0.9 }, { c: 0xff8040, emit: [0xfff0c0, 0xffa050, 0xc05020] }], glow: 0xffa060 };
+  },
 };
 export const PROP_KINDS = Object.keys(KINDS);
 // 대략 크기 (자리 고를 때): [폭, 높이]

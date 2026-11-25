@@ -718,3 +718,42 @@ BLUEPRINTS.gm1_1 = {
   ],
   drops: [["A0b", "W2b"], ["W2b", "W3b"], ["W6b", "W8b"], ["W8b", "W9"], ["E9", "HEART"], ["E1", "E3"]],
 };
+
+// ── 노랑 하늘 구역 (지역 설계 코드가 지도 전체를 짓는다): 섬 길 = 맨 아래 줄 1000 ──
+for (const id of ["g0_m2", "g1_m2", "g2_m1", "gm2_m1", "gm1_m2", "gm2_m2", "g2_m2"]) BLUEPRINTS[id] = { skyBase: 8000 };
+// 노랑 동굴 구역 (지역 설계 코드가 지도 전체를 짓는다): 소품 배치만 켠다
+for (const id of ["g0_2", "g1_2", "gm1_2", "g2_1", "gm2_1", "g2_2", "gm2_2"]) BLUEPRINTS[id] = {};
+
+// ── gm2_0 「검은 늪지」 (노랑 · 보스) 지표: 검은 웅덩이 → 둔덕 → 큰 늪(쓰러진 고목 다리) → 썩은 언덕 → 보스 늪(평평) ──
+BLUEPRINTS.gm2_0 = {
+  surface: [
+    { kind: "flat", a: 0, b: 600 },
+    { kind: "valley", a: 600, b: 1900, c: 1250, d: 240, w: 480, p: 0.3, pond: 200 },
+    { kind: "hills", a: 1900, b: 3300, bumps: [{ c: 2300, h: 150, w: 260 }, { c: 2900, h: 210, w: 280 }], role: "arena" },
+    { kind: "valley", a: 3300, b: 4900, c: 4100, d: 340, w: 640, p: 0.25, pond: 280 },
+    { kind: "hills", a: 4900, b: 6600, bumps: [{ c: 5500, h: 240, w: 320 }, { c: 6150, h: 130, w: 220 }] },
+    { kind: "flat", a: 6600, b: 8192 },
+  ],
+  pads: [],
+  feats: [
+    { kind: "stump", x: 2900, w: 300, H: 160, side: 1, bed: 380 },
+    { kind: "bridge", x: 4100, y: 4800, x0: 3380, x1: 4820, holes: [0.42], drops: [0.6], dropX: [3700, 4500] },
+    { kind: "shroom", x: 5500, H: 180, cw: 200, side: 1, bed: 240 },
+  ],
+  spots: [{ xa: 1950, xb: 3200, role: "arena" }, { xa: 5000, xb: 6500, role: "arena" }, { xa: 3900, xb: 4300, role: "treasure" }],
+};
+
+// ── g2_0 「유리 모래톱」 (노랑 · 보스) 지표: 사구 → 유리 웅덩이 → 바람 고원 → 개미귀신 사구 → 보스 모래밭(평평) ──
+BLUEPRINTS.g2_0 = {
+  surface: [
+    { kind: "flat", a: 0, b: 500 },
+    { kind: "hills", a: 500, b: 1800, bumps: [{ c: 820, h: 120, w: 240 }, { c: 1300, h: 190, w: 300 }], role: "arena" },
+    { kind: "valley", a: 1800, b: 3000, c: 2400, d: 220, w: 460, p: 0.35, pond: 220 },
+    { kind: "mesa", a: 3000, b: 4800, c: 3900, h: 260, w: 700, p: 0.6, role: "arena" },
+    { kind: "hills", a: 4800, b: 6700, bumps: [{ c: 5400, h: 150, w: 280 }, { c: 6100, h: 210, w: 300 }] },
+    { kind: "flat", a: 6700, b: 8192 },
+  ],
+  pads: [],
+  feats: [],
+  spots: [{ xa: 600, xb: 1700, role: "arena" }, { xa: 3300, xb: 4500, role: "arena" }, { xa: 2300, xb: 2500, role: "treasure" }],
+};

@@ -235,6 +235,6 @@ export function profileKey(z) {
 export const profileOf = (z) => PROFILES[profileKey(z)];
 // 땅속 생물군계 (그림 재질·장식): 동굴 칸은 깊이·열에 따라, 지상 칸 땅속은 열에 따라
 // 파랑 동굴 줄(y=1): 드립스톤(x=1) 석회 종유 · 아이언베인(x=0) 광맥 수정 · 루트홀로우(x=-1) 이끼 뿌리
-const CAVE_BIO = (x, y) => (y === 3 ? "magma" : y === 2 ? "deep" : x === -1 ? "lush" : y === 1 && x === 1 ? "drip" : y === 1 && x === 0 ? "geode" : Math.abs(x) % 2 ? "geode" : "drip");
+const CAVE_BIO = (x, y) => (y === 3 ? "magma" : y === 2 ? "deep" : x === -1 ? "lush" : y === 1 && x === 1 ? "drip" : y === 1 && x === 0 ? "mine" : Math.abs(x) % 2 ? "geode" : "drip");
 const GROUND_BIO = { "-3": "drip", "-2": "deep", "-1": "lush", 1: "drip", 2: "geode", 3: "magma" };
 export const biomeOf = (z) => (z.y > 0 ? CAVE_BIO(z.x, z.y) : GROUND_BIO[z.x] ?? "drip");

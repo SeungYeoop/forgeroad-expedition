@@ -451,6 +451,11 @@ export function* pixFine(ch, base, region, S) {
         }
         col = ramp5[L];
         // 용암 지대: 틈새가 빛난다
+        // 쇠맥 광산: 바위 속에 녹슨 쇠맥·광석 알갱이
+        if (BI && ugc && ug.biome === "mine" && L >= 2 && dd > 2) {
+          const v = H(wx >> 2, yw >> 2, 61);
+          if (v > 0.986) col = v > 0.997 ? 0xffc070 : H(wx, yw, 62) > 0.5 ? 0xb05a2a : 0x7a3a1e;
+        }
         if (BI && ugc && ug.biome === "magma" && L === 5 && dd > 3 && H(wx >> 3, yw >> 3, 51) > 0.7) col = mix(0xff6a20, 0xffd060, H(wx, yw, 52) * 0.5);
         put(x, y, col);
       }
@@ -769,6 +774,14 @@ export function* pixFine(ch, base, region, S) {
             empty(x, y - L - 1) && put(x, y - L - 1, 0xffffff);
           } else if (h > 0.84) for (let dx = -1; dx <= 1; dx++) empty(x + dx, y - 1) && put(x + dx, y - 1, 0xf0f0f8);
           break;
+        case "mine":
+          // 바닥: 떨어진 광석 부스러기 · 쇠 알갱이
+          if (h > 0.9) {
+            const w = 2 + Math.floor(H(wx, 77) * 3);
+            for (let dx = 0; dx < w; dx++) empty(x + dx, y - 1) && put(x + dx, y - 1, dx === 1 && h > 0.96 ? 0xffb060 : H(wx + dx, 78) > 0.5 ? 0x8a4a26 : 0x5a5058);
+            h > 0.97 && empty(x + 1, y - 2) && put(x + 1, y - 2, 0x6a5e66);
+          }
+          break;
         case "deep":
           if (h > 0.72) {
             const w = 2 + Math.floor(H(wx, 75) * 4);
@@ -831,6 +844,13 @@ export function* pixFine(ch, base, region, S) {
             const ww = Math.max(0, Math.round(w * (1 - k / L)));
             for (let dx = -ww; dx <= ww; dx++) empty(x + dx, y + k) && put(x + dx, y + k, geo ? (dx < 0 ? 0xe0b0ff : dx > 0 ? 0x5a2a90 : 0x9a5ae0) : dx < 0 ? DRIP[0] : dx > 0 ? DRIP[1] : DRIP[2]);
           }
+        }
+        break;
+      case "mine":
+        // 천장: 녹물 흘러내린 자국 + 짧은 쇠 고드름
+        if (h > 0.88) {
+          const L = 2 + Math.floor(H(wx, r, 84) * 6);
+          for (let k = 0; k < L; k++) empty(x, y + k) && put(x, y + k, k === L - 1 ? 0xd07a3a : k > L / 2 ? 0x8a4a26 : 0x4a3a3e);
         }
         break;
       case "deep":

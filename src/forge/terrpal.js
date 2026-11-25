@@ -29,6 +29,7 @@ export const BIOMES = {
   drip: { name: "종유석 동굴", rock: 0xa8845e, cap: null, wall: 0x3a2a20, glow: 0xffe0b0 },
   geode: { name: "자수정 동굴", rock: 0x6e6486, cap: null, wall: 0x241c34, glow: 0xc080ff },
   deep: { name: "심층암 지대", rock: 0x4e566a, cap: null, wall: 0x14181e, glow: 0x30e0d0 },
+  mine: { name: "쇠맥 광산", rock: 0x6c6470, cap: null, wall: 0x221e26, glow: 0xffa050 },
   magma: { name: "용암 지대", rock: 0x58403c, cap: null, wall: 0x1e1210, glow: 0xff7020 },
 };
 

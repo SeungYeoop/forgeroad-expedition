@@ -84,7 +84,7 @@ export const HUB_ID = "hub";
 export const ZONES = []; // 줄 위 순서 (던전·구역 모두)
 // 공사 중 (파랑 지역 다시 짓기 중, 아직 확인받지 않은 곳): 들어갈 수 없고 지도에 표시한다
 //   확인받으면 여기서 빼면 열린다. 개발 도구는 window.__devUnlock = 1 로 들어간다
-export const LOCKED = new Set(["gm1_m1", "gm1_0", "g0_1", "g1_1", "gm1_1"]);
+export const LOCKED = new Set([]);
 export const OPEN_LVL = { g1_0: 0, g0_m1: 2, g1_m1: 4 };
 // 빨강(고리 3) 지역은 봉인: 들어갈 수 없다 (공사 중과 따로 표시)
 export const isSealed = (id) => BY_ID[id]?.kind === "zone" && BY_ID[id].ring >= 3;

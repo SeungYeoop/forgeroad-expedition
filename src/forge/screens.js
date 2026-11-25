@@ -111,7 +111,7 @@ export function makeScreens(R, D) {
       if (g === this.grade) return;
       this.grade = g;
       const c = matCost(g);
-      this.say = g === 1 ? KEEPER[this.kind][1] : `${IT.GRADE_ROMAN[g]} 티어는 ${c.mat.name}가 있어야 벼릴 수 있지.`;
+      this.say = g === 1 ? KEEPER[this.kind][1] : `${IT.GRADE_ROMAN[g]} 티어라. 운명 보드에서 그 계통을 충분히 익혔다면 벼려 주지.`;
       j.play("click");
       this.render();
     }
@@ -386,10 +386,8 @@ export function makeScreens(R, D) {
         const sp = hubSellPrice(cur);
         sp > 0 && this.btn(kx + kw - 172, Y1 - 28, 80, 20, `판매 ${yt(sp)}G`, () => this.sell(cur));
       } else this.t(kx + 14, wy + 170, "이 칸을 비워 둔다.", "small", q.textDim).setDepth(206);
-      // 창고의 재료
-      const M = matsOf();
-      this.t(wx + 14, Y1 - 18, "재료", "tiny", "#d8c0a0").setDepth(206);
-      IT.MAT_LIST.forEach((m, i) => {
+      // 재료는 뺐다
+      [].forEach((m, i) => {
         const mx = wx + 46 + i * 50;
         this.img(mx, Y1 - 12, `fr_mat_${m.id}`).setDepth(206);
         this.t(mx + 8, Y1 - 18, `${M[m.id] ?? 0}`, "tiny", M[m.id] ? m.css : "#8a7a6a", { stroke: "#1a0e06", strokeThickness: 2 }).setDepth(206);

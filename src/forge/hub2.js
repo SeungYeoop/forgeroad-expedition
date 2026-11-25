@@ -670,6 +670,46 @@ function stall(c1, c2, goods) {
   }
   return p;
 }
+// ── 알비온식 거점 새 시설 ─────────────────────────────
+// 시장: 긴 지붕 아래 좌판 세 칸, 저울 간판, 상자·자루
+function destinyStone() {
+  const p = painter(120, 200), B = 195;
+  p.shadow(10, B - 4, 100, 4, 0.4);
+  // 받침 계단
+  p.stone(14, B - 20, 92, 20, 0x6a6878, 31);
+  p.stone(24, B - 32, 72, 12, 0x7a7888, 32);
+  // 돌기둥 (위가 좁은)
+  for (let y = 20; y < B - 32; y++) {
+    const t = (y - 20) / (B - 52), w = 26 + t * 18;
+    for (let x = -w; x <= w; x++) {
+      const sh = x < -w + 4 ? 0x1e1c2a : x > w - 5 ? 0x14121e : (x + y * 3) % 17 === 0 ? 0x34304a : 0x28243a;
+      p.px(60 + x, y, sh);
+    }
+  }
+  // 뾰족한 머리
+  for (let y = 4; y < 20; y++) {
+    const w = (y - 4) * 1.7;
+    for (let x = -w; x <= w; x++) p.px(60 + x, y, x < -w + 2 ? 0x1e1c2a : 0x2e2a42);
+  }
+  // 빛나는 육각 그물
+  const node = (cx, cy, r, col) => {
+    for (let a = 0; a < 6; a++) {
+      const a0 = Math.PI / 6 + (a * Math.PI) / 3, a1 = a0 + Math.PI / 3;
+      for (let s = 0; s <= 8; s++) {
+        const k = s / 8;
+        p.px(cx + Math.cos(a0) * r * (1 - k) + Math.cos(a1) * r * k, cy + Math.sin(a0) * r * (1 - k) + Math.sin(a1) * r * k, col);
+      }
+    }
+    p.r(cx - 1, cy - 1, 3, 3, 0xfff0b0);
+  };
+  const pts = [[60, 60], [48, 86], [72, 86], [60, 112], [44, 132], [76, 132]];
+  const link = ([x0, y0], [x1, y1]) => { for (let s = 0; s <= 20; s++) p.px(x0 + (x1 - x0) * s / 20, y0 + (y1 - y0) * s / 20, 0xd8a840); };
+  link(pts[0], pts[1]), link(pts[0], pts[2]), link(pts[1], pts[3]), link(pts[2], pts[3]), link(pts[3], pts[4]), link(pts[3], pts[5]);
+  pts.forEach(([x, y], i) => node(x, y, i === 0 ? 7 : 5, 0xffd060));
+  p.lights.push([60, 90, 60, 0xffc850]);
+  return p;
+}
+
 function lamp() {
   const p = painter(22, 84), B = 82, Q = prims(p.px);
   Q.cyl(9, 18, 4, B - 22, 0x3a3a46, { bands: [10, 30] });
@@ -694,14 +734,15 @@ function wall(flip) {
 }
 
 const FAC = [
-  { id: "forge", name: "대장간", x: 220, art: forge, npc: ["npc_smith", 60, !0] },
-  { id: "armory", name: "방어구 상점", x: 460, art: armory, npc: ["npc_armorer", -30, !0] },
-  { id: "training", name: "훈련소", x: 720, art: training3d, npc: ["npc_trainer", -60, !1], dummy: 30 },
-  { id: "dojo", name: "기술 도장", x: 990, art: dojo3d, npc: ["npc_trainer", 50, !0] },
-  { id: "plaza", x: 1200, art: fountain },
-  { id: "lab", name: "마법 연구소", x: 1400, art: tower, npc: ["npc_mage", 46, !0] },
-  { id: "wardrobe", name: "장비 관리소", x: 1620, art: wardrobe3d, npc: ["npc_quarter", 50, !0] },
-  { id: "board", name: "기록 게시판", x: 1830, art: board3d, npc: ["npc_scribe", -60, !1] },
+  // 알비온식 거점: 창고 · 시장 · 정제소 → 제작 공방들 → 광장 → 운명의 비석 → 출구
+  { id: "wardrobe", name: "창고", x: 190, art: wardrobe3d, npc: ["npc_quarter", 50, !0] },
+  { id: "forge", name: "대장간 · 무기", x: 470, art: forge, npc: ["npc_smith", 60, !0] },
+  { id: "armory", name: "갑옷 공방", x: 760, art: armory, npc: ["npc_armorer", -30, !0] },
+  { id: "board", name: "기록 게시판", x: 1040, art: board3d, npc: ["npc_scribe", -60, !1] },
+  { id: "plaza", x: 1340, art: fountain },
+  { id: "lab", name: "마법사 탑", x: 1520, art: tower, npc: ["npc_mage", 46, !0] },
+  { id: "dojo", name: "무술 도장", x: 1720, art: dojo3d, npc: ["npc_trainer", 50, !0], dummy: -110 },
+  { id: "destiny", name: "운명의 비석", x: 1880, art: destinyStone },
   { id: "exit", name: "탐험 출구", x: 2080, art: gate },
 ];
 export const HUB_W = 2240;
@@ -761,6 +802,8 @@ export function buildHub(sc, R, gy) {
         const r = sc.add.image(f.x, oy + 60, "vx_glow").setBlendMode(ADD).setTint(0xb070ff).setScale(0.3).setDepth(8);
         sc.tweens.addCounter({ from: 0, to: Math.PI * 2, duration: 4200, repeat: -1, onUpdate: (tw) => { const a = tw.getValue() + (k * Math.PI) / 2; r.setPosition(f.x + Math.cos(a) * 46, oy + 70 + Math.sin(a) * 10); r.setDepth(Math.sin(a) > 0 ? 8 : 0.5); } });
       }
+    if (f.id === "destiny")
+      sc.add.particles(f.x, oy + 120, "vx_px", { x: { min: -22, max: 22 }, y: { min: -60, max: 40 }, speedY: { min: -30, max: -12 }, lifespan: 1800, frequency: 120, tint: [0xffd060, 0xfff0b0], blendMode: ADD }).setDepth(8);
     if (f.id === "exit") {
       sc.add.particles(f.x, gy - 50, "vx_soft", { x: { min: -30, max: 30 }, y: { min: -60, max: 40 }, speedY: { min: -30, max: -10 }, lifespan: 1600, frequency: 90, scale: { start: 0.3, end: 0 }, tint: [0xffe0a0, 0xd090ff], blendMode: ADD }).setDepth(8);
     }
@@ -779,16 +822,14 @@ export function buildHub(sc, R, gy) {
   }
   // 거리 소품
   const props = [
-    ["h2_stall_a", () => stall3d(0xc83a2a, 0xf0e0c0, "fruit"), 340],
-    ["h2_stall_b", () => stall3d(0x6a3aa8, 0xf0e0c0, "potion"), 1290],
-    ["h2_stall_c", () => stall3d(0x2a7a5a, 0xf0e0c0, "fruit"), 1960],
+    ["h2_stall_b", () => stall3d(0x6a3aa8, 0xf0e0c0, "potion"), 1255],
   ];
   for (const [k, f, x] of props) place(k, f(), x, 1.5);
-  const lamps = [120, 340 + 60, 590, 860, 1110, 1290 + 60, 1510, 1730, 1950 + 60];
+  const lamps = [80, 330, 610, 905, 1170, 1420, 1620, 1800, 1960];
   for (const x of lamps) place("h2_lamp", lamp(), x, 3);
   const misc = painter(60, 30);
   misc.barrel(10, 29), misc.barrel(22, 29), misc.crate(30, 29), misc.crate(44, 29, 12), misc.barrel(16, 17);
-  for (const x of [600, 1500, 1990]) place("h2_misc", misc, x, 3);
+  for (const x of [330, 1180]) place("h2_misc", misc, x, 3);
   // 깃발 줄
   const lg = sc.add.graphics().setDepth(1.6);
   for (let a = 0; a < 7; a++) {

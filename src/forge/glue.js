@@ -2231,6 +2231,8 @@ function gainStoneDrop(sc, x, y) {
 }
 // 지역 재료: 가방 칸을 쓰지 않는다. 쓰러지면 잃는다
 function dropMat(sc, x, y, n = 1) {
+  // 재료는 뺐다 (상점은 골드만)
+  return;
   if (!sc.fr || n <= 0) return;
   for (let i = 0; i < n; i++) {
     // 재료 티어도 지역 티어를 따라 굴린다 (T2 숯 · T3 철광석 · T4 결정 · T5 수정 · T6 별쇠)
@@ -2553,7 +2555,7 @@ export function hudUpdate(hud) {
   const wtag = fr.equip.weapon?.cat === "WS" ? `  ·  충전 ${fr.charge}` : "";
   const mn = Object.values(fr.mats ?? {}).reduce((a, b) => a + b, 0);
   const sig = `${fr.bag.length}|${fr.stones}|${fr.sp}|${mn}|${wtag}`;
-  hud.frBagSig !== sig && ((hud.frBagSig = sig), hud.frBagText.setText(`가방 ${fr.bag.length}/${fr.bagMax} · 융합석 ${fr.stones} · 재료 ${mn}${fr.sp ? ` · 스탯 +${fr.sp}` : ""} [Tab]${wtag}`));
+  hud.frBagSig !== sig && ((hud.frBagSig = sig), hud.frBagText.setText(`가방 ${fr.bag.length}/${fr.bagMax} · 융합석 ${fr.stones}${fr.sp ? ` · 스탯 +${fr.sp}` : ""} [Tab]${wtag}`));
   const w2 = hud.wSlots[1];
   w2?.icon?.setVisible(!1);
   const f = hud.sSlots[3];
@@ -3591,7 +3593,7 @@ function basePrice(id) {
 }
 export const shopPrice = (id, g) => Math.round(basePrice(id) * IT.GRADE_PRICE[g]);
 // 등급 g를 사는 데 드는 재료 {mat, n}
-export const matCost = (g) => (g >= 2 ? { mat: IT.matOfGrade(g), n: IT.GRADE_MATN[g] } : null);
+export const matCost = (g) => null; // 재료는 뺐다
 // 거점 창고에서 팔 때 값 (산 값의 30%)
 export function hubSellPrice(key) {
   if (FREE_KEYS.has(key)) return 0;
@@ -3685,8 +3687,6 @@ export function resultPick(scene, result, done) {
   list.length || add(ct(scene, X + W / 2, Y + 104, L.safe ? "장비 말고는 가져온 것이 없다" : "잃은 장비 없음 (기본 장비뿐)", "small", q.textDim).setOrigin(0.5, 0).setDepth(203));
   let my = Y + 198;
   const ms = IT.MAT_LIST.filter((m) => L.mats[m.id]).map((m) => `${m.name} ×${L.mats[m.id]}`).join("  ·  ");
-  add(ct(scene, X + 20, my, `재료: ${ms || "없음"}`, "small", L.safe ? q.text : q.textDim).setDepth(203));
-  my += 16;
   const extra = [];
   L.runeGold && extra.push(`각인 판매 +${L.runeGold}G`);
   L.newShop.length && extra.push(`상점에 새 물건 ${L.newShop.length}종`);

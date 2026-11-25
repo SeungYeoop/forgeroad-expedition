@@ -15107,6 +15107,7 @@ class pr extends zt.Scene {
         forge: () => new (P().FrShop)(this, cl, ["weapon"], "대장간 · 무기"),
         armory: () => new (P().FrShop)(this, cl, ["armor"], "방어구 상점 · 방어구"),
         training: () => new (P().Training)(this, cl),
+        destiny: () => (FG.toggleDestiny(this), null),
         dojo: () => new (P().FrShop)(this, cl, ["skill"], "기술 도장 · 스킬"),
         lab: () => new (P().FrShop)(this, cl, ["magic"], "마법 연구소 · 마법"),
         wardrobe: () => new (P().FrLoadout)(this, cl),
@@ -16349,9 +16350,9 @@ class Cs {
       t = this.diff,
       a = this.isElite ? (this.rare ? 4 : 2.6) : 1;
     // 하드 밸런스: 적 하나하나가 강하다 (체력 x2.6 · 공격 x1.6, 대신 수는 적게)
-    ((this.maxHp = Math.round(m.hp * t.hpMult * a * (h.summoned ? 0.7 : 1) * 2.6)),
+    ((this.maxHp = Math.round(m.hp * t.hpMult * a * (h.summoned ? 0.7 : 1) * 2.9)),
       (this.hp = Math.max(1, Math.round(this.maxHp * (h.hpRatio ?? 1)))),
-      (this.atk = m.atk * t.atkMult * (this.isElite ? 1.3 : 1) * 1.6),
+      (this.atk = m.atk * t.atkMult * (this.isElite ? 1.35 : 1) * 1.8),
       (this.baseDef = m.def + t.defAdd + (this.traits.includes("armored") ? 30 : 0)),
       (this.speed = m.speed * t.speedMult * (this.traits.includes("frenzy") ? 1.4 : 1)),
       (this.windup = m.windup * t.windupMult * (this.traits.includes("frenzy") ? 0.85 : 1)),
@@ -16432,16 +16433,18 @@ class Cs {
         ((this.body.vx = C.dir * C.knock * E * 0.8), C.knockUp && !this.def.flying && (this.body.vy = -C.knockUp * E)),
       C.stagger > 0 && this.def.ai !== "golden")
     ) {
+      // 버티기 게이지: 충격이 쌓여 넘칠 때만 경직 (가벼운 공격은 스킬을 끊지 못한다)
       const now = this.host.time.now, guard = (this._poiseUntil ?? 0) > now;
-      const R = C.stagger * (1 - this.heavy * 0.6) * (this.isElite ? 0.6 : 1) * (guard ? 0.2 : 1);
-      R > 0.05 &&
-        ((this.stunT = Math.max(this.stunT, R)),
-        guard || R < 0.15 || (this._poiseUntil = now + 900 + R * 1000),
-        !guard &&
-        this.state === "windup" &&
-          R >= 0.25 &&
-          !this.traits.includes("armored") &&
-          (this.setState("recover", 0.2), this.clearWarn()));
+      const R = C.stagger * (1 - this.heavy * 0.6) * (this.isElite ? 0.6 : 1);
+      const cap = (this.isElite ? (this.rare ? 3.2 : 2.4) : 1.1) * (this.traits.includes("armored") ? 1.6 : 1) * (1 + this.heavy);
+      this._poiseDmg = (this._poiseDmg ?? 0) + (guard ? R * 0.25 : R);
+      if (R > 0.05 && this._poiseDmg >= cap) {
+        this._poiseDmg = 0;
+        this.stunT = Math.max(this.stunT, Math.max(0.35, R));
+        this._poiseUntil = now + 1600;
+        this.host.fx?.burst?.("glow", this.cx, this.cy - 6, 6, 16777215);
+        this.state === "windup" && (this.setState("recover", 0.2), this.clearWarn());
+      }
     }
     return (this.hp <= 0 && this.die(), S);
   }
@@ -16601,6 +16604,7 @@ class Cs {
       (inT || FG.leashTick(this, S),
       o && this.state !== "hidden" && this.state !== "burrowed" && (this.aggro = !0),
       this.isElite && this.aggro && !h && this.updateTraits(S, v),
+      (this._poiseDmg = Math.max(0, (this._poiseDmg ?? 0) - S * 0.5)),
       this.stunT > 0 || h)
     ) {
       ((this.stunT -= S),

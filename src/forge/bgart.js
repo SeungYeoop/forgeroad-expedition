@@ -43,10 +43,12 @@ export function ramp(c, warm = 0xfff0d0, cool = 0x1c1430) {
 // 밝기 I(0~1) → 램프 색 (디더링으로 단 사이를 섞는다)
 // 디더링 끄기 (레퍼런스 화풍: 깨끗한 평면 색 덩어리) — 거점처럼 그 화풍으로 그릴 때 끈다
 let DITHER = true;
+// 붓 뭉치 문턱 (2px 점 + 8px 얼룩): 명암 단 사이를 손으로 찍은 덩어리처럼 섞는다 (바둑판 디더링 대신)
+const brush = (x, y) => 0.5 + (hash(x >> 1, y >> 1, 91) - 0.5) * 0.55 + (vn(x, y, 8, 92) - 0.5) * 0.45;
 export const setDither = (v) => (DITHER = v);
 export function tone(R, I, x, y) {
   const f = Math.max(0, Math.min(1, 1 - I)) * (R.length - 1), b = Math.floor(f);
-  return R[Math.min(R.length - 1, b + (f - b > (DITHER ? dith(x, y) : 0.5) ? 1 : 0))];
+  return R[Math.min(R.length - 1, b + (f - b > (DITHER ? brush(x, y) : 0.5) ? 1 : 0))];
 }
 const LX = -0.55, LY = -0.68, LZ = 0.48;
 

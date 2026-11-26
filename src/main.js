@@ -18846,7 +18846,8 @@ class Er extends zt.Scene {
       return;
     ((this.regionIdx = E), this.freeOldRegionTextures(E));
     const h = je(E),
-      m = Ai(this, h),
+      // 빠진 층 그림(미리 그리기가 덜 끝났거나 지워짐)은 이 자리에서 그려 붙인다 — 빈 텍스처(초록 격자) 방지. 쓰는 중인 하늘은 건드리지 않는다
+      m = ((k) => ([0, 1, 2].forEach((r) => this.textures.exists(`${k}_${r}`) || lt(this, `${k}_${r}`, On(h, r))), k))(Ai(this, h)),
       t = this.add
         .image(ot / 2, xt / 2, m + "_sky")
         .setScrollFactor(0)
@@ -19031,10 +19032,10 @@ class Er extends zt.Scene {
           y: { min: 0, max: xt * 0.8 },
           speedX: { min: -60, max: -25 },
           lifespan: 2e4,
-          frequency: 700,
-          alpha: { start: 0.3, end: 0.3 },
-          scale: { start: 6, end: 7 },
-          tint: 16777215,
+          frequency: 900,
+          alpha: { start: 0.1, end: 0.1 },
+          scale: { start: 10, end: 12 },
+          tint: 16774120,
         },
       },
       R = E[T.particle] ?? E.pollen,

@@ -80,38 +80,40 @@ export function sky(B, top, bot, mid) {
   for (let y = 0; y < B.h; y++) {
     const t = y / (B.h - 1);
     for (let x = 0; x < B.w; x++) {
-      const d = ((x * 7 + y * 13) % 16) / 16 / 24;
+      const d = 0;
       const c = mid ? (t < 0.55 ? mix(top, mid, (t + d) / 0.55) : mix(mid, bot, (t - 0.55 + d) / 0.45)) : mix(top, bot, t + d);
       B.put(x, y, c);
     }
   }
 }
-// ── 뭉게구름: 구 여러 개의 합집합, 구의 법선으로 명암 ──
+// ── 뭉게구름 (거점 화풍): 덩어리 높이를 부드럽게 더한 높이장 → 기울기 음영 + 붓 질감,
+//    가장자리도 붓 질감으로 들쭉날쭉, 왼쪽 위(빛 쪽) 가장자리는 밝은 테, 아래는 평평하고 하늘에 풀린다
 export function cloud(B, x, y, s, light, shade, a = 255, seed = 1) {
-  const R5 = [0xffffff, mix(light, 0xffffff, 0.55), light, mix(light, shade, 0.5), shade];
-  const puffs = [];
-  const n = 6 + Math.floor(hash(seed, 9) * 4);
+  const R5 = [mix(light, 0xfffaf0, 0.75), mix(light, 0xffffff, 0.4), light, mix(light, shade, 0.5), shade];
+  const P = [], n = 7 + Math.floor(hash(seed, 9) * 5);
   for (let k = 0; k < n; k++) {
-    const u = (k / (n - 1)) * 2 - 1;
-    puffs.push([u * 34 * s, -Math.cos(u * 1.4) * 12 * s - hash(seed, k) * 8 * s, (10 + (1 - Math.abs(u)) * 12 + hash(k, seed) * 5) * s]);
+    const u = (k / (n - 1)) * 2 - 1, env = Math.cos(u * 1.3);
+    P.push([u * 36 * s + (hash(k, seed, 3) - 0.5) * 6 * s, -env * 10 * s - hash(seed, k) * 9 * s, (8 + env * 13 + hash(k, seed) * 5) * s]);
   }
-  const x0 = Math.floor(-48 * s), x1 = Math.ceil(48 * s), y0 = Math.floor(-40 * s), y1 = Math.ceil(14 * s);
-  for (let j = y0; j <= y1; j++)
-    for (let i = x0; i <= x1; i++) {
-      if (j > 8 * s) continue; // 바닥은 평평
-      let best = -1, nx = 0, ny = 0, nz = 0;
-      for (const [cx, cy, r] of puffs) {
-        const dx = i - cx, dy = j - cy, d2 = (dx * dx + dy * dy) / (r * r);
-        if (d2 < 1) {
-          const z = Math.sqrt(1 - d2) * r;
-          if (z + cy * -0.1 > best) ((best = z + cy * -0.1), (nx = dx / r), (ny = dy / r), (nz = Math.sqrt(1 - d2)));
-        }
-      }
-      if (best < 0) continue;
-      let L = lv(-nx * 0.5 - ny * 0.75 + nz * 0.25 + 0.15);
-      j > 4 * s && (L = Math.max(L, 3));
-      B.put(x + i, y + j, R5[Math.min(4, L)], a);
-    }
+  const x0 = Math.floor(-52 * s), y0 = Math.floor(-44 * s), GW = Math.ceil(104 * s), GH = Math.ceil(56 * s), S = new Float32Array(GW * GH);
+  for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+    let v = 0;
+    for (const [cx, cy, r] of P) { const d2 = ((x0 + i - cx) ** 2 + (y0 + j - cy) ** 2) / (r * r); d2 < 1 && (v += (1 - d2) ** 2 * r); }
+    S[j * GW + i] = v;
+  }
+  const at = (i, j) => (i < 0 || j < 0 || i >= GW || j >= GH ? 0 : S[j * GW + i]), TH = 1.1 * s, bot = 8 * s;
+  for (let j = 1; j < GH - 1; j++) for (let i = 1; i < GW - 1; i++) {
+    const v = at(i, j), X = Math.round(x + x0 + i), Y = Math.round(y + y0 + j), lj = y0 + j;
+    const br = (hash(X >> 1, Y >> 1, seed) - 0.5) * 0.9;
+    if (v < TH * (1 + br * 0.6) || lj > bot + Math.sin(X * 0.21 + seed) * 1.2) continue;
+    const gx = (at(i + 1, j) - at(i - 1, j)) / 2, gy = (at(i, j + 1) - at(i, j - 1)) / 2, gm = Math.hypot(gx, gy) + 0.5;
+    const facing = (gx * 0.55 + gy * 0.8) / gm, low = (lj + 30 * s) / (40 * s);
+    let I = facing * 0.55 + 0.62 - low * 0.85 + br * 0.3;
+    v < TH * 2.3 && facing > 0.12 && (I = 1);
+    const L = I > 0.6 ? 0 : I > 0.2 ? 1 : I > -0.2 ? 2 : I > -0.6 ? 3 : 4;
+    const fade = lj > bot - 6 * s ? Math.max(0.35, (bot - lj) / (6 * s)) : 1;
+    B.put(X, Y, R5[L], Math.round(a * fade));
+  }
 }
 // ── 면이 깎인 산맥: 능선 + 안쪽 주름(빛 면/그늘 면) + 눈 + 안개 ──
 export function mountains(B, o) {
@@ -188,21 +190,23 @@ export function tree(B, x, gy, s, leaf, trunk, kind = "round", haze = 0, skyC = 
     st(x, gy, x, gy - 34 * s, 3), st(x, gy - 20 * s, x - 12 * s, gy - 30 * s, 2), st(x, gy - 26 * s, x + 10 * s, gy - 38 * s, 2);
     return;
   }
-  const C = [[0, -30, 14], [-11, -21, 10], [11, -22, 11], [-5, -40, 9], [7, -37, 9]];
-  for (const [dx, dy, r] of C) ball(B, x + dx * s, gy + dy * s, r * s, L5, hz);
+  for (const [ex, ey] of [[-9, -24], [9, -26], [-2, -34]]) for (let k = 0; k <= 10; k++) { const t = k / 10; B.put(x + ex * s * t, gy - 18 * s + (ey + 18) * s * t, hz(T5[3])); }
+  const C = [[0, -26, 11], [-12, -20, 9], [12, -21, 9], [-8, -33, 9], [8, -34, 9], [0, -40, 8], [-15, -27, 7], [15, -29, 7]];
+  for (const [dx, dy, r] of C.sort((a, b) => b[1] - a[1])) ball(B, x + dx * s, gy + dy * s, r * s, L5, hz);
 }
-// 구 하나 (잎 덩어리, 과일, 바위 등)
+// 구 하나 (잎 덩어리, 과일, 바위 등) — 거점 화풍: 가장자리는 3px 간격 잎 톱니, 위·왼쪽 빛, 아래 짙은 테, 2px 잎 점 질감
 export function ball(B, cx, cy, r, R5, hz = (c) => c) {
-  for (let j = -r; j <= r; j++)
-    for (let i = -r; i <= r; i++) {
-      const d = (i * i + j * j) / (r * r);
-      if (d > 1) continue;
-      const nz = Math.sqrt(1 - d);
-      let L = lv(-(i / r) * 0.55 - (j / r) * 0.7 + nz * 0.3 - 0.1);
-      d > 0.82 && (L = Math.min(5, L + 1));
-      // 잎의 결 (작은 얼룩)
-      hash(Math.round(cx + i), Math.round(cy + j), 3) > 0.9 && (L = Math.min(4, L + 1));
-      B.put(cx + i, cy + j, hz(R5[L]));
+  const R = Math.ceil(r * 1.15), sd = Math.round(cx * 7 + cy * 13);
+  for (let j = -R; j <= R; j++)
+    for (let i = -R; i <= R; i++) {
+      const X = Math.round(cx + i), Y = Math.round(cy + j), d = Math.hypot(i, j), ang = Math.atan2(j, i);
+      const re = r * (1 + (hash(Math.round(((ang + Math.PI) * r) / 3), sd, 7) - 0.5) * 0.24 + (j < 0 ? 0.04 : -0.05));
+      if (d > re) continue;
+      const nz = Math.sqrt(Math.max(0, 1 - Math.min(1, (d / re) ** 2)));
+      let I = (-(i / r) * 0.5 - (j / r) * 0.75) * 0.85 + nz * 0.35 - 0.12 + (hash(X >> 1, Y >> 1, 3) - 0.5) * 0.5;
+      j / r > 0.4 && d > re * 0.66 && (I -= 0.6);
+      hash(X, Y, 5) > 0.95 && (I += I > 0 ? 0.45 : -0.45);
+      B.put(X, Y, hz(R5[lv(I)]));
     }
 }
 // 각진 덩어리 (탑·벽)

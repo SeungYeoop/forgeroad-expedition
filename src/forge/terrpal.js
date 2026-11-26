@@ -21,7 +21,8 @@ export const CAP = { plains: "grass", forest: "grass", cave: "rock", desert: "sa
 
 // 5단계 팔레트 + 외곽선. 그늘은 보라빛, 빛은 따뜻하게
 export function ramp(b) {
-  return [mix(sh(b, 0.42), 0xfff2d8, 0.18), sh(b, 0.17), b, mix(sh(b, -0.3), 0x3c2848, 0.2), mix(sh(b, -0.52), 0x24183a, 0.32), mix(sh(b, -0.74), 0x140c1e, 0.45)];
+  // 그늘은 차갑되 보라로 치우치지 않게 (흙이 분홍빛으로 뜨지 않도록), 빛은 따뜻하게
+  return [mix(sh(b, 0.4), 0xfff0d4, 0.18), sh(b, 0.16), b, mix(sh(b, -0.3), 0x2c2a34, 0.14), mix(sh(b, -0.52), 0x1e1c24, 0.24), mix(sh(b, -0.74), 0x120f14, 0.38)];
 }
 // 지하 생물군계
 export const BIOMES = {

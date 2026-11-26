@@ -388,8 +388,8 @@ export function* pixFine(ch, base, region, S) {
           if (soft) {
             if (dt === 0) col = CR[5];
             else if (dt === 1) col = cHi;
-            else if (dt < 3) col = (wx + yw) % 3 === 0 && H(wx, yw, 15) > 0.5 ? cHi : mix(cHi, cTop, 0.45);
-            else if (dt < capN - 1) col = cTop;
+            else if (dt < 3) col = H(wx >> 1, yw >> 1, 15) > 0.55 ? cHi : mix(cHi, cTop, 0.45);
+            else if (dt < capN - 1) col = H(wx >> 1, yw >> 1, 16) > 0.8 ? mix(cTop, cHi, 0.35) : H(wx >> 1, yw >> 1, 17) < 0.12 ? CR[3] : cTop;
             else if (dt < capN) col = CR[3];
             else col = dt === capN + drip - 1 ? CR[5] : CR[4];
             // 덮개 옆(낭떠러지 끝)은 테두리
@@ -400,11 +400,15 @@ export function* pixFine(ch, base, region, S) {
         }
         let L, ramp5 = R5;
         if (hasCap && dt < capN + drip + soilN) {
-          // 흙층: 작은 자갈, 위쪽은 풀뿌리 그늘
+          // 흙층 (거점 땅 단면처럼): 4px 가로 결 띠 + 2px 붓 뭉치 + 드문드문 박힌 둥근 돌, 위쪽은 풀뿌리 그늘
           ramp5 = SOIL;
-          L = lvq(wx * 1.3 + 900, yw * 1.3, 6);
-          L = L === 5 ? (H(wx, yw, 96) < 0.5 ? 4 : 5) : Math.min(4, L + 1);
+          const band = Math.floor((yw + vn1(wx / 50, 15) * 4) / 4), bv = H(band, wx >> 4, 16), sd = (dt - capN - drip) / Math.max(1, soilN);
+          L = 2 + (bv > 0.72 ? -1 : bv < 0.2 ? 1 : 0) + (sd > 0.65 ? 1 : 0);
+          const hb = H(wx >> 1, yw >> 1, 17);
+          hb > 0.88 ? L-- : hb < 0.08 && L++;
+          if (H(Math.floor(wx / 9), Math.floor(yw / 9), 19) > 0.66) { const sL = lvq(wx * 1.1 + 500, yw * 1.1, 9); sL < 5 && ((ramp5 = R5), (L = Math.min(4, sL + 1))); }
           dt < capN + drip + 2 && (L = Math.min(4, L + 1));
+          L = Math.max(0, Math.min(4, L));
         } else if (STEP && !ugc) {
           // 사암 지층: 띠마다 색이 다르고, 띠 안은 가로로 긴 얼룩, 띠 사이 금, 세로 골
           // 띠 두께 16~34px (띠마다 다르게), 띠 안은 거의 한 톤 (가끔 가로로 긴 밝은·어두운 결)

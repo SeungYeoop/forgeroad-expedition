@@ -59,9 +59,11 @@ function setup(sc) {
 function applyMood(sc) {
   const L = sc.lk;
   if (!L?.cm) return;
+  // 거점과 같은 색 보정: 채도 살짝 누르고 · 빛은 따뜻하게 · 대비 조금 (형광빛 금지)
   L.cm.reset();
-  L.cm.contrast(0.06, !0);
-  L.cm.saturate(0.18, !0);
+  L.cm.saturate(-0.04);
+  L.cm.multiply([1.04, 0.02, 0, 0, 0, 0.01, 1, 0.01, 0, 0, 0, 0.02, 0.92, 0, 0, 0, 0, 0, 1, 0], !0);
+  L.cm.contrast(0.1, !0);
 }
 export function region(sc, reg) {
   const L = sc.lk ?? setup(sc);

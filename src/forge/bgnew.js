@@ -3,6 +3,7 @@ import * as G from "./bg3d.js";
 import { paintGrass } from "./bggrass.js";
 import { paintSteppe } from "./bgsteppe.js";
 import { ZBG, paintZone } from "./bgzones.js";
+import { finishBuf } from "./paintfx.js";
 const W = 640, HH = 360;
 const mix = (a, b, t) => {
   t = Math.max(0, Math.min(1, t));
@@ -27,7 +28,12 @@ export const THEME = {
 };
 const DARK = { cave: 1, abyss: 1 };
 
+// 모든 배경 층에 거점 화풍 마무리 붓질 (엉김 · 채도 누름 · 붓 얼룩)
 export function paintLayer3d(T, S, E, h, id) {
+  paintLayerRaw(T, S, E, h, id);
+  T.buf && finishBuf(T.buf, T.w, T.h, { clump: 0.32, mute: 0.12, tex: 0.05 });
+}
+function paintLayerRaw(T, S, E, h, id) {
   if (ZBG[id]) return paintZone(T, S, E, h, id);
   const th = THEME[id] ?? (/forest|wood/.test(id) ? "forest" : "plains");
   if (th === "grass") return paintGrass(T, S, E, h);
@@ -158,14 +164,27 @@ export function paintLayer3d(T, S, E, h, id) {
 export function paintSky3d(T, E, w, hgt) {
   const B = G.buffer(w, hgt);
   G.sky(B, E.sky[0], E.sky[1], mix(E.sky[0], E.sky[1], 0.6));
+  // 지평선 쪽 따뜻한 대기 (거점 하늘처럼): 아래 40%를 빛 색으로 살짝 데운다
+  const warmC = mix(E.sky[1], E.glow ?? 0xfff0d0, 0.5);
+  for (let y = Math.round(hgt * 0.55); y < hgt; y++) { const k = Math.round(70 * Math.max(0, (y - hgt * 0.55) / (hgt * 0.45)) ** 1.4); for (let x = 0; x < w; x++) B.put(x, y, warmC, k); }
   // 해 빛무리 (팔레트에 glow가 있는 지역)
   if (E.glow) {
     const cx = w * 0.78, cy = hgt * 0.16, r = hgt * 0.5;
     for (let y = 0; y < hgt; y++)
       for (let x = 0; x < w; x++) {
         const d = Math.hypot(x - cx, (y - cy) * 1.2) / r;
-        d < 1 && B.put(x, y, E.glow, Math.round(150 * Math.pow(1 - d, 2.2)));
+        d < 1 && B.put(x, y, E.glow, Math.round(170 * Math.pow(1 - d, 2)));
       }
   }
+  // 낮 하늘: 거점처럼 큰 뭉게구름 몇 덩이 (높이 올라가도 하늘이 비어 보이지 않게)
+  const lum = (c) => ((c >> 16) & 255) * 0.3 + ((c >> 8) & 255) * 0.59 + (c & 255) * 0.11;
+  if (lum(E.sky[1]) > 150 && lum(E.sky[0]) > 70) {
+    const light = mix(E.sky[1], 0xfffaf0, 0.7), shade = mix(E.sky[0], E.sky[1], 0.5);
+    for (let i = 0; i < 6; i++) {
+      const cx = ((i * 0.618 + 0.13) % 1) * w, cy = hgt * (0.22 + ((i * 0.37) % 1) * 0.45), sc = 0.9 + ((i * 0.53) % 1) * 1.1;
+      for (const ox of [-w, 0, w]) G.cloud(B, cx + ox, cy, sc, light, shade, 235, 500 + i);
+    }
+  }
   B.toHt(T);
+  T.buf && finishBuf(T.buf, T.w, T.h, { clump: 0, mute: 0.08, tex: 0.018 });
 }

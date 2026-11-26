@@ -5,6 +5,7 @@
 // - 지하는 생물군계(이끼·종유석·자수정·심층암·용암)마다 재질과 장식이 다르다
 import { H, sh, mix, pack, unpack, CAP, ramp, BIOMES, lvq } from "./terrpal.js";
 import { pixFine, fineSlice, cropBand, BANDH } from "./terrfine.js";
+import { finishRGBA } from "./paintfx.js";
 export { BANDH };
 export { BIOMES };
 const T = 16, COLS = 32, PW = COLS * T;
@@ -254,12 +255,18 @@ export function paintChunk(scene, rt, ch, base, raw, region, band = 0) {
 }
 // 띠 하나 그리기: 자연 지형은 띠(+여유)만 계산, 칸 지형은 전체를 계산해 띠만 잘라 쓴다
 export function* bandPixels(ch, base, raw, region, band) {
+  let r, oy;
   if (ch.fine) {
     const sl = fineSlice(ch, band);
-    return cropBand(yield* pixFine(ch, base, region, sl), sl.cropTop, sl.cropH);
+    (r = cropBand(yield* pixFine(ch, base, region, sl), sl.cropTop, sl.cropH)), (oy = (sl.y0 ?? 0) + sl.cropTop);
+  } else {
+    const H2 = bandH(ch, band);
+    (r = cropBand(yield* pixSteps(ch, base, raw, region), band * BANDH, H2)), (oy = band * BANDH);
   }
-  const H2 = bandH(ch, band);
-  return cropBand(yield* pixSteps(ch, base, raw, region), band * BANDH, H2);
+  // 거점 화풍 마무리 붓질 (작업 스레드와 같은 값)
+  finishRGBA(r.img.data, r.img.width, r.img.height, { ox: base * 16, oy, clump: 0.28, mute: 0.16, tex: 0.06, lim: 70 });
+  finishRGBA(r.wall, r.img.width, r.img.height, { ox: base * 16, clump: 0.2, mute: 0.18, tex: 0.05, lim: 70 });
+  return r;
 }
 function* paintSteps(scene, S, ch, base, raw, region, band = 0) {
   const { img, front, wall } = yield* bandPixels(ch, base, raw, region, band);
@@ -414,7 +421,7 @@ export function* pixSteps(ch, base, raw, region) {
               const drip = Math.floor(H(wx >> 1, r, 11) * 3) + (H(wx >> 2, r, 12) > 0.8 ? 3 : 0);
               if (ty === 0) col = CR[5];
               else if (ty === 1) col = cHi;
-              else if (ty < 4) col = (wx + wy) % 3 === 0 && H(wx, wy, 13) > 0.5 ? cHi : mix(cHi, cTop, 0.45);
+              else if (ty < 4) col = H(wx >> 1, wy >> 1, 13) > 0.55 ? cHi : mix(cHi, cTop, 0.45);
               else if (ty < 6) col = cTop;
               else if (ty === 6) col = CR[3];
               else if (ty < 7 + drip) col = ty === 6 + drip ? CR[5] : CR[4];

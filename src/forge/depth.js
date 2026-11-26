@@ -2,6 +2,8 @@
 // 1) 지형 뒤에 같은 그림을 화면 중심(소실점) 쪽으로 조금씩 작게 겹쳐 그려, 블록이 앞으로 튀어나온 것처럼 보이게 한다
 // 2) 카메라가 지하로 내려가면 배경을 어두운 굴로 덮고, 플레이어 주변만 밝게 남긴다
 import { undergroundState, CAVE_STYLES } from "./underground.js";
+import * as G3 from "./bg3d.js";
+const mixc = (a, b, t) => { const g = (k) => Math.round(((a >> k) & 255) * (1 - t) + ((b >> k) & 255) * t); return (g(16) << 16) | (g(8) << 8) | g(0); };
 let R = null;
 export function bindDepth(r) {
   R = r;
@@ -64,40 +66,26 @@ function caveTex(sc) {
 }
 function dayTex(sc) {
   if (sc.textures.exists("dp_day")) return;
-  const c = document.createElement("canvas");
-  c.width = 4;
-  c.height = 360;
-  const x = c.getContext("2d"), g = x.createLinearGradient(0, 0, 0, 360);
-  g.addColorStop(0, "#3a88e8");
-  g.addColorStop(0.6, "#8ac8f8");
-  g.addColorStop(1, "#e8f6ff");
-  x.fillStyle = g;
-  x.fillRect(0, 0, 4, 360);
-  sc.textures.addCanvas("dp_day", c);
-  // 뭉게구름 띠
-  const w = 640, h = 120, k = document.createElement("canvas");
-  k.width = w;
-  k.height = h;
-  const y = k.getContext("2d");
-  const Hs = (a, b) => {
-    let v = (a * 374761393 + b * 668265263) | 0;
-    v = Math.imul(v ^ (v >>> 13), 1274126177);
-    return ((v ^ (v >>> 16)) >>> 0) / 4294967296;
-  };
-  for (let i = 0; i < 14; i++) {
-    const cx = Hs(i, 1) * w, cy = 40 + Hs(i, 2) * 60, s = 14 + Hs(i, 3) * 22;
-    for (let q = 0; q < 6; q++) {
-      const bx = cx + (q - 2.5) * s * 0.8, by = cy - Math.sin((q / 5) * Math.PI) * s * 0.5, r = s * (0.55 + Hs(i, q) * 0.4);
-      for (const [col, dy, rr] of [["#b8cce8", 3, r], ["#ffffff", 0, r * 0.92]]) {
-        y.fillStyle = col;
-        for (const ox of [-w, 0, w]) {
-          y.beginPath();
-          y.arc(Math.round(bx + ox), Math.round(by + dy), Math.round(rr), 0, Math.PI * 2);
-          y.fill();
-        }
-      }
-    }
+  // 높은 하늘 (거점 화풍): 옅은 하늘색 → 따뜻한 아래, 왼쪽 위 큰 해 번짐, 높이장 뭉게구름
+  const DB = G3.buffer(640, 360, !0);
+  for (let y = 0; y < 360; y++) {
+    const t = y / 359, col = t < 0.55 ? mixc(0x5c9ad8, 0x9ccaea, t / 0.55) : mixc(0x9ccaea, 0xf2e8d4, (t - 0.55) / 0.45);
+    for (let x0 = 0; x0 < 640; x0++) DB.put(x0, y, col);
   }
+  for (let y = 0; y < 360; y++) for (let x0 = 0; x0 < 640; x0++) { const d = Math.hypot(x0 - 120, (y - 70) * 1.1) / 300; d < 1 && DB.put(x0, y, 0xfff2d0, Math.round(200 * (1 - d) ** 2.2)); }
+  for (let i = 0; i < 7; i++) {
+    const cx = ((i * 0.618 + 0.2) % 1) * 640, cy = 60 + ((i * 0.41) % 1) * 190, s = 0.9 + ((i * 0.53) % 1) * 1.2;
+    for (const ox of [-640, 0, 640]) G3.cloud(DB, cx + ox, cy, s, 0xfff6e6, 0x9cb4cc, 240, 700 + i);
+  }
+  sc.textures.addCanvas("dp_day", DB.toCanvas());
+  // 뭉게구름 띠 (거점 화풍): 높이장 구름을 겹겹이 — 위는 햇빛 받은 크림색, 아래는 하늘빛 그늘로 풀린다
+  const w = 640, h = 120, CB = G3.buffer(w, h, !0);
+  for (let i = 0; i < 16; i++) {
+    const cx = ((i * 0.618) % 1) * w, cy = 52 + (i % 3) * 14 + ((i * 37) % 11), s = 0.75 + ((i * 53) % 10) / 14;
+    for (const ox of [-w, 0, w]) G3.cloud(CB, cx + ox, cy, s, 0xf6efe0, 0x9ab0c8, 255, 300 + i);
+  }
+  for (let y = 84; y < h; y++) for (let x = 0; x < w; x++) CB.put(x, y, y > 100 ? 0xc8d4e0 : 0xe6e8e8, Math.round(255 * Math.min(1, (y - 84) / 20)));
+  const k = CB.toCanvas();
   sc.textures.addCanvas("dp_cloud", k);
 }
 function ensure(sc) {

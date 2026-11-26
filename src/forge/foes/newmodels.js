@@ -8,7 +8,12 @@ import * as IV from "./px_iv.js";
 import * as LC from "./px_lc.js";
 import * as RH from "./px_rh.js";
 import * as GB from "./px_gb.js";
+import * as AF from "./px_af.js";
 export const NEW_MODELS = {
+  // 애쉬펠 (노랑)
+  af_ashling: AF.pxAshling, af_hound: AF.pxChainHound, af_brazier: AF.pxBrazier, af_jailer: AF.pxJailer,
+  af_crow: AF.pxCrow, af_cinder: AF.pxCinder, af_wraith: AF.pxWraith, af_drake: AF.pxDrake,
+  af_censer: AF.pxCenser, af_bat: AF.pxFireBat, af_shackle: AF.pxShackle, af_phoenix: AF.pxPhoenix,
   // 글래스블룸 (노랑)
   gb_snail: GB.pxSnail, gb_gardener: GB.pxGardener, gb_pot: GB.pxPot, gb_golem: GB.pxGolem,
   gb_moth: GB.pxMoth, gb_bee: GB.pxBee, gb_vine: GB.pxVine, gb_flytrap: GB.pxFlytrap,

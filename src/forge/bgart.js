@@ -41,9 +41,12 @@ export function ramp(c, warm = 0xfff0d0, cool = 0x1c1430) {
   return [mix(sh(c, 0.5), warm, 0.25), mix(sh(c, 0.25), warm, 0.1), c, mix(sh(c, -0.25), cool, 0.12), mix(sh(c, -0.45), cool, 0.25), mix(sh(c, -0.65), cool, 0.4)];
 }
 // 밝기 I(0~1) → 램프 색 (디더링으로 단 사이를 섞는다)
+// 디더링 끄기 (레퍼런스 화풍: 깨끗한 평면 색 덩어리) — 거점처럼 그 화풍으로 그릴 때 끈다
+let DITHER = true;
+export const setDither = (v) => (DITHER = v);
 export function tone(R, I, x, y) {
   const f = Math.max(0, Math.min(1, 1 - I)) * (R.length - 1), b = Math.floor(f);
-  return R[Math.min(R.length - 1, b + (f - b > dith(x, y) ? 1 : 0))];
+  return R[Math.min(R.length - 1, b + (f - b > (DITHER ? dith(x, y) : 0.5) ? 1 : 0))];
 }
 const LX = -0.55, LY = -0.68, LZ = 0.48;
 

@@ -5,10 +5,10 @@ import { tube, glowSpot } from "./bgzones.js";
 import { stones, timber, gable, windowL, door, chimney, sign, barrel } from "./hubbuild.js";
 
 const art = (w, h, fn) => { const B = G3.buffer(w, h, !1), lights = []; fn(B, lights); return { c: B.toCanvas(), w, h, lights }; };
-const PLASTER = [0xf0e4c8, 0xe8cfa0, 0xd8e0e8, 0xf0d0c0, 0xe0e8d0, 0xf4ecd8];
+const PLASTER = [0x8a6040, 0x7a5434, 0x9a6a44, 0x6a4a30, 0x8a5a3a, 0x7a5a3c];
 const BEAMS = [0x5a3a24, 0x4a3020, 0x6a4a2a];
-const ROOFS = [0x3a4a6a, 0x8a3a2a, 0x5a4a3a, 0x2a5a5a, 0x7a3a3a];
-const SHUT = [0x2a6a8a, 0x8a3a2a, 0x3a7a4a, 0x6a4a8a, 0xb08030];
+const ROOFS = [0x4a3a2c, 0x5a4a3a, 0x3e3a3a, 0x6a5038, 0x524636];
+const SHUT = [0x5a3a24, 0x4a3020, 0x6a4a2a, 0x3a3a3a, 0x5a4030];
 
 // 연립 주택 한 채: 돌 아래층(가게 창·문) · 튀어나온 목조 위층 1~2 · 덧창·꽃 상자 창 · 박공 또는 옆 지붕(지붕창) · 굴뚝 · 걸린 간판
 function townhouse(B, L, x, g, w, h, sd) {
@@ -62,9 +62,9 @@ export function townRow(W, skyC) {
   return art(W, 240, (B, L) => {
     let x = -10, k = 0;
     while (x < W) {
-      const w = 64 + Math.floor(hash(k, 77) * 50), h = 130 + Math.floor(hash(77, k) * 95);
+      const w = 64 + Math.floor(hash(k, 77) * 46), h = 104 + Math.floor(hash(77, k) * 56);
       townhouse(B, L, x, 239, w, h, 500 + k * 13);
-      x += w + 1 + Math.floor(hash(k, 78) * 4), k++;
+      x += w + (hash(k, 79) < 0.55 ? 70 + Math.floor(hash(k, 78) * 110) : 2), k++;
     }
     for (let i = 0; i < B.col.length; i++) B.al[i] && (B.col[i] = sh(mix(B.col[i], skyC, 0.26), -0.14));
   });

@@ -2,7 +2,8 @@
 //   ◀ 서문(서쪽 지상) · ▼ 갱도 승강기(지하) · 운명의 비석 광장(가운데) · ▲ 하늘 승강장(하늘, 정박한 비행선) · ▶ 동문(동쪽 지상)
 //   그림: bgart 화법(높이장 음영 · 디더링 · 대기 원근) 버퍼를 캔버스로. 원경은 시차 타일, 건물·길은 월드 그림
 import * as G3 from "./bg3d.js";
-import { mix, sh, hash, vn, fbm, ramp, tone, mass, ranges, fog, glint, isle, crystals, tree, land } from "./bgart.js";
+import { mix, sh, hash, vn, fbm, ramp, tone, mass, ranges, fog, glint, isle, crystals, tree, land, setDither } from "./bgart.js";
+import { skyRef, hillsRef, pinesRef, bigTree, deadTree, tent, lanternPost, soilStrip, waterStrip, reedsStrip } from "./hubref.js";
 import { tower as towerB, wall as wallB, banner, chain, glowSpot, tube } from "./bgzones.js";
 import { lamp } from "./hub2.js";
 import { storehouse, smithy, armorer, wizardTower, dojoHall, noticeBoard, waystone } from "./hubbuild.js";
@@ -103,8 +104,8 @@ function gateArt(flip, col, label) {
     const ax = w / 2, aw = 30, ah = 62, ay = h - 1;
     for (let j = 0; j < ah; j++) for (let i = -aw; i <= aw; i++) { const top = j > ah - aw ? Math.sqrt(Math.max(0, aw * aw - (j - (ah - aw)) ** 2)) : aw; Math.abs(i) < top && B.put(ax + i, ay - j, j % 8 === 0 || (i + 60) % 8 === 0 ? 0x3a3430 : mix(0x0c0a10, col, 0.15 + (1 - j / ah) * 0.25)); }
     for (let i = -aw - 3; i <= aw + 3; i++) for (let j = 0; j < 4; j++) { const r = aw + 3 - j, yy = ay - (ah - aw) - Math.sqrt(Math.max(0, r * r - i * i)); Math.abs(i) <= r && B.put(ax + i, yy, tone(ramp(0xb8b0a0), 0.8 - j * 0.15, ax + i, j)); }
-    towerB(B, 6, h - 1, 30, 140, 0xa8a294, 0x3a5a9a, 0xffd890, { flag: col });
-    towerB(B, w - 36, h - 1, 30, 140, 0xa8a294, 0x3a5a9a, 0xffd890, { flag: col });
+    towerB(B, 6, h - 1, 30, 140, 0x9a9080, 0x3e3434, 0xffc070, { flag: col });
+    towerB(B, w - 36, h - 1, 30, 140, 0x9a9080, 0x3e3434, 0xffc070, { flag: col });
     banner(B, ax - 24, h - 70, 14, col, { w: 10, h: 26, emblem: 0xffe8a0 }), banner(B, ax + 16, h - 70, 14, col, { w: 10, h: 26, emblem: 0xffe8a0 });
     glowSpot(B, ax, h - 30, 40, col, 60);
   }, [[90, 160, 14, col]]);
@@ -114,7 +115,7 @@ function skyLiftArt() {
   const w = 220, h = 300;
   return P(w, h, (B) => {
     const tx = 70, tw = 40, th = 200;
-    towerB(B, tx, h - 1, tw, th, 0xb0a898, 0x2a5a9a, 0xffd890, { roofK: 0.6 });
+    towerB(B, tx, h - 1, tw, th, 0x9a9080, 0x3e3434, 0xffc070, { roofK: 0.6 });
     for (let j = 0; j < th - 10; j++) { B.put(tx + tw + 6, h - 1 - j, 0x6a4a2a), B.put(tx + tw + 24, h - 1 - j, 0x6a4a2a); j % 12 === 0 && (() => { for (let i = 6; i <= 24; i++) B.put(tx + tw + i, h - 1 - j, 0x8a6438); })(); }
     for (let i = 4; i <= 26; i++) for (let j = 0; j < 4; j++) B.put(tx + tw + i, h - 90 + j, j === 0 ? 0xa07a48 : 0x6a4a2a);
     for (let j = 0; j < th; j++) B.put(tx + tw + 15, h - 1 - j, 0xd8c8a0);
@@ -178,115 +179,97 @@ function FAC() {
 }
 
 export function buildHub(sc, R, gy) {
+  // 레퍼런스 화풍(docs/reference/maps): 디더링 없는 평면 음영 · 강한 대기 원근 · 땅 단면 + 물 전경
+  setDither(!1);
   const { ot: W, xt: Hh, zt } = R;
   const ADD = zt.BlendModes.ADD;
   const tex = (key, canvas) => (sc.textures.exists(key) || sc.textures.addCanvas(key, canvas), key);
-  sc.add.image(W / 2, Hh / 2, tex("h4_sky", skyCanvas(W, Hh))).setScrollFactor(0).setDepth(-100);
+  const HZ = 0xc8dce4;
+  sc.add.image(W / 2, Hh / 2, tex("h5_sky", skyRef(W, Hh))).setScrollFactor(0).setDepth(-100);
   const layers = [];
   const lay = (key, cv, f, y, d) => { const t = sc.add.tileSprite(W / 2, y, W, cv.height, tex(key, cv)).setOrigin(0.5, 1).setScrollFactor(0).setDepth(d); t.setData("f", f); layers.push(t); return t; };
-  lay("h4_far", farCanvas(), 0.06, gy - 70, -98);
-  lay("h4_fields", fieldsCanvas(), 0.14, gy + 56, -97);
-  lay("h4_mid", roofsea(SKYC).c, 0.3, gy - 20, -95);
-  // 길가 안개 (원경과 마을 사이)
-  const fogG = sc.add.graphics().setScrollFactor(0).setDepth(-96);
-  for (let i = 0; i < 18; i++) fogG.fillStyle(0xe8f2ff, 0.014 * i).fillRect(0, gy - 110 + i * 4, W, 4);
-  // 날아가는 새 떼
-  for (let i = 0; i < 6; i++) {
-    const b = sc.add.text(-20, 30 + i * 12, "ᵛ", { fontSize: "10px", color: "#2a3a4a" }).setScrollFactor(0.1).setDepth(-97);
+  lay("h5_hills", hillsRef(HZ), 0.04, gy - 30, -98);
+  lay("h5_pine1", pinesRef(HZ, 0.58, 3, 120, 0x3a5a44), 0.1, gy - 18, -97);
+  const fogG = sc.add.graphics().setScrollFactor(0).setDepth(-96.5);
+  for (let i = 0; i < 16; i++) fogG.fillStyle(0xe8f0e8, 0.02 * (16 - Math.abs(i - 8) * 2)).fillRect(0, gy - 70 + i * 3, W, 3);
+  lay("h5_pine2", pinesRef(HZ, 0.32, 7, 160, 0x2e4a32), 0.2, gy + 2, -96);
+  for (let i = 0; i < 5; i++) {
+    const b = sc.add.text(-20, 40 + i * 12, "v", { fontSize: "8px", color: "#2a3a4a" }).setScrollFactor(0.1).setDepth(-97);
     sc.tweens.add({ targets: b, x: W + 200, y: b.y - 16, duration: 28000 + i * 2500, delay: i * 2100, repeat: -1 });
   }
-  // 원근 바닥 (줄마다 흐르는 속도가 달라 앞뒤 깊이가 생긴다)
-  const Hf = Hh - gy + 4, floor = [];
-  for (const row of floorRows(Hf)) {
-    const t = sc.add.tileSprite(W / 2, gy - 2 + row.y + row.h / 2, W, row.h, tex(`h4_floor_${row.k}`, floorRow(row, Hf))).setScrollFactor(0).setDepth(2);
-    t.setData("f", 1 + Math.pow(row.y / Hf, 1.15) * 0.6), floor.push(t);
-  }
-  const street = null;
-  // 입체 두께: 건물마다 어두운 사본을 소실점 쪽으로 줄여 겹친다 (카메라가 움직이면 옆면·지붕 두께가 드러난다)
-  const ext = [], VY = gy - 170, TINTS = [0xb8b8c8, 0x9a9aac, 0x80809a, 0x6a6a84, 0x58586e];
-  const extrude = (key, x, y, ox, oy, depth, n, k = 0.011) => {
-    for (let i = n; i >= 1; i--) {
-      const im = sc.add.image(x, y, key).setOrigin(ox, oy).setDepth(depth - 0.004 * i).setTint(TINTS[Math.min(TINTS.length - 1, i - 1)]);
-      ext.push({ im, x, y, s: 1 - k * i });
-    }
-  };
   const glow = (x, y, s, col = 0xffb050, a = 0.5) => {
     const g = sc.add.image(x, y, "vx_glow").setBlendMode(ADD).setTint(col).setAlpha(a).setScale(s / 24).setDepth(7);
     sc.tweens.add({ targets: g, alpha: a * 0.6, duration: 900 + Math.random() * 900, yoyo: !0, repeat: -1, ease: "Sine.easeInOut" });
   };
+  // 입체 두께: 어두운 사본을 소실점 쪽으로 줄여 겹친다
+  const ext = [], VY = gy - 170, TINTS = [0xb0b0b8, 0x94949e, 0x7a7a86, 0x64646e, 0x52525c];
+  const extrude = (key, x, y, ox, oy, depth, n, k = 0.011) => {
+    for (let i = n; i >= 1; i--) ext.push({ im: sc.add.image(x, y, key).setOrigin(ox, oy).setDepth(depth - 0.004 * i).setTint(TINTS[Math.min(TINTS.length - 1, i - 1)]), x, y, s: 1 - k * i });
+  };
+  // 물에 비친 그림 (거꾸로 · 어둡게 · 흐리게)
+  const WL = gy + 22, refl = [];
+  const reflect = (key, x, ox, a = 0.3) => refl.push(sc.add.image(x, WL, key).setOrigin(ox, 0).setFlipY(!0).setAlpha(a).setTint(0x5a7480).setDepth(2.05));
   const shadows = sc.add.graphics().setDepth(2.3);
-  const place = (key, p, x, depth = 1, n = 4) => {
+  const place = (key, p, x, depth = 1, n = 4, rf = 0.3) => {
     sc.add.image(x, gy + 1, tex(key, p.c)).setOrigin(0.5, 1).setDepth(depth);
     n && extrude(key, x, gy + 1, 0.5, 1, depth, n);
-    // 접지 그림자 (발치에 짙게 · 해 반대쪽으로 길게)
+    rf && reflect(key, x, 0.5, rf);
     const w = p.w * 0.8, x0 = x - w / 2;
-    for (let i = 0; i < 6; i++) shadows.fillStyle(0x0a0814, 0.07).fillRect(x0 + i * 2, gy - 1, w - i * 4, 2 + i);
-    shadows.fillStyle(0x0a0814, 0.14).fillPoints([{ x: x0, y: gy - 1 }, { x: x0 + w, y: gy - 1 }, { x: x0 + w - 18, y: gy + 12 }, { x: x0 - 30, y: gy + 12 }], !0);
+    for (let i = 0; i < 5; i++) shadows.fillStyle(0x0a0814, 0.08).fillRect(x0 + i * 2, gy - 1, w - i * 4, 2 + i * 0.6);
     const ox = x - p.w / 2, oy = gy + 1 - p.h;
-    for (const [lx, ly, s, col] of p.lights ?? []) glow(ox + lx, oy + ly, s * 1.6, col ?? 0xffb050, 0.45);
+    for (const [lx, ly, s, col] of p.lights ?? []) glow(ox + lx, oy + ly, s * 1.6, col ?? 0xffb050, 0.5);
     return { ox, oy, w: p.w, h: p.h };
   };
-  const out = { facilities: [], layers, street, floor, ext };
-  // 길 뒤 연립 주택 줄 (시설 건물 뒤, 길 전체)
-  const row = townRow(HUB_W, SKYC);
-  sc.add.image(0, gy + 1, tex("h4_row", row.c)).setOrigin(0, 1).setDepth(0.6);
-  extrude("h4_row", 0, gy + 1, 0, 1, 0.6, 3, 0.012);
-  for (const [lx, ly, s2, col] of row.lights) glow(lx, gy + 1 - row.h + ly, s2 * 1.4, col ?? 0xffb050, 0.3);
-  // 가로수 (화분 돌 받침 + 둥근 나무) — 거리에 땅의 느낌
-  const tr = canvasOf(70, 110, (B) => { mass(B, 18, 96, 34, 14, () => true, { col: 0xa8a090, round: 3, warp: 0.5 }); for (let x = 20; x < 50; x++) B.put(x, 96, 0x4a3a2a); tree(B, 35, 98, 1.5, 0x4a8a3a, 0x6a4a2a, {}); });
-  for (const x of [190, 690, 1290, 1780, 2290]) (sc.add.image(x, gy + 1, tex("h4_tree", tr)).setOrigin(0.5, 1).setDepth(0.8), extrude("h4_tree", x, gy + 1, 0.5, 1, 0.8, 2));
-  // 제작 작업장 · 시장 노점 · 수레 (시설 사이 빈 곳)
-  for (const [k, p, x] of [["h4_smelt", smelter(), 462], ["h4_lumber", lumbermill(), 736], ["h4_tan", tannery(), 1010], ["h4_st1", marketStall(0xc03040, 0xf0e8d8, "fruit"), 1240], ["h4_st2", marketStall(0x2a6ad8, 0xf0e8d8, "cloth"), 1560], ["h4_loom", loom(), 1840], ["h4_stone", stonecutter(), 2060], ["h4_cart", cart(), 2330], ["h4_st3", marketStall(0x3aa85a, 0xf0e0b0, "pots"), 225]]) place(k, p, x, 1.4, 2);
-  // 집과 집 사이 깃발 줄
-  const lg = sc.add.graphics().setDepth(0.9);
-  for (let a = 0; a < 11; a++) {
-    const x0 = 60 + a * 250, x1 = x0 + 230, y0 = gy - 150 - (a % 3) * 12;
-    lg.lineStyle(1, 0x2a1a10, 1);
-    let prev = null;
-    for (let t = 0; t <= 1.0001; t += 0.04) {
-      const x = x0 + (x1 - x0) * t, y = y0 + Math.sin(t * Math.PI) * 24;
-      prev && lg.lineBetween(prev[0], prev[1], x, y);
-      prev = [x, y];
-      if (Math.round(t * 25) % 2 === 0 && t > 0 && t < 1) {
-        const fc = [0xd83a2a, 0xf0c040, 0x2a8ad8, 0x3aa85a, 0xf0f0f0][Math.round(t * 25 + a) % 5];
-        lg.fillStyle(sh(fc, 0.15), 1).fillTriangle(x - 3, y, x, y, x, y + 8);
-        lg.fillStyle(sh(fc, -0.25), 1).fillTriangle(x, y, x + 3, y, x, y + 8);
-      }
-    }
-  }
+  const out = { facilities: [], layers, street: null, floor: [], ext, VY };
+  // 길 뒤 집 줄 (돌 기단 + 세로 널판 + 짙은 널지붕)
+  const row = townRow(HUB_W, HZ);
+  sc.add.image(0, gy + 1, tex("h5_row", row.c)).setOrigin(0, 1).setDepth(0.6);
+  extrude("h5_row", 0, gy + 1, 0, 1, 0.6, 3, 0.012), reflect("h5_row", 0, 0, 0.22);
+  for (const [lx, ly, s2, col] of row.lights) glow(lx, gy + 1 - row.h + ly, s2 * 1.4, col ?? 0xffb050, 0.32);
+  // 거대 활엽수 · 마른 고목 (집 앞, 시설 뒤)
+  for (const [k, p, x] of [["h5_tree1", bigTree(1, 1, 0x4a6a2e), 40], ["h5_tree2", bigTree(4, 1.1, 0x42602a), 760], ["h5_dead", deadTree(3, 1), 1240], ["h5_tree3", bigTree(7, 0.95, 0x4e6e30), 1560], ["h5_tree4", bigTree(9, 1.15, 0x3e5a28), 2310]]) place(k, p, x, 0.75, 2, 0.25);
+  // 천막 시장 (붉은 물결 장식) · 제작 작업장 · 수레
+  for (const [k, p, x] of [["h5_tent1", tent(80, 70), 228], ["h5_tent2", tent(70, 64, 0x2a5a8a), 1535]]) place(k, p, x, 0.8, 2, 0.25);
+  for (const [k, p, x] of [["h4_smelt", smelter(), 462], ["h4_lumber", lumbermill(), 736], ["h4_tan", tannery(), 1010], ["h4_loom", loom(), 1840], ["h4_stone", stonecutter(), 2060], ["h4_cart", cart(), 2330]]) place(k, p, x, 1.4, 2, 0.25);
   for (const f of FAC()) {
     const p = f.art();
-    const { ox, oy } = place("h4_" + f.id, p, f.x, f.exit ? 1.2 : 1);
-    if (f.id === "forge") sc.add.particles(ox + 159, oy + 2, "hub_smoke", { speedY: { min: -26, max: -12 }, speedX: { min: 4, max: 12 }, lifespan: 3200, frequency: 260, alpha: { start: 0.55, end: 0 }, scale: { start: 0.6, end: 1.8 } }).setDepth(0);
+    const { ox, oy } = place("h5_" + f.id, p, f.x, f.exit ? 1.2 : 1);
+    if (f.id === "forge") {
+      sc.add.particles(ox + 159, oy + 2, "hub_smoke", { speedY: { min: -26, max: -12 }, speedX: { min: 4, max: 12 }, lifespan: 3200, frequency: 260, alpha: { start: 0.55, end: 0 }, scale: { start: 0.6, end: 1.8 } }).setDepth(0);
+      sc.add.particles(ox + 60, oy + p.h - 20, "vx_px", { x: { min: -20, max: 20 }, speedY: { min: -70, max: -30 }, lifespan: 1100, frequency: 80, tint: [0xffd060, 0xff7020], blendMode: ADD }).setDepth(8);
+    }
     if (f.id === "destiny") sc.add.particles(f.x, oy + 110, "vx_px", { x: { min: -22, max: 22 }, y: { min: -60, max: 40 }, speedY: { min: -30, max: -12 }, lifespan: 1800, frequency: 120, tint: [0xffd060, 0xfff0b0], blendMode: ADD }).setDepth(8);
     if (f.exit === "D") sc.add.particles(f.x, gy - 8, "vx_px", { x: { min: -18, max: 18 }, speedY: { min: -40, max: -16 }, lifespan: 1400, frequency: 90, tint: [0xff8040, 0xffc060], blendMode: ADD }).setDepth(8);
-    if (f.exit === "U") {
-      // 비행선이 천천히 오르내린다 (그림 위에 빛만 흔들어 살아 있게) + 위로 날리는 바람결
-      sc.add.particles(f.x + 20, gy - 60, "vx_soft", { x: { min: -14, max: 14 }, speedY: { min: -60, max: -30 }, lifespan: 2200, frequency: 140, scale: { start: 0.25, end: 0 }, tint: [0xd8f0ff, 0xffffff], blendMode: ADD }).setDepth(8);
-    }
+    if (f.exit === "U") sc.add.particles(f.x + 20, gy - 60, "vx_soft", { x: { min: -14, max: 14 }, speedY: { min: -60, max: -30 }, lifespan: 2200, frequency: 140, scale: { start: 0.25, end: 0 }, tint: [0xd8f0ff, 0xffffff], blendMode: ADD }).setDepth(8);
     if (f.exit === "L" || f.exit === "R") sc.add.particles(f.x, gy - 40, "vx_soft", { x: { min: -24, max: 24 }, y: { min: -50, max: 20 }, speedY: { min: -20, max: -8 }, lifespan: 1600, frequency: 120, scale: { start: 0.28, end: 0 }, tint: [f.exit === "L" ? 0xa0ffb0 : 0xffe0a0], blendMode: ADD }).setDepth(8);
     if (f.npc) {
       const [k, dx, flip] = f.npc;
-      sc.textures.exists(k) && sc.add.sprite(f.x + dx, gy + 1, k, 0).setOrigin(0.5, 1).setDepth(6).setFlipX(flip).play(`${k}_idle`);
+      sc.textures.exists(k) && sc.add.sprite(f.x + dx, gy + 1, k, 0).setOrigin(0.5, 1).setDepth(6).setFlipX(flip).play(k + "_idle");
     }
     if (f.name) {
-      R.ct(sc, f.x, Math.max(oy - 8, 22), f.name, "small", f.exit ? "#bfe8ff" : "#ffe8c0", { stroke: "#14203a", strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(9);
+      R.ct(sc, f.x, Math.max(oy - 8, 22), f.name, "small", f.exit ? "#e8f4ff" : "#ffe8c0", { stroke: "#1a1410", strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(9);
       out.facilities.push({ id: f.id, name: f.name, x: f.x, labelY: oy, dummyX: f.dummy ? f.x + f.dummy : null, exit: f.exit });
     }
   }
   const lampXs = [210, 460, 730, 1000, 1250, 1560, 1820, 2060, 2310, 2530];
-  for (const x of lampXs) place("h4_lamp", lamp(), x, 3, 0);
-  // 가로등 빛 웅덩이 (바닥에 납작한 빛)
-  for (const x of lampXs) { const pl = sc.add.image(x, gy + 10, "vx_glow").setBlendMode(ADD).setTint(0xffc070).setScale(2.2, 0.45).setAlpha(0.45).setDepth(2.5); sc.tweens.add({ targets: pl, alpha: 0.3, duration: 1200 + (x % 7) * 120, yoyo: !0, repeat: -1, ease: "Sine.easeInOut" }); }
-  // 바닥 그늘: 먼 쪽 옅은 안개 · 가까운 쪽 어둠
-  const fs = sc.add.graphics().setScrollFactor(0).setDepth(2.4);
-  for (let i = 0; i < Hf; i++) { const t = i / Hf; t < 0.2 && fs.fillStyle(0xe8f0ff, 0.12 * (1 - t / 0.2)).fillRect(0, gy - 2 + i, W, 1); t > 0.55 && fs.fillStyle(0x05030a, 0.3 * ((t - 0.55) / 0.45)).fillRect(0, gy - 2 + i, W, 1); }
-  // 깊이별 먼지 (먼 곳 작고 흐림 · 가까운 곳 크고 번짐) + 화면 가장자리 어둠
-  sc.add.particles(0, 0, "vx_px", { x: { min: 0, max: W }, y: { min: 60, max: gy - 10 }, speedX: { min: -6, max: 6 }, speedY: { min: -8, max: -2 }, lifespan: 7000, frequency: 180, alpha: { start: 0, end: 0.6, ease: "Sine.easeInOut" }, scale: 0.6, tint: [0xfff0d0, 0xffd8a0], blendMode: ADD }).setScrollFactor(0.5, 0).setDepth(-93);
-  sc.add.particles(0, 0, "vx_soft", { x: { min: -40, max: W + 40 }, y: { min: 120, max: Hh }, speedX: { min: -10, max: 10 }, speedY: { min: -14, max: -4 }, lifespan: 6000, frequency: 600, alpha: { start: 0, end: 0.18 }, scale: { min: 0.5, max: 1.4 }, tint: [0xffe8c0], blendMode: ADD }).setScrollFactor(1.4, 0).setDepth(55);
+  for (const x of lampXs) place("h5_lantern", lanternPost(), x, 3, 0, 0.3);
+  // 전경: 땅 단면 → 물(반사 위 물결) → 갈대·부들 (세계와 같이 흐르고, 갈대는 더 빠르게)
+  const fl = (key, cv, f, y, d, a = 1) => { const t = sc.add.tileSprite(W / 2, y, W, cv.height, tex(key, cv)).setOrigin(0.5, 0).setScrollFactor(0).setDepth(d).setAlpha(a); t.setData("f", f), out.floor.push(t); return t; };
+  fl("h5_water", waterStrip(640, Hh - WL + 2), 1, WL, 2.0);
+  const rip = sc.add.graphics().setScrollFactor(0).setDepth(2.1);
+  for (let y = WL + 4; y < Hh; y += 5) rip.fillStyle(0x0e161a, 0.25).fillRect(0, y, W, 1);
+  fl("h5_soil", soilStrip(640, 26), 1, gy - 4, 2.2);
+  fl("h5_reeds", reedsStrip(640, 46), 1.3, Hh - 46, 3);
+  // 랜턴 빛이 물에 길게 비친다
+  for (const x of lampXs) {
+    const pl = sc.add.image(x + 6, WL + 14, "vx_glow").setBlendMode(ADD).setTint(0xffb050).setScale(0.35, 1.4).setAlpha(0.35).setDepth(2.15);
+    sc.tweens.add({ targets: pl, alpha: 0.2, duration: 1300 + (x % 7) * 110, yoyo: !0, repeat: -1, ease: "Sine.easeInOut" });
+  }
+  sc.add.particles(0, 0, "vx_soft", { x: { min: -40, max: W + 40 }, y: { min: 100, max: gy }, speedX: { min: -8, max: 8 }, speedY: { min: -10, max: -3 }, lifespan: 6000, frequency: 700, alpha: { start: 0, end: 0.16 }, scale: { min: 0.5, max: 1.2 }, tint: [0xfff0d0], blendMode: ADD }).setScrollFactor(1.3, 0).setDepth(55);
   const vg = sc.add.graphics().setScrollFactor(0).setDepth(57);
-  for (let i = 0; i < 22; i++) vg.fillStyle(0x05030a, 0.028).fillRect(0, 0, 22 - i, Hh).fillRect(W - 22 + i, 0, 22 - i, Hh);
-  out.VY = VY;
+  for (let i = 0; i < 22; i++) vg.fillStyle(0x05030a, 0.03).fillRect(0, 0, 22 - i, Hh).fillRect(W - 22 + i, 0, 22 - i, Hh);
+  out.refl = refl;
+  setDither(!0);
   return out;
 }
 export function hubParallax(sc, H) {

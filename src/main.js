@@ -15009,7 +15009,7 @@ class dr extends Ne {
       ));
   }
 }
-const bt = 304,
+const bt = 252,
   be = 2720;
 class cr {
   move(S, T) {

@@ -25,14 +25,21 @@ export function stones(B, x0, y0, x1, y1, col, sd = 1) {
     (y -= rh), row++;
   }
 }
-// 회벽 + 나무 골조 (기둥 · 가로대 · 엇갈린 버팀)
+// 세로 널판 벽 (레퍼런스: 돌 기단 위 나무판벽) — 판마다 밝기 · 결 · 옹이, 판 사이 어두운 틈, 위·아래·가운데 굵은 들보
 export function timber(B, x0, y0, x1, y1, wallC, beamC) {
-  const W = ramp(wallC), Bm = ramp(beamC);
-  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) B.put(x, y, tone(W, 0.72 - ((x - x0) / (x1 - x0)) * 0.2 + (fbm(x, y, 6, 3, 2) - 0.5) * 0.2, x, y));
-  const beam = (xa, ya, xb, yb) => { const n = Math.max(Math.abs(xb - xa), Math.abs(yb - ya)); for (let k = 0; k <= n; k++) for (let t = 0; t < 3; t++) B.put(xa + ((xb - xa) * k) / n + (xa === xb ? t : 0), ya + ((yb - ya) * k) / n + (xa === xb ? 0 : t), Bm[t === 0 ? 1 : t === 1 ? 2 : 4]); };
-  beam(x0, y0, x1 - 1, y0), beam(x0, y1 - 3, x1 - 1, y1 - 3), beam(x0, (y0 + y1) >> 1, x1 - 1, (y0 + y1) >> 1);
-  for (let x = x0; x <= x1 - 3; x += 18) beam(x, y0, x, y1 - 1);
-  for (let x = x0 + 18; x < x1 - 18; x += 36) beam(x, y1 - 3, x + 18, (y0 + y1) >> 1);
+  const wood = mix(0x7a5434, wallC, 0.12), Bm = ramp(beamC);
+  for (let x = x0; x < x1; x++) {
+    const p = Math.floor((x - x0) / 5), px = (x - x0) % 5, sft = (hash(p, x0, 3) - 0.5) * 0.22, R = ramp(sh(wood, (hash(p, 9, x0) - 0.5) * 0.18));
+    for (let y = y0; y < y1; y++) {
+      let I = 0.6 - ((x - x0) / (x1 - x0)) * 0.22 + sft + (px === 1 ? 0.12 : 0) - (px === 0 ? 0.38 : 0);
+      (y + p * 7) % 23 === 0 && px === 2 && (I -= 0.3);
+      I -= Math.max(0, (y0 + 4 - y)) * 0.08;
+      B.put(x, y, tone(R, I, x, y));
+    }
+  }
+  const beam = (ya) => { for (let x = x0 - 1; x <= x1; x++) for (let t = 0; t < 3; t++) B.put(x, ya + t, Bm[t === 0 ? 1 : t === 1 ? 2 : 4]); };
+  beam(y0), beam(y1 - 3);
+  for (const x of [x0, x1 - 3]) for (let y = y0; y < y1; y++) for (let t = 0; t < 3; t++) B.put(x + t, y, Bm[t === 0 ? 1 : 3]);
 }
 // 박공 지붕: 처마가 나오고 비늘 기와 줄, 왼쪽 면 밝고 오른쪽 어둡게, 용마루 빛
 export function gable(B, cx, yb, w, h, col, o = {}) {
@@ -89,7 +96,7 @@ export function storehouse() {
     const g = 169;
     stones(B, 20, g - 60, 180, g, 0x9a9488, 3);
     timber(B, 24, g - 112, 176, g - 60, 0xe8dcc0, 0x6a4a2a);
-    gable(B, 100, g - 112, 160, 50, 0x3a6a4a);
+    gable(B, 100, g - 112, 160, 50, 0x5a4636);
     door(B, 76, g, 22, 44, 0x8a5a30), door(B, 100, g, 22, 44, 0x8a5a30);
     windowL(B, L, 40, g - 100, 14, 14), windowL(B, L, 146, g - 100, 14, 14), windowL(B, L, 92, g - 156, 14, 12, 0xffe0a0, { arch: 1 });
     tube(B, [[100, g - 150], [128, g - 156]], 2, 2, 0x6a4a2a, { warp: 0 }); for (let j = 0; j < 26; j++) B.put(127, g - 154 + j, 0xc8b890);
@@ -103,7 +110,7 @@ export function smithy() {
   return art(210, 190, (B, L) => {
     const g = 189;
     stones(B, 10, g - 96, 200, g, 0x8a8478, 7);
-    gable(B, 105, g - 96, 190, 56, 0x8a3a2a);
+    gable(B, 105, g - 96, 190, 56, 0x4a3a2e);
     chimney(B, 150, g - 120, 18, 70, 0x8a8478);
     for (let j = 0; j < 52; j++) for (let i = 0; i < 70; i++) { const top = j > 40 ? Math.sqrt(Math.max(0, 35 * 35 - ((j - 40) * 3) ** 2)) : 35; Math.abs(i - 35) < top && B.put(24 + i, g - j, mix(0x2a1008, 0xff8030, Math.max(0, 1 - j / 46) * 0.85)); }
     glowSpot(B, 59, g - 14, 46, 0xff8030, 120), L.push([59, g - 20, 40, 0xff8030]);
@@ -122,7 +129,7 @@ export function armorer() {
     const g = 179;
     stones(B, 14, g - 54, 196, g, 0x9a9488, 11);
     timber(B, 18, g - 110, 192, g - 54, 0xf0e4c8, 0x5a3a24);
-    gable(B, 105, g - 110, 176, 52, 0x2a4a8a);
+    gable(B, 105, g - 110, 176, 52, 0x524032);
     windowL(B, L, 30, g - 46, 40, 26, 0xffe0a8);
     for (const x of [40, 58]) { mass(B, x - 5, g - 42, 11, 18, (X, Y) => Math.abs(X - x) < 5 - Math.max(0, Y - (g - 30)) * 0.3, { col: 0xb8c0c8, round: 3, warp: 0, seed: x }); mass(B, x - 3, g - 47, 7, 6, (X, Y) => (X - x) ** 2 + (Y - g + 44) ** 2 < 9, { col: 0xa8b0b8, round: 2, warp: 0 }); }
     windowL(B, L, 40, g - 96, 14, 16), windowL(B, L, 150, g - 96, 14, 16), windowL(B, L, 96, g - 150, 16, 12, 0xffd890, { arch: 1 });
@@ -139,7 +146,7 @@ export function wizardTower() {
     for (let y = g - 200; y < g; y += 50) for (let i = x0; i < x1; i++) B.put(i, y, (i + y) % 6 < 3 ? 0xb890ff : 0x6a4a9a);
     for (let i = x0 - 10; i < x1 + 10; i++) for (let j = 0; j < 5; j++) B.put(i, g - 140 + j, tone(ramp(0xa898b8), 0.8 - j * 0.15, i, j));
     for (let i = x0 - 10; i < x1 + 10; i += 4) for (let j = 0; j < 10; j++) B.put(i, g - 150 + j, 0x5a4a6a);
-    gable(B, 65, g - 210, 70, 80, 0x5a2a9a, { eave: 8, curve: 1.6 });
+    gable(B, 65, g - 210, 70, 80, 0x3e3848, { eave: 8, curve: 1.6 });
     windowL(B, L, 58, g - 190, 14, 18, 0xd8b0ff, { arch: 1 }), windowL(B, L, 58, g - 120, 14, 18, 0xd8b0ff, { arch: 1 }), windowL(B, L, 58, g - 70, 14, 16, 0xffd890, { arch: 1 });
     door(B, 55, g, 20, 36, 0x4a2a6a);
     mass(B, 57, g - 312 + 0, 16, 16, (X, Y) => (X - 65) ** 2 + (Y - (g - 304)) ** 2 < 36, { col: 0xc8a0ff, round: 5, warp: 0, rimCol: 0xffffff });
@@ -152,13 +159,13 @@ export function dojoHall() {
   return art(240, 190, (B, L) => {
     const g = 189;
     for (let i = 20; i < 220; i++) for (let j = 0; j < 10; j++) B.put(i, g - j, tone(ramp(0xa8a090), 0.75 - j * 0.04, i, j));
-    for (let y = g - 80; y < g - 10; y++) for (let x = 36; x < 204; x++) B.put(x, y, tone(ramp(0xe8d8b0), 0.72 - (x - 36) / 900, x, y));
+    timber(B, 36, g - 82, 204, g - 10, 0x7a5434, 0x4a3020);
     for (const x of [36, 80, 156, 200]) for (let y = g - 84; y < g - 10; y++) for (let i = 0; i < 6; i++) B.put(x - 3 + i, y, tone(ramp(0xa83a2a), 0.8 - i * 0.1, x + i, y));
     for (let j = 0; j < 50; j++) for (let i = 0; i < 64; i++) B.put(88 + i, g - 10 - j, (i % 16 === 0 || j % 12 === 0) ? 0x6a4a2a : mix(0xffe8b0, 0xffc870, j / 50));
     L.push([120, g - 36, 40, 0xffd080]);
-    gable(B, 120, g - 84, 200, 30, 0x2a6a5a, { eave: 14, upturn: 1, curve: 1.3 });
-    for (let y = g - 104; y < g - 84; y++) for (let x = 70; x < 170; x++) B.put(x, y, tone(ramp(0xe8d8b0), 0.7, x, y));
-    gable(B, 120, g - 104, 120, 26, 0x2a6a5a, { eave: 12, upturn: 1, curve: 1.3 });
+    gable(B, 120, g - 84, 200, 30, 0x4a3a2c, { eave: 14, curve: 1.3 });
+    timber(B, 70, g - 104, 170, g - 84, 0x7a5434, 0x4a3020);
+    gable(B, 120, g - 104, 120, 26, 0x4a3a2c, { eave: 12, curve: 1.3 });
     sign(B, 104, g - 100, 32, 12, 0x3a2a1a, (cx, cy) => { for (let i = -10; i <= 10; i += 5) for (let j = -2; j <= 2; j++) B.put(cx + i, cy + j, 0xe0c060); });
     for (const x of [52, 188]) lantern(B, L, x, g - 76, 0xff6040);
   });
@@ -175,7 +182,7 @@ export function noticeBoard() {
       for (let r = 0; r < 3; r++) for (let i = 2; i < w - 3; i++) hash(i, r, k) > 0.3 && B.put(x + i, y + 4 + r * 4, 0x8a8070);
       B.put(x + w / 2, y + 1, [0xd83a2a, 0x2a8ad8, 0x3aa85a][k % 3]);
     }
-    gable(B, 84, g - 104, 140, 26, 0x6a3a2a, { eave: 6 });
+    gable(B, 84, g - 104, 140, 26, 0x4a3a2c, { eave: 6 });
     lantern(B, L, 84, g - 104);
   });
 }

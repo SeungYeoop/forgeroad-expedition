@@ -3531,12 +3531,13 @@ export function bootLate(scene) {
   HUBART.makeEmblem(scene, R.ht, R.lt);
   for (const w of R.ce) R.lt(scene, `w_${w.id}`, HUBART.polishWeapon(R.fn(w)));
   const NPC = {
-    npc_smith: { body: 0x6a4a32, trim: 0x3a2418, dark: 0x3a3030, helm: "bandana", cape: 0x8a3a20 },
-    npc_armorer: { body: 0x8a92a4, trim: 0x4a5060, dark: 0x3a3a48, helm: "helm", cape: 0x3a5a8a },
-    npc_trainer: { body: 0x9a3a2a, trim: 0x3a2418, dark: 0x4a3a22, helm: "horns", cape: 0x6a4a2a },
-    npc_mage: { body: 0x5a2a8a, trim: 0xd8b040, dark: 0x2a1a3a, helm: "hood", glow: 0xa0e0ff, cape: 0x3a1a5a },
-    npc_quarter: { body: 0x3a7a5a, trim: 0xe0c070, dark: 0x2a3a30, helm: "bandana", cape: 0xd8c8a0 },
-    npc_scribe: { body: 0xb0a080, trim: 0x6a4a2a, dark: 0x5a4a3a, helm: "none", skirt: !0, cape: 0x8a6a4a },
+    // 바이킹 마을 사람들 (char.js: hair · beard · fur · shoulder)
+    npc_smith: { body: 0x6a4a32, trim: 0x3a2418, dark: 0x3a3030, helm: "bandana", cape: 0x5a3a24, hair: "black", beard: 2, shoulder: "pad" },
+    npc_armorer: { body: 0x8a92a4, trim: 0x4a5060, dark: 0x3a3a48, helm: "helm", cape: 0x3a4a6a, hair: "grey", beard: 2, shoulder: "plate" },
+    npc_trainer: { body: 0x9a3a2a, trim: 0x3a2418, dark: 0x4a3a22, helm: "horns", cape: 0x6a4a2a, hair: "red", beard: 2, shoulder: "fur" },
+    npc_mage: { body: 0x4a4a7a, trim: 0xd8b040, dark: 0x2a2a3a, helm: "hood", glow: 0xa0e0ff, cape: 0x2a2a4a, hair: "grey", beard: 2, skirt: !0 },
+    npc_quarter: { body: 0x3a7a5a, trim: 0xe0c070, dark: 0x2a3a30, helm: "bandana", cape: 0x8a7a5a, hair: "blond", beard: 1 },
+    npc_scribe: { body: 0xb0a080, trim: 0x6a4a2a, dark: 0x5a4a3a, helm: "none", skirt: !0, cape: 0x8a6a4a, hair: "blond", beard: 0, braid: !0 },
   };
   for (const [k, look] of Object.entries(NPC)) makeNpc(scene, R.ht, R.Et, R.As, k, look);
 }

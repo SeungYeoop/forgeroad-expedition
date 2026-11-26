@@ -3533,7 +3533,7 @@ export function bootLate(scene) {
   const NPC = {
     // 바이킹 마을 사람들 (char.js: hair · beard · fur · shoulder)
     npc_smith: { body: 0x6a4a32, trim: 0x3a2418, dark: 0x3a3030, helm: "bandana", cape: 0x5a3a24, hair: "black", beard: 2, shoulder: "pad" },
-    npc_armorer: { body: 0x8a92a4, trim: 0x4a5060, dark: 0x3a3a48, helm: "helm", cape: 0x3a4a6a, hair: "grey", beard: 2, shoulder: "plate" },
+    npc_armorer: { body: 0x646a74, trim: 0x4a5060, dark: 0x34343e, helm: "helm", cape: 0x34405a, hair: "black", beard: 2, shoulder: "plate" },
     npc_trainer: { body: 0x9a3a2a, trim: 0x3a2418, dark: 0x4a3a22, helm: "horns", cape: 0x6a4a2a, hair: "red", beard: 2, shoulder: "fur" },
     npc_mage: { body: 0x4a4a7a, trim: 0xd8b040, dark: 0x2a2a3a, helm: "hood", glow: 0xa0e0ff, cape: 0x2a2a4a, hair: "grey", beard: 2, skirt: !0 },
     npc_quarter: { body: 0x3a7a5a, trim: 0xe0c070, dark: 0x2a3a30, helm: "bandana", cape: 0x8a7a5a, hair: "blond", beard: 1 },

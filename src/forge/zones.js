@@ -1,4 +1,5 @@
 // 격자 지도 — 7×7 칸, 가운데가 거점. 칸 하나 = 구역 하나.
+import { ZBG, ZPAL } from "./bgzones.js";
 // 세로는 높이: 위 3줄은 하늘(높을수록 높은 하늘), 아래 3줄은 지하(낮을수록 깊은 땅속), 가운데 줄은 지상.
 // 가로는 바이옴: 지상 줄은 칸마다 다른 땅이고, 하늘·지하 줄도 그 아래(위) 지상 땅의 색과 몬스터가 섞인다.
 // 구역 안에서: 왼쪽 끝 출구 = 서쪽 칸, 오른쪽 끝 = 동쪽 칸, ▲ 문 = 위 칸(하늘 쪽), ▼ 문 = 아래 칸(지하 쪽).
@@ -49,6 +50,10 @@ const REMADE = {
     pal: { sky: [0x16101a, 0x3a2a40], far: 0x2e2232, mid: 0x221a26, near: 0x140e16, top: 0x6a5a3a, topHi: 0x9a8a5a, soil: 0x5a4030, soilDark: 0x2a1c14, soilHi: 0x7a5a40, rock: 0x5e5048, accent: 0x7af0a0, fog: 0x9a7ab0, glow: 0xb0ffd0, ugRock: 0x7a6e58, ugWall: 0x2a2018 } },
 };
 // 노랑 지역 손 설계 구역: 원래 지역 그림(배경·음악)은 그대로, 땅 덮개·윗면 색만 덧씌운다
+const NAMES = {
+  g0_m2: "글래스블룸", g1_m2: "애쉬펠", gm1_m2: "모스스파이어", gm2_m2: "스포어캡", g2_m2: "앰버홀드", g2_m1: "듄미스트", gm2_m1: "보그플로트",
+  g0_2: "섀도웰", g1_2: "본디프", gm1_2: "웹크로프트", g2_2: "미러딥", gm2_2: "미스트혼", g2_1: "샌드글래스", gm2_1: "마이어루트", g2_0: "글리머샌즈", gm2_0: "블랙펜",
+};
 const TWEAK = {
   g2_m2: { theme: "plains", pal: { top: 0x9a8a5a, topHi: 0xd8c890, accent: 0xff7030 } },
   gm2_m2: { theme: "plains", deco: "green", pal: { top: 0xb05a8a, topHi: 0xf0a0d0, accent: 0x90ffd0 } },
@@ -162,6 +167,7 @@ export const roll = (...a) => hash(...a) / 4294967296;
       zone: z,
     };
     // 새 지역 설계로 다시 만든 구역: 이름·색·배경 (docs/REGIONS.md) + 층 띠별 몬스터
+    if (NAMES[id]) (reg.name = NAMES[id]), (z.name = z.short = NAMES[id]), (d.name = `${NAMES[id]} 숨은 던전`);
     const TW = TWEAK[id];
     TW && (reg.theme = TW.theme ?? reg.theme, reg.deco = TW.deco, reg.pal = { ...reg.pal, ...(TW.pal ?? {}) });
     const NEW = REMADE[id];
@@ -170,6 +176,8 @@ export const roll = (...a) => hash(...a) / 4294967296;
       z.name = z.short = reg.name;
       d.name = `${reg.name} 숨은 던전`;
     }
+    // 새로 지은 20곳: 전용 배경 (bgzones.js) + 배경 색
+    if (ZBG["z_" + id]) (reg.zbg = "z_" + id), (reg.zbgRef = /^(gm1_0|g2_0|gm2_0)$/.test(id) ? 5000 : 8448), ZPAL[id] && (reg.pal = { ...reg.pal, ...ZPAL[id] });
     const LY = layersOf(NEW ? id : blueOf(x, y)) ?? layersOf("g1_0");
     reg.layers = LY;
     // 엔진이 쓰는 기본 목록 (떠도는 정예 무리·매복 행사): 지표(지상) 또는 모든 띠
@@ -281,7 +289,7 @@ export function drawMap(hud, R, cur, seen, extra = {}) {
   const iSub = add(ct(hud, IX, GY + 28, "", "tiny", "#c8b898"), 2);
   const iMore = add(ct(hud, IX, GY + 44, "", "tiny", "#a89070", { wordWrap: { width: IW - 8, useAdvancedWrap: !0 } }), 2);
   const info = (z) => {
-    if (!z) return void (iName.setText("거점").setColor("#ffe08a"), iSub.setText("안전 지대"), iMore.setText("동·서 문은 지상, 위 계단은 하늘, 아래 갱도는 지하로 이어진다."));
+    if (!z) return void (iName.setText("거점").setColor("#ffe08a"), iSub.setText("안전 지대"), iMore.setText("갈림길 요새 · 서문·동문은 지상, 하늘 승강장은 하늘, 갱도 승강기는 지하로 이어진다."));
     const D = dangerOf(z), s = seen[z.id] || here === z;
     if (isLocked(z.id)) return void (iName.setText(`${z.name} (${lockTag(z.id)})`).setColor(isSealed(z.id) ? "#d07a70" : "#9a9aa0"), iSub.setText(`${LAYER_NAME(z.y)} · 아직 갈 수 없다`), iMore.setText(isSealed(z.id) ? "붉은 봉인이 길을 막고 있다. 아직 아무도 이 너머로 가지 못했다." : "이 지역은 다시 짓는 중이라 문이 닫혀 있다."));
     iSub.setText(`${LAYER_NAME(z.y)} · ${D.name} ${D.label}`);

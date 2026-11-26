@@ -28,7 +28,7 @@ const vn = (x, y, s, seed) => {
   return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
 };
 
-function painter(w, h) {
+export function painter(w, h) {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -361,7 +361,7 @@ function streetCanvas(W, Hh) {
 }
 
 // ── 건물 ──
-function forge() {
+export function forge() {
   const p = painter(210, 210), B = 205;
   p.shadow(10, B - 4, 190, 4, 0.35);
   p.chimney(150, 20, 22, 110);
@@ -399,7 +399,7 @@ function forge() {
   for (let k = 0; k < 3; k++) (p.r(178 + k * 6, B - 44, 2, 30, 0xb8b8c8), p.r(177 + k * 6, B - 16, 4, 2, 0x6a3a1e));
   return p;
 }
-function armory() {
+export function armory() {
   const p = painter(190, 200), B = 195;
   p.shadow(8, B - 4, 176, 4, 0.35);
   p.stone(14, B - 40, 162, 40, 0x7a7488, 21);
@@ -498,7 +498,7 @@ function dojo() {
   });
   return p;
 }
-function tower() {
+export function tower() {
   const p = painter(150, 300), B = 295;
   p.shadow(10, B - 4, 130, 4, 0.35);
   p.stone(30, 80, 90, B - 80, 0x7a6a8a, 41);
@@ -672,7 +672,7 @@ function stall(c1, c2, goods) {
 }
 // ── 알비온식 거점 새 시설 ─────────────────────────────
 // 시장: 긴 지붕 아래 좌판 세 칸, 저울 간판, 상자·자루
-function destinyStone() {
+export function destinyStone() {
   const p = painter(120, 200), B = 195;
   p.shadow(10, B - 4, 100, 4, 0.4);
   // 받침 계단
@@ -710,7 +710,7 @@ function destinyStone() {
   return p;
 }
 
-function lamp() {
+export function lamp() {
   const p = painter(22, 84), B = 82, Q = prims(p.px);
   Q.cyl(9, 18, 4, B - 22, 0x3a3a46, { bands: [10, 30] });
   Q.box(5, B - 6, 12, 6, 0x3a3a46);

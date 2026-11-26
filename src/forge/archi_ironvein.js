@@ -1,402 +1,182 @@
 // ══════════════════════════════════════════════════════════════
-// 아이언베인 「쇠맥 광산 도시」 — 거점 바로 밑, 땅을 파 들어간 광부들의 도시
-//   지도 = 칸(8px) 1024 × 1056 · 입구·출구 줄 600 (광차 대로) · ▲ = 갱구 요새 망루 (x 544) · ▼ = 깊은 광맥 대성당 바닥
-//   층 띠 (위→아래), 구역마다 짜임이 전부 다르다 (같은 틀을 찍는 함수 없음)
-//     윗줄: 버려진 정련소(용광로 셋 · 굴뚝 바람 · 걸침 다리) · 갱구 요새(망루·경비실·정문 홀) · 광부 숙소(3층 나무집 · 금 간 벽 뒤 금고)
-//     가운데: 무너진 옛 갱도(비스듬한 지층 굴 · 붕괴 홀 · 물 찬 광석 주머니 · 옛 수갱 밧줄)
-//             · 큰 수갱(승강기 + 층마다 생김새가 다른 정거장 넷) · 노천 채굴장(높이가 제각각인 단 · 비계 탑 · 짚라인)
-//     광차 대로(줄 600): 버팀목 입구 → 철교 협곡 → 펌프 곁방 → 중앙 갱차장 → 낮은 기는 굴 → 도개교 → 동쪽 갱문
-//     아랫줄: 집수정(물 찬 공동 · 물레방아 · 잠긴 보물) · 용광로 홀(쇳물 증기 · 걸침층) · 광석 분류장 + 보석 금고(환기 바람 수갱)
-//     맨 아래: 깊은 광맥 대성당(결정 공동) · 웜 굴(굽이치는 굴 둘)
-//   장치: 승강기 · 사다리·밧줄 · 짚라인 · 바람(굴뚝·환기 수갱) · 증기 간헐천 · 도개교 · 무너지는 판 · 떨어지는 바위 · 금 간 벽 · 회복 샘
+// 아이언베인 v5 「녹슨 쇠맥의 광산 도시」 — 각진 갱도·방 구조 (구불구불한 자연 동굴 없음 · 사선 비탈 없음)
+//   암반을 높이가 제각각인 수평 갱도 층 14줄로 깎고, 층마다 크기·속 짜임이 다른 방을 줄줄이 붙인다. 층 사이는 수직 갱(사다리·승강기·밧줄)
+//   지구(위치)마다 재질·방 종류·이름이 다르다:
+//     옛 갱도(서북, 나무 버팀목) · 갱구 마을(위 가운데, ▲) · 코볼트 요새(동북, 벽돌) · 수몰 갱(서, 물) · 결정 굴(동, 광맥)
+//     광차 대로(줄 600) · 녹슨 작업장(서남, 벽돌) · 용광로 지구(동남, 벽돌·증기) · 웜 굴(맨 아래, 무너진 바위, ▼)
+//   방 속 짜임 12가지: 기둥 홀 · 발코니 방 · 구덩이 다리 · 물탱크 · 금 간 벽 금고 · 광맥 기둥 · 계단 방 · 침상 방 · 사당 · 작업장 · 무너진 방 · 망루 방
 // ══════════════════════════════════════════════════════════════
+import { rng } from "./noise.js";
 
-const EN = 600;
-// 세로 굴: 위 바닥 fu(판자 뚜껑) → 아래 바닥 fd
-function shaft(K, x, fu, fd, k = "ladder", m = null) {
-  K.air(x - 1, fu, x + 2, fd);
-  m && K.wall(x - 1, fu, x + 2, fd, m);
-  K.plank(x - 1, x + 2, fu);
-  k === "ladder" ? K.ladder(x, fu, fd) : k === "rope" ? K.rope(x, fu - 3, fd) : K.vine(x - 1, x + 2, fu - 3, fd);
-}
-// 버팀목 (나무 기둥 + 위 가로대, 그림만)
-function timbers(K, x0, x1, f, h, step, ph = 0) {
-  for (let x = x0 + ph; x < x1 - 1; x += step) K.wall(x, f - h, x + 1, f, "stem");
-  K.wall(x0, f - h, x1, f - h + 1, "wood");
-}
+const EN = 600, W = 1024;
+const LV = [120, 190, 262, 334, 404, 474, 540, EN, 670, 742, 812, 882, 952, 1012];
 const P = (K, x, f, k, o) => K.prop(x, f, k, o);
 
+const D = {
+  old: { n: "옛 갱도", m: "wood", t: ["collapse", "pillars", "bunks", "pit", "vault", "steps", "workshop"], props: ["p_rubble", "p_cart", "p_chain"] },
+  town: { n: "갱구 마을", m: "wood", t: ["workshop", "shrine", "bunks", "balcony", "pillars"], props: ["p_lamp", "p_crates", "p_anvil"] },
+  fort: { n: "코볼트 요새", m: "brick", t: ["pillars", "balcony", "vault", "bunks", "shrine", "tower", "pit"], props: ["p_banner", "p_rack", "p_brazier"] },
+  flood: { n: "수몰 갱", m: "wood", t: ["cistern", "pit", "balcony", "vault", "cistern", "steps"], props: ["p_wheel", "p_crates", "p_chain"] },
+  crys: { n: "결정 굴", m: "rock", t: ["ore", "steps", "vault", "ore", "collapse", "tower"], props: ["p_crystal", "p_ore", "p_crystal"] },
+  road: { n: "광차 대로", m: "wood", t: ["workshop", "pillars", "bunks"], props: ["p_cart", "p_lamp", "p_crates"] },
+  work: { n: "녹슨 작업장", m: "brick", t: ["workshop", "pillars", "vault", "balcony", "steps", "cistern"], props: ["p_anvil", "p_cart", "p_rack"] },
+  forge: { n: "용광로 지구", m: "brick", t: ["ore", "workshop", "tower", "vault", "pillars", "pit"], props: ["p_brazier", "p_anvil", "p_drill"] },
+  worm: { n: "웜 굴", m: "rock", t: ["collapse", "pit", "ore", "vault", "steps", "collapse"], props: ["p_bones", "p_skulls", "p_rubble"] },
+};
+function district(x, f) {
+  if (f < 300) return x < 380 ? D.old : x < 640 ? D.town : D.fort;
+  if (f < EN) return x < 512 ? D.flood : D.crys;
+  if (f === EN) return D.road;
+  if (f < 880) return x < 512 ? D.work : D.forge;
+  return D.worm;
+}
+const TN = { pillars: "기둥 홀", balcony: "발코니 방", pit: "구덩이 다리", cistern: "물탱크", vault: "금고", ore: "광맥 기둥 방", steps: "계단 방", bunks: "침상 방", shrine: "사당", workshop: "작업장", collapse: "무너진 방", tower: "망루 방" };
+const ROLE = { pillars: "arena", balcony: "arena", pit: "trap", cistern: "arena", vault: "treasure", ore: "treasure", steps: "arena", bunks: "rest", shrine: "rest", workshop: "arena", collapse: "arena", tower: "treasure" };
+
 export function ironvein(K) {
-  gatehouse(K);
-  smelter(K);
-  bunkhouse(K);
-  bigShaft(K);
-  oldWorkings(K);
-  openPit(K);
-  haulage(K);
-  sump(K);
-  foundry(K);
-  sorting(K);
-  cathedral(K);
-  wormways(K);
+  const R = rng(0x1e0a5);
+  const ri = (a, b) => a + Math.floor(R() * (b - a + 1));
+  const segs = [];
+  let roomN = 0;
+  // ── 층마다 갱도 구간 ──
+  LV.forEach((f, i) => {
+    const out = [];
+    if (f === EN) out.push([0, W]);
+    else {
+      let x = ri(8, 40);
+      while (x < W - 60) {
+        const len = Math.min(W - 8 - x, ri(150, 420));
+        out.push([x, x + len]);
+        x += len + ri(24, 70);
+      }
+      if ((i === 0 || i === LV.length - 1) && !out.some(([a, b]) => a < 480 && b > 544)) out.push([470, 560]);
+    }
+    for (const [a, b] of out) {
+      const gh = f === EN ? 12 : ri(9, 11), d = district((a + b) >> 1, f);
+      K.air(a, f - gh, b, f), K.wall(a, f - gh, b, f, d.m);
+      if (d.m === "wood") for (let x = a + 6; x < b - 4; x += ri(14, 22)) K.wall(x, f - gh, x + 1, f, "stem");
+      if (d.m === "brick") K.mat(a - 2, f - gh - 2, b + 2, f + 2, "brick");
+    }
+    segs.push(out);
+  });
+  // ── 방: 갱도 위로 솟은 방을 줄줄이 ──
+  LV.forEach((f, i) => {
+    const maxH = i === 0 ? 40 : f - LV[i - 1] - 9;
+    for (const [a, b] of segs[i]) {
+      let x = a + ri(3, 18);
+      while (x < b - 26) {
+        const w = Math.min(b - 3 - x, ri(26, 96)), h = Math.min(maxH, ri(15, 34));
+        if (w < 22) break;
+        const d = district(x + (w >> 1), f), t = d.t[(roomN + i) % d.t.length];
+        room(K, x, x + w, f, h, d, t, ri);
+        K.tag(x + 2, f - Math.min(h, 14), x + w - 2, f, ROLE[t]);
+        K.struct(`${d.n} ${TN[t]} ${++roomN}`, ROLE[t], x, f - h, x + w, f);
+        x += w + ri(5, 26);
+      }
+    }
+  });
+  // ── 층 사이 수직 갱 ──
+  for (let i = 1; i < LV.length; i++)
+    for (const [a, b] of segs[i]) {
+      const up = segs[i - 1].map(([c, d]) => [Math.max(a, c) + 6, Math.min(b, d) - 6]).filter(([c, d]) => d - c > 4);
+      if (!up.length) {
+        const [c, d] = segs[i - 1].reduce((p, q) => (Math.abs((q[0] + q[1]) / 2 - (a + b) / 2) < Math.abs((p[0] + p[1]) / 2 - (a + b) / 2) ? q : p));
+        const x = Math.max(a + 6, Math.min(b - 6, c < a ? a + 8 : b - 8));
+        K.air(Math.min(x, d) - 2, LV[i - 1] - 9, Math.max(x, c) + 3, LV[i - 1]);
+        shaft(K, x, LV[i - 1], LV[i], ri);
+        continue;
+      }
+      for (const [c, d] of up.slice(0, 2)) shaft(K, ri(c, d), LV[i - 1], LV[i], ri);
+    }
+  // ── ▲ · ▼ · 입구 ──
+  K.air(490, LV[0] - 18, 534, LV[0]), K.wall(490, LV[0] - 18, 534, LV[0], "wood");
+  K.peak(512, LV[0]);
+  P(K, 500, LV[0], "p_bell"), P(K, 524, LV[0], "p_brazier"), K.tag(492, LV[0] - 14, 532, LV[0], "rest", { safe: 1 });
+  K.air(470, LV[13] - 20, 560, LV[13]), K.deep(512, LV[13]);
+  P(K, 490, LV[13], "p_skulls"), P(K, 536, LV[13], "p_bones", { s: 2 }), K.tag(480, LV[13] - 14, 550, LV[13], "rest", { safe: 1 });
+  K.tag(2, EN - 12, 40, EN, "rest", { safe: 1 }), K.tag(984, EN - 12, 1022, EN, "rest", { safe: 1 });
+  // ── 레버 지름길: 요새 위층 레버 → 대로까지 큰 승강기 ──
+  K.lever(900, LV[1], "iv_short");
+  K.air(940, LV[1] - 6, 952, EN), K.lift(941, 951, LV[1], EN, LV[1] - 10, "iv_short", "up");
 }
-ironvein.own = 0;
 
-// ═══ 갱구 요새: 망루(▲) · 경비실 · 정문 홀 ═══
-function gatehouse(K) {
-  K.mat(456, 34, 632, 132, "brick");
-  // 망루 꼭대기 (▲): 좁고 높은 방, 지붕 아래 종
-  K.hall(500, 588, 58, 16), K.wall(500, 42, 588, 58, "brick");
-  K.rock(500, 42, 512, 46), K.rock(576, 42, 588, 46);
-  K.peak(544, 58);
-  P(K, 520, 58, "p_banner"), P(K, 566, 58, "p_bell"), P(K, 506, 58, "p_brazier"), P(K, 582, 58, "p_brazier");
-  K.tag(500, 42, 588, 58, "rest", { safe: 1 });
-  K.struct("갱구 망루", "▲ 거점으로", 500, 42, 588, 58);
-  // 경비실: 기둥 둘이 반쯤 막아 방 셋 (아래로만 지나간다)
-  K.hall(470, 618, 92, 18), K.wall(470, 74, 618, 92, "brick");
-  K.rock(512, 74, 516, 85), K.rock(574, 74, 578, 85);
-  shaft(K, 560, 58, 92, "ladder", "brick");
-  P(K, 484, 92, "p_rack"), P(K, 530, 92, "p_crates", { s: 1 }), P(K, 596, 92, "p_rack"), P(K, 545, 92, "p_lamp");
-  K.tag(472, 74, 616, 92, "arena");
-  // 정문 홀: 넓고 낮다, 양옆 갱문 + 무기 시렁, 가운데 바닥에 승강기 구멍
-  K.hall(462, 626, 126, 22), K.wall(462, 104, 626, 126, "brick");
-  for (const x of [482, 606]) K.wall(x, 104, x + 3, 126, "stem");
-  shaft(K, 486, 92, 126, "ladder", "brick");
-  shaft(K, 604, 92, 126, "rope", "brick");
-  P(K, 470, 126, "p_statue"), P(K, 616, 126, "p_statue"), P(K, 504, 126, "p_anvil"), P(K, 574, 126, "p_cart");
-  K.tag(490, 104, 600, 126, "arena");
-  K.struct("갱구 요새", "전투·쉼터", 456, 34, 632, 132);
+function shaft(K, x, fu, fd, ri) {
+  if (fd - fu > 140) return void (K.air(x - 4, fu - 8, x + 5, fd), K.lift(x - 3, x + 4, fu, fd, fu - 10));
+  K.air(x - 1, fu, x + 2, fd), K.plank(x - 1, x + 2, fu);
+  ri(0, 4) === 0 ? K.rope(x, fu - 3, fd) : K.ladder(x, fu, fd);
 }
 
-// ═══ 버려진 정련소 (서쪽 위): 용광로 셋, 굴뚝마다 위로 부는 뜨거운 바람, 위 걸침 다리 ═══
-function smelter(K) {
-  // 요새 서문 → 비탈 갱도 → 정련소
-  K.hall(418, 462, 126, 9), timbers(K, 418, 462, 126, 9, 11);
-  K.ramp(418, 126, 374, 170, 9);
-  K.hall(330, 376, 170, 10);
-  // 큰 홀 (위가 아치)
-  K.sell(240, 128, 96, 44, 3.2, -1, 0.05);
-  K.air(146, 120, 334, 170);
-  K.rock(140, 170, 340, 178);
-  K.wall(150, 90, 330, 170, "brick");
-  // 용광로 셋 (크기·높이 제각각) + 굴뚝 바람
-  const fur = [[168, 196, 140], [224, 262, 130], [292, 318, 146]];
-  for (const [a, b, t] of fur) {
-    K.rock(a, t, b, 170), K.mat(a, t - 2, b, 170, "brick");
-    const c = (a + b) >> 1;
-    K.wind(c - 3, c + 3, 92, t, 520);
+function room(K, x0, x1, f, h, d, t, ri) {
+  const w = x1 - x0, cx = (x0 + x1) >> 1, pr = d.props;
+  K.air(x0, f - h, x1, f), K.wall(x0, f - h, x1, f, d.m);
+  d.m === "brick" && K.mat(x0 - 2, f - h - 2, x1 + 2, f + 2, "brick");
+  switch (t) {
+    case "pillars":
+      for (let x = x0 + 8; x < x1 - 6; x += 12) K.wall(x, f - h, x + 2, f, "stem");
+      P(K, cx, f, pr[0]), P(K, x0 + 6, f, pr[1]);
+      break;
+    case "balcony": {
+      if (h < 20) return room(K, x0, x1, f, h, d, "workshop", ri);
+      const bf = f - Math.min(10, (h >> 1) + 1), right = ri(0, 1), a = right ? cx : x0, b = right ? x1 : cx;
+      K.plank(a, b, bf), K.ladder(right ? a + 2 : b - 3, bf, f);
+      P(K, (a + b) >> 1, bf, pr[1]), P(K, right ? x0 + 8 : x1 - 8, f, pr[0]);
+      break;
+    }
+    case "pit": {
+      const pw = Math.min(14, (w >> 1) - 2);
+      K.air(cx - pw, f, cx + pw, f + 10), K.crumble(cx - pw, cx + pw, f), K.ladder(cx + pw - 2, f, f + 10);
+      P(K, cx - 2, f + 10, "p_urn"), K.tag(cx - pw, f, cx + pw, f + 10, "treasure");
+      break;
+    }
+    case "cistern":
+      K.air(x0 + 4, f, x1 - 4, f + 6), K.water(x0 + 4, f, x1 - 4, f + 6), K.plank(cx - 4, cx + 4, f);
+      P(K, x0 + 2, f, pr[0]);
+      break;
+    case "vault": {
+      const vx = ri(0, 1) ? x1 - 14 : x0 + 12;
+      K.rock(vx, f - h, vx + 2, f), K.crack(vx, f - 8, vx + 2, f);
+      const ia = vx < cx ? x0 : vx + 2, ib = vx < cx ? vx : x1;
+      P(K, (ia + ib) >> 1, f, "p_crates", { s: 1 }), K.tag(ia, f - 8, ib, f, "treasure");
+      P(K, vx < cx ? x1 - 8 : x0 + 8, f, pr[2]);
+      break;
+    }
+    case "ore":
+      if (h > 20) K.rock(cx - 5, f - h, cx + 5, f - 11), K.mat(cx - 5, f - h, cx + 5, f - 11, "brick");
+      P(K, cx - 10, f, "p_ore", { s: 2 }), P(K, cx + 10, f, pr[1]);
+      break;
+    case "steps": {
+      const n = Math.max(1, Math.min(3, Math.floor((h - 12) / 4))), sw = Math.floor(w / (n + 2)), up = ri(0, 1);
+      for (let k = 1; k <= n; k++) {
+        const a = up ? x1 - sw * k : x0, b = up ? x1 : x0 + sw * k;
+        K.rock(a, f - 4 * k, b, f - 4 * (k - 1));
+        d.m !== "rock" && K.mat(a, f - 4 * k, b, f, d.m);
+      }
+      P(K, up ? x1 - 6 : x0 + 6, f - 4 * n, pr[2]);
+      break;
+    }
+    case "bunks":
+      for (let x = x0 + 4; x < x1 - 10; x += 16) K.plank(x, x + 10, f - 7);
+      P(K, x0 + 6, f, "p_crates"), P(K, x1 - 6, f, "p_lamp");
+      break;
+    case "shrine":
+      K.rock(cx - 10, f - 3, cx + 10, f), d.m !== "rock" && K.mat(cx - 10, f - 3, cx + 10, f, d.m);
+      P(K, cx, f - 3, "p_altar"), P(K, cx - 8, f - 3, "p_candles"), K.heal(cx - 3, cx + 3, f - 7, f - 3);
+      break;
+    case "workshop":
+      if (h >= 18) (K.plank(x0, x0 + (w >> 1), f - 9), K.ladder(x0 + (w >> 1) - 2, f - 9, f), P(K, x0 + (w >> 2), f - 9, "p_crates"));
+      P(K, cx + 6, f, "p_anvil"), P(K, x1 - 6, f, pr[0]);
+      break;
+    case "collapse":
+      K.rock(cx - 8, f - 2, cx + 6, f), K.rock(cx - 4, f - 3, cx + 2, f - 2), K.fall(cx + 10, cx + 14, f - h + 1, f);
+      P(K, cx, f - 3, "p_rubble"), P(K, x0 + 6, f, pr[0]);
+      break;
+    case "tower": {
+      if (h < 24) return room(K, x0, x1, f, h, d, "pillars", ri);
+      const a = cx - 10, b = cx + 10;
+      K.plank(a, b, f - 9), K.plank(a, b, f - 18), K.ladder(a + 2, f - 18, f);
+      K.wall(a, f - 20, a + 1, f, "stem"), K.wall(b - 1, f - 20, b, f, "stem");
+      P(K, cx, f - 18, "p_crates", { s: 1 }), K.tag(a, f - 30, b, f - 18, "treasure");
+      break;
+    }
   }
-  // 걸침 다리 (굴뚝 사이 판자, 하나는 낡았다)
-  K.plank(150, 168, 112), K.plank(196, 224, 108), K.crumble(262, 292, 110), K.plank(318, 332, 114);
-  // 바닥 ↔ 걸침 다리·용광로 사이 사다리
-  K.ladder(152, 112, 170), K.ladder(198, 108, 170), K.ladder(320, 114, 170), K.ladder(290, 146, 170), K.ladder(264, 130, 170);
-  // 위 보물 다락 (걸침 다리 왼쪽 끝에서 사다리)
-  K.air(150, 84, 196, 98), K.wall(150, 84, 196, 98, "wood");
-  K.ladder(156, 98, 112);
-  P(K, 170, 98, "p_crates", { s: 1 }), P(K, 186, 98, "p_urn");
-  K.tag(150, 84, 196, 98, "treasure");
-  P(K, 206, 170, "p_anvil"), P(K, 276, 170, "p_cart"), P(K, 330, 170, "p_crates"), P(K, 150, 170, "p_ore", { s: 0 });
-  K.tag(150, 120, 330, 170, "arena");
-  K.struct("버려진 정련소", "전투·보물", 140, 84, 340, 178);
-}
-
-// ═══ 광부 숙소 (동쪽 위): 3층 나무집, 층마다 짜임이 다르다 ═══
-function bunkhouse(K) {
-  K.hall(626, 662, 126, 9), timbers(K, 626, 662, 126, 9, 12, 3);
-  K.ramp(660, 126, 674, 140, 9), K.hall(674, 684, 140, 9);
-  K.mat(676, 80, 868, 176, "wood");
-  // 1층 (위): 침상 칸막이 다섯
-  K.hall(680, 862, 110, 24), K.wall(680, 86, 862, 110, "wood");
-  for (const x of [712, 742, 772, 802, 832]) K.wall(x, 96, x + 2, 110, "stem"), K.plank(x - 10, x, 100);
-  P(K, 696, 110, "p_shelf"), P(K, 786, 110, "p_lamp");
-  K.tag(682, 86, 860, 110, "rest");
-  // 금 간 벽 뒤 금고
-  K.crack(862, 102, 866, 110);
-  K.air(866, 96, 900, 110), K.wall(866, 96, 900, 110, "brick");
-  P(K, 880, 110, "p_crates", { s: 1 }), P(K, 894, 110, "p_ore", { s: 2 });
-  K.tag(866, 96, 900, 110, "treasure");
-  // 2층: 식당 (긴 탁자 = 낮은 돌 둘)
-  K.hall(680, 862, 140, 26), K.wall(680, 114, 862, 140, "wood");
-  K.rock(730, 137, 760, 140), K.rock(790, 137, 820, 140);
-  P(K, 700, 140, "p_crates"), P(K, 745, 137, "p_candles"), P(K, 805, 137, "p_candles"), P(K, 846, 140, "p_brazier");
-  K.tag(682, 114, 860, 140, "arena");
-  shaft(K, 700, 110, 140, "ladder", "wood");
-  // 3층: 창고 (상자 더미 사이로 오르내린다)
-  K.hall(680, 868, 172, 26), K.wall(680, 146, 868, 172, "wood");
-  K.rock(740, 162, 756, 172), K.rock(756, 166, 768, 172);
-  P(K, 720, 172, "p_crates", { s: 1 }), P(K, 790, 172, "p_cart"), P(K, 820, 172, "p_rack"), P(K, 748, 162, "p_crates");
-  K.tag(682, 146, 866, 172, "arena");
-  shaft(K, 846, 140, 172, "ladder", "wood");
-  K.struct("광부 숙소", "쉼터·전투·금고", 676, 80, 900, 176);
-}
-
-// ═══ 큰 수갱: 요새 정문 홀 → 중앙 갱차장 승강기 + 정거장 넷 (생김새가 다 다르다) ═══
-function bigShaft(K) {
-  K.air(536, 126, 552, EN);
-  K.wall(536, 126, 552, EN, "wood");
-  for (let y = 140; y < EN; y += 26) K.wall(534, y, 554, y + 1, "stem");
-  K.lift(538, 550, 126, EN, 118);
-  // 220: 펌프실(서) · 공구창(동)
-  K.hall(486, 536, 220, 12), K.wall(486, 208, 536, 220, "brick");
-  P(K, 500, 220, "p_wheel"), P(K, 522, 220, "p_chain");
-  K.hall(552, 610, 220, 11), K.wall(552, 209, 610, 220, "wood");
-  P(K, 568, 220, "p_rack"), P(K, 594, 220, "p_anvil");
-  K.tag(552, 209, 610, 220, "treasure");
-  K.struct("펌프실·공구창", "보물", 486, 208, 610, 220);
-  // 비상 사다리 (승강기 옆, 끊겼다 이어진다)
-  shaft(K, 604, 220, 320, "ladder", "wood");
-  // 320: 광부 기도실 — 둥근 방, 촛불·석상
-  K.ell(504, 312, 26, 12), K.rock(478, 320, 536, 326), K.air(496, 310, 536, 320);
-  P(K, 492, 320, "p_candles", { s: 1 }), P(K, 508, 320, "p_statue"), P(K, 524, 320, "p_candles");
-  K.tag(480, 302, 534, 320, "rest", { safe: 1 });
-  K.heal(500, 516, 314, 320);
-  K.struct("광부 기도실", "쉼터·회복", 478, 300, 536, 326);
-  K.hall(552, 612, 320, 9), timbers(K, 552, 612, 320, 9, 10);
-  shaft(K, 600, 320, 420, "ladder", "wood");
-  // 420: 화약고 — 바닥 절반이 낡은 판자 (밑은 서쪽 붕괴 홀로 떨어진다)
-  K.hall(478, 536, 420, 12), K.wall(478, 408, 536, 420, "brick");
-  K.air(478, 420, 506, 428), K.crumble(478, 492, 420), K.crumble(492, 506, 420);
-  P(K, 514, 420, "p_crates", { s: 1 }), P(K, 528, 420, "p_crates");
-  K.tag(478, 408, 536, 420, "arena");
-  K.hall(552, 620, 420, 10), timbers(K, 552, 620, 420, 10, 13, 4);
-  K.struct("화약고", "함정·전투", 478, 408, 536, 428);
-  // 520: 갈림 정거장 — 높은 방 + 걸침층
-  K.hall(468, 536, 520, 22), K.wall(468, 498, 536, 520, "wood");
-  K.plank(468, 500, 508), K.ladder(472, 508, 520);
-  P(K, 486, 508, "p_lamp"), P(K, 510, 520, "p_cart"), P(K, 528, 520, "p_ore", { s: 1 });
-  K.hall(552, 600, 520, 12);
-  shaft(K, 592, 520, EN, "ladder", "wood");
-  K.tag(468, 498, 536, 520, "arena");
-  K.struct("큰 수갱", "승강기", 468, 118, 620, EN);
-}
-
-// ═══ 무너진 옛 갱도 (서쪽 가운데): 비스듬한 지층 굴, 붕괴 홀, 물 찬 광석 주머니 ═══
-function oldWorkings(K) {
-  // 정련소 서쪽 끝 → 아래로 기운 지층 굴
-  K.ramp(146, 170, 74, 242, 9);
-  K.hall(40, 76, 242, 10), timbers(K, 40, 76, 242, 10, 9);
-  P(K, 50, 242, "p_rubble");
-  // 지층 굴: 동쪽으로 길게 내려간다, 가운데가 꺼졌다 (판자 위를 건넌다)
-  K.ramp(74, 242, 196, 290, 9);
-  K.hall(196, 212, 290, 9);
-  K.air(212, 280, 236, 352);
-  K.plank(212, 220, 290), K.crumble(220, 228, 290), K.plank(228, 236, 290);
-  // 꺼진 곳에 빠지면: 광석 주머니까지 사다리로 오르내린다
-  K.ladder(232, 290, 368);
-  K.hall(236, 300, 290, 9), timbers(K, 236, 300, 290, 9, 14, 5);
-  K.fall(250, 256, 282, 290), K.fall(276, 282, 282, 290);
-  // 붕괴 홀: 천장에서 바위가 떨어지는 둥근 공동, 바닥에 무너진 돌 더미
-  K.sell(350, 330, 58, 34, 2.6, -1, 0.08);
-  K.ramp(300, 290, 316, 306, 9);
-  K.rock(296, 360, 404, 366);
-  K.rock(330, 352, 346, 360), K.rock(370, 348, 378, 360);
-  K.fall(320, 326, 300, 352), K.fall(356, 362, 298, 348), K.fall(386, 392, 302, 360);
-  P(K, 312, 360, "p_rubble"), P(K, 360, 348, "p_boulder"), P(K, 394, 360, "p_bones");
-  K.tag(300, 300, 400, 360, "arena");
-  K.struct("붕괴 홀", "전투·떨어지는 바위", 292, 296, 408, 366);
-  // 붕괴 홀 → 기도실 (동)
-  K.ramp(404, 360, 430, 334, 9);
-  K.hall(430, 480, 334, 9);
-  K.ramp(470, 334, 484, 320, 9);
-  // 화약고 판자 밑으로 떨어지면: 붕괴 홀 동쪽 위 턱
-  K.air(478, 428, 506, 446), K.ramp(478, 446, 440, 410, 7), K.hall(376, 442, 410, 8);
-  K.air(378, 360, 383, 410), K.plank(378, 383, 360), K.ladder(380, 360, 410);
-  // 물 찬 광석 주머니 (막다른 곳): 지층 굴 꺼진 곳 바닥
-  K.ell(224, 370, 30, 18), K.rock(194, 380, 256, 392);
-  K.air(196, 368, 252, 380), K.water(196, 368, 252, 380);
-  P(K, 210, 368, "p_ore", { s: 2 }), P(K, 240, 368, "p_ore", { s: 1 });
-  K.tag(198, 356, 250, 380, "treasure");
-  K.struct("물 찬 광석 주머니", "보물", 194, 352, 256, 392);
-  // 붕괴 홀 서쪽 아래 → 비틀린 굴 → 옛 수갱 (밧줄)
-  K.wiggle([[300, 360], [240, 404], [170, 430], [96, 438]], 9, 1.4);
-  K.hall(56, 100, 440, 12), K.wall(56, 428, 100, 440, "wood");
-  P(K, 66, 440, "p_chain"), P(K, 86, 440, "p_crates");
-  shaft(K, 70, 440, 540, "rope", "wood");
-  K.hall(40, 140, 540, 11), timbers(K, 40, 140, 540, 11, 16);
-  K.tag(56, 428, 100, 440, "rest");
-  K.ramp(140, 540, 200, EN, 9);
-  K.struct("무너진 옛 갱도", "길", 40, 230, 300, EN);
-}
-
-// ═══ 노천 채굴장 (동쪽 가운데): 높이가 제각각인 단, 비계 탑, 굴착기, 짚라인 ═══
-function openPit(K) {
-  // 숙소 3층 → 동쪽 비탈 → 채굴장 꼭대기 단
-  K.hall(868, 906, 172, 9);
-  K.ramp(906, 172, 988, 254, 9);
-  K.sell(824, 392, 182, 176, 5, -1, 0.035);
-  // 단 (윗면 f부터 아래를 채운다): 폭·높이 제각각
-  const B = [[948, 1010, 258], [890, 948, 296], [852, 890, 318], [778, 852, 364], [744, 778, 386], [690, 744, 438], [646, 690, 470]];
-  for (const [a, b, f] of B) K.rock(a, f, b, 570);
-  // 단 사이 사다리 (높은 곳만), 낮은 곳은 걸어 내려간다
-  K.ladder(946, 258, 296), K.ladder(888, 296, 318), K.ladder(850, 318, 364), K.ladder(776, 364, 386), K.ladder(742, 386, 438), K.ladder(688, 438, 470);
-  // 비계 탑 (나무 판 층 셋) — 가운데 단 위로 솟아 동쪽 벽 굴로 이어진다
-  for (const f of [334, 306, 278]) K.plank(796, 830, f);
-  K.ladder(804, 278, 364);
-  K.wall(796, 270, 798, 364, "stem"), K.wall(828, 270, 830, 364, "stem");
-  // 동쪽 벽 굴: 비계 꼭대기에서 벽을 뚫은 작은 굴 → 광맥 돌출부 (보물)
-  K.air(830, 268, 860, 278), K.wall(830, 268, 860, 278, "wood");
-  P(K, 850, 278, "p_ore", { s: 2 });
-  K.tag(830, 268, 860, 278, "treasure");
-  P(K, 966, 258, "p_drill"), P(K, 916, 296, "p_cart"), P(K, 800, 364, "p_ore", { s: 0 }), P(K, 760, 386, "p_crates"), P(K, 710, 438, "p_drill");
-  P(K, 870, 318, "p_lamp"), P(K, 666, 470, "p_ore", { s: 1 });
-  K.zip(1000, 248, 700, 430);
-  // 서쪽 빈 공간: 두 번째 비계 탑 (판 높이가 동쪽 비계와 어긋난다) + 두 비계 꼭대기를 잇는 공중 광석 바구니
-  for (const [a, b, f] of [[650, 700, 410], [656, 704, 350], [650, 700, 280]]) K.plank(a, b, f);
-  K.wall(650, 272, 652, 470, "stem"), K.wall(698, 272, 700, 470, "stem");
-  K.ladder(656, 280, 470);
-  K.ferry(704, 796, 278, 5, 14);
-  P(K, 676, 410, "p_crates"), P(K, 690, 350, "p_ore", { s: 1 }), P(K, 668, 280, "p_lamp");
-  K.tag(650, 266, 700, 280, "treasure"), K.tag(650, 396, 700, 410, "arena");
-  K.tag(890, 270, 1008, 296, "arena"), K.tag(744, 340, 852, 386, "arena"), K.tag(646, 446, 744, 470, "arena");
-  // 바닥 웅덩이 (서쪽 가장 낮은 곳)
-  K.air(646, 470, 690, 482), K.water(646, 472, 690, 482);
-  // 정거장 420 동쪽 → 단 (690~744, 438)
-  K.ramp(620, 420, 638, 438, 9), K.hall(638, 690, 438, 9);
-  // 웅덩이 → 광차 대로 (사다리 수갱)
-  shaft(K, 668, 482, EN, "ladder", "wood");
-  K.struct("노천 채굴장", "전투·짚라인", 640, 214, 1010, 570);
-}
-
-// ═══ 광차 대로 (줄 600): 구간마다 다르다 ═══
-function haulage(K) {
-  // 서쪽 입구: 버팀목 터널
-  K.hall(0, 160, EN, 11), timbers(K, 34, 160, EN, 11, 12);
-  P(K, 60, EN, "p_lamp"), P(K, 120, EN, "p_cart");
-  K.tag(2, EN - 12, 60, EN, "rest", { safe: 1 });
-  // 꺼진 바닥 → 철교 협곡 (밑은 집수정)
-  K.hall(160, 260, EN, 12);
-  K.air(260, 588, 340, 640);
-  K.plank(260, 270, EN), K.plank(270, 280, EN), K.crumble(280, 290, EN), K.plank(290, 310, EN), K.crumble(310, 320, EN), K.plank(320, 340, EN);
-  K.ladder(337, EN, 640);
-  K.wall(264, 600, 266, 640, "stem"), K.wall(300, 600, 302, 640, "stem"), K.wall(334, 600, 336, 640, "stem");
-  K.struct("철교 협곡", "함정", 260, 588, 340, 640);
-  // 펌프 곁방
-  K.hall(340, 470, EN, 10);
-  // 펌프 곁방: 대로 천장 위 작은 방 (사다리로 오른다)
-  K.air(380, 572, 432, 588), K.wall(380, 572, 432, 588, "brick");
-  K.air(402, 588, 405, 590), K.plank(402, 405, 588), K.ladder(403, 588, EN);
-  P(K, 394, 588, "p_wheel"), P(K, 420, 588, "p_chain");
-  K.tag(380, 572, 432, 588, "treasure");
-  // 중앙 갱차장 (큰 수갱 밑): 높은 홀
-  K.hall(470, 626, EN, 24), K.wall(470, 576, 626, EN, "wood");
-  for (const x of [490, 600]) K.wall(x, 576, x + 3, EN, "stem");
-  P(K, 482, EN, "p_cart"), P(K, 512, EN, "p_crates", { s: 1 }), P(K, 578, EN, "p_cart"), P(K, 614, EN, "p_brazier");
-  K.heal(560, 572, EN - 4, EN);
-  K.tag(472, 576, 624, EN, "rest", { safe: 1 });
-  K.struct("중앙 갱차장", "쉼터·승강기", 470, 576, 626, EN);
-  // 낮은 기는 굴 (천장이 내려앉았다)
-  K.hall(626, 760, EN, 7), timbers(K, 626, 760, EN, 7, 9, 2);
-  P(K, 700, EN, "p_rubble");
-  // 도개교: 광석 분류장 구덩이 위
-  K.hall(760, 880, EN, 12);
-  K.air(784, EN, 856, 700);
-  K.draw(784, 820, EN, "L", 0), K.draw(820, 856, EN, "R", 1.6);
-  // 동쪽 갱문
-  K.hall(880, 1024, EN, 12), timbers(K, 890, 1000, EN, 12, 22);
-  K.mat(1000, 584, 1024, 604, "brick");
-  P(K, 940, EN, "p_lamp"), P(K, 980, EN, "p_crates");
-  K.tag(964, EN - 12, 1022, EN, "rest", { safe: 1 });
-  K.tag(880, EN - 12, 960, EN, "arena");
-  K.struct("광차 대로", "입구·출구", 0, 586, 1024, EN);
-}
-
-// ═══ 집수정 (서쪽 아래): 물 찬 공동, 물레방아, 물속 보물 ═══
-function sump(K) {
-  K.sell(232, 740, 128, 70, 2.4, -1, 0.06);
-  K.rock(100, 806, 370, 820);
-  // 물: 아래 절반
-  K.water(110, 744, 360, 806);
-  // 펌프 발판 (서로 높이가 다르다)
-  K.rock(260, 690, 300, 696), K.rock(186, 714, 220, 720), K.rock(300, 724, 336, 730), K.rock(130, 734, 164, 740);
-  K.mat(260, 690, 300, 696, "wood"), K.mat(186, 714, 220, 720, "wood"), K.mat(300, 724, 336, 730, "wood"), K.mat(130, 734, 164, 740, "wood");
-  P(K, 280, 690, "p_wheel", { s: 1 }), P(K, 200, 714, "p_chain"), P(K, 318, 724, "p_crates");
-  K.air(298, 640, 303, 690), K.ladder(300, 640, 690);
-  K.ladder(262, 690, 744), K.ladder(222, 714, 744), K.ladder(334, 724, 744), K.ladder(148, 734, 744);
-  // 물속 보물 굴 (서쪽 바닥)
-  K.air(104, 790, 140, 806), K.water(104, 790, 140, 806);
-  P(K, 120, 806, "p_ore", { s: 2 });
-  K.tag(104, 786, 140, 806, "treasure");
-  K.tag(130, 700, 336, 744, "arena");
-  K.struct("집수정", "헤엄·보물", 100, 668, 364, 820);
-}
-
-// ═══ 용광로 홀 (가운데 아래): 쇳물 도가니, 증기 간헐천, 걸침층 ═══
-function foundry(K) {
-  shaft(K, 476, EN, 720, "ladder", "brick");
-  K.air(436, 676, 664, 770), K.wall(436, 676, 664, 770, "brick");
-  K.mat(430, 670, 670, 776, "brick");
-  K.rock(430, 770, 670, 778);
-  // 걸침층 (서쪽 절반)
-  K.plank(436, 556, 720), K.ladder(444, 720, 770);
-  P(K, 500, 720, "p_rack"), P(K, 530, 720, "p_crates");
-  // 도가니 (가운데 큰 돌 그릇) + 쇳물 증기 간헐천
-  K.rock(580, 752, 628, 770), K.air(586, 752, 622, 760);
-  K.geyser(592, 616, 700, 760);
-  K.geyser(456, 466, 740, 770), K.geyser(646, 656, 740, 770);
-  P(K, 470, 770, "p_anvil"), P(K, 520, 770, "p_anvil"), P(K, 560, 770, "p_brazier"), P(K, 646, 770, "p_cart"), P(K, 604, 752, "p_ore", { s: 0 });
-  K.tag(440, 730, 660, 770, "arena");
-  K.tag(436, 700, 556, 720, "rest");
-  K.struct("용광로 홀", "전투·증기", 430, 670, 670, 778);
-  // 집수정 ↔ 용광로 (서쪽 굽은 굴)
-  K.wiggle([[436, 770], [400, 760], [372, 744], [344, 744]], 9, 1);
-}
-
-// ═══ 광석 분류장 + 보석 금고 (동쪽 아래): 도개교 밑 구덩이, 환기 수갱 바람 ═══
-function sorting(K) {
-  K.rock(780, 700, 860, 708);
-  K.hall(760, 900, 700, 22), K.wall(760, 678, 900, 700, "wood");
-  K.rock(784, 690, 800, 700), K.rock(836, 694, 846, 700);
-  P(K, 772, 700, "p_cart"), P(K, 820, 700, "p_ore", { s: 1 }), P(K, 866, 700, "p_crates", { s: 1 });
-  K.tag(762, 678, 898, 700, "arena");
-  K.struct("광석 분류장", "전투", 760, 678, 900, 708);
-  // 금 간 벽 → 보석 금고
-  K.crack(900, 690, 904, 700);
-  K.air(904, 676, 970, 700), K.wall(904, 676, 970, 700, "brick"), K.mat(900, 672, 974, 704, "brick");
-  for (const x of [918, 940, 960]) P(K, x, 700, "p_ore", { s: 2 });
-  K.tag(904, 676, 970, 700, "treasure");
-  K.struct("보석 금고", "보물", 900, 672, 974, 704);
-  // 환기 수갱: 밑에서 위로 바람이 분다 (웜 굴에서 분류장으로 돌아온다)
-  K.air(882, 700, 892, 880), K.wind(882, 892, 700, 880, 560);
-  K.wall(882, 700, 892, 880, "wood");
-  K.ladder(887, 700, 944);
-  // 도개교 구덩이 동쪽 벽 사다리 (분류장 → 대로)
-  K.ladder(852, EN, 700);
-}
-
-// ═══ 깊은 광맥 대성당 (맨 아래): 결정 공동 + ▼ ═══
-function cathedral(K) {
-  K.sell(560, 946, 196, 80, 2.2, -1, 0.07);
-  K.rock(350, 1010, 770, 1030);
-  // 바닥 굴곡 (결정 둔덕)
-  K.rock(430, 1002, 456, 1010), K.rock(660, 998, 690, 1010), K.rock(520, 1004, 540, 1010);
-  // 가운데 결정 기둥 (위아래로 이어진다, 아래로 지나는 아치)
-  K.rock(596, 870, 612, 990), K.air(596, 978, 612, 990);
-  K.deep(560, 1010);
-  // 용광로 홀 → 대성당: 쇠사슬 승강기 + 밧줄
-  K.air(640, 770, 654, 1010), K.lift(642, 652, 770, 1010, 762);
-  K.plank(436, 448, 770);
-  K.air(520, 778, 523, 880), K.rope(521, 770, 1004);
-  for (const [x, k, s] of [[380, "p_crystal", 2], [470, "p_crystal", 1], [560, "p_ore", 2], [720, "p_crystal", 2], [742, "p_ore", 1], [500, "p_bones", 0]]) P(K, x, 1010, k, { s });
-  K.tag(380, 960, 740, 1010, "arena");
-  K.tag(540, 990, 580, 1010, "rest", { safe: 1 });
-  K.struct("깊은 광맥 대성당", "▼ 아래로", 350, 860, 770, 1030);
-}
-
-// ═══ 웜 굴: 대성당 양쪽으로 굽이치는 굴 (광산 웜이 판 길) ═══
-function wormways(K) {
-  // 서: 대성당 → 웜 알방(평평한 굴방) → 집수정 바닥 (사다리)
-  K.wiggle([[370, 1004], [330, 982], [296, 964]], 10, 1);
-  K.hall(240, 298, 964, 14);
-  K.wiggle([[240, 964], [190, 914], [150, 874]], 10, 1);
-  K.air(148, 796, 153, 874), K.ladder(150, 796, 874);
-  P(K, 254, 964, "p_bones", { s: 1 }), P(K, 280, 964, "p_ore", { s: 1 });
-  K.tag(242, 950, 296, 964, "treasure");
-  // 동: 대성당 → 웜 허물방 → 환기 수갱 밑
-  K.wiggle([[748, 1004], [790, 984], [816, 962]], 10, 1);
-  K.hall(814, 868, 962, 14);
-  K.wiggle([[866, 962], [886, 944]], 10, 0);
-  K.air(882, 880, 892, 944);
-  P(K, 840, 962, "p_skulls"), P(K, 828, 962, "p_web");
-  K.tag(816, 948, 866, 962, "arena");
-  K.struct("웜 굴", "보물·전투", 150, 800, 900, 1010);
 }

@@ -38,6 +38,7 @@ import * as UI from "./ui.js";
 import * as SCR from "./screens.js";
 export { HOOKS } from "./codex.js";
 import * as HUB2 from "./hub2.js";
+import * as HUB4 from "./hub4.js";
 import * as PAPER from "./paper.js";
 import * as INV from "./invart.js";
 import { makeTiles } from "./tiles.js";
@@ -3507,8 +3508,8 @@ export function packSize(def, rng) {
   return 1;
 }
 export const hubFx = (sc, gy, w) => ATMO.hubFx(sc, gy, w);
-export const buildHub = (sc, gy) => HUB2.buildHub(sc, { ...R, HUBW: HUB2.HUB_W }, gy);
-export const hubParallax = (sc, h2) => HUB2.hubParallax(sc, h2);
+export const buildHub = (sc, gy) => HUB4.buildHub(sc, { ...R, HUBW: HUB4.HUB_W }, gy);
+export const hubParallax = (sc, h2) => HUB4.hubParallax(sc, h2);
 
 export const _IT = IT;
 export const _interp = interp;
@@ -4263,7 +4264,7 @@ function arrivePos(world, z, at) {
   return { tile: p.tile + 1, row: p.row, py: q.row === p.row && q.py > 0 ? q.py : p.py };
 }
 export function travel(sc, to, back) {
-  if (to === ZN.HUB_ID) return void sc.extract?.();
+  if (to === ZN.HUB_ID) return void ((HUB_ARRIVE = back), sc.extract?.());
   if (sc.zoneBusy || sc.dying) return;
   const z = ZN.BY_ID[to];
   if (!z) return;
@@ -4336,15 +4337,24 @@ function arrive(sc, z) {
   ZN.packChunk(z) >= 0 && !sc.fr?.packs?.[z.id] && sc.time.delayedCall(1600, () => sc.hud?.()?.toast("이 구역 어딘가에 정예 무리가 떠돈다", "#ff9a6a"));
   z.kind === "dungeon" && sc.time.delayedCall(1600, () => sc.hud?.()?.toast("숨은 던전 · 정예가 많고 끝에 보물이 있다", "#c090ff"));
 }
-// 탐험 시작: 거점 오른쪽 문으로 나가면 동쪽 칸(재의 들판) 왼쪽 끝
+// 탐험 시작: 거점의 어느 출구로 나갔느냐에 따라 그 방향 이웃 칸, 들어오는 쪽(거점을 바라보는 쪽) 출구 자리에서
+//   ◀ 서문 → 서쪽 칸 오른쪽 끝 · ▶ 동문 → 동쪽 칸 왼쪽 끝 · ▲ 하늘 승강장 → 위 칸 아래 출구 · ▼ 갱도 승강기 → 아래 칸 위 출구
+const HUB_DIR = { L: [-1, 0, "R"], R: [1, 0, "L"], U: [0, -1, "D"], D: [0, 1, "U"] };
+let HUB_DEST = "R", HUB_ARRIVE = null;
+// 거점에 들어올 때 설 자리: 돌아온 방향의 문 앞 (서쪽 구역에서 오면 서문, 위에서 오면 하늘 승강장 …), 그 밖엔 광장
+export const hubArrivalX = (def) => { const k = HUB_ARRIVE; HUB_ARRIVE = null; return HUB4.ARRIVE_X[k] ?? def; };
+export const setHubDest = (d) => (HUB_DEST = HUB_DIR[d] ? d : "R");
 export function zoneBegin(sc) {
   ZN.setRunSeed(sc.fr?.runSeed ?? (Math.random() * 4294967295) >>> 0);
-  const z0 = ZN.cell(1, 0);
+  let [dx, dy, side] = HUB_DIR[HUB_DEST] ?? HUB_DIR.R, c = ZN.cell(dx, dy);
+  if (!c || c === ZN.HUB_ID || ZN.isLocked(c.id)) ([dx, dy, side] = HUB_DIR.R), (c = ZN.cell(1, 0));
+  HUB_DEST = "R";
+  const z0 = c;
   // 첫 화면부터 로딩 화면으로 덮는다 (설계를 기다리는 동안 빈 시작 자리가 보이거나 움직이지 않게)
   const L = startLoad(sc, z0, () => arrive(sc, z0), { instant: 1 });
   ensurePlan(sc, z0).then(() => {
     if (sc.sys?.isActive?.() === !1 || !sc.world || L.dead) return;
-    const p0 = arrivePos(sc.world, z0, "L");
+    const p0 = arrivePos(sc.world, z0, side);
     sc.travelTo(p0.tile, 1, p0.row > 0 ? p0.row : null, p0.py > 0 ? p0.py : null);
     L.stage = "paint";
     L.t0 = L.t;

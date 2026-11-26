@@ -213,6 +213,7 @@ function clipWalls(P) {
 //   매달려 오르내리는 곳: 6 사다리 7 밧줄 8 덩굴 (위아래 키) · 9 짚라인(줄, ax·ay→bx·by) · 10 바람 기둥(떠오른다)
 //   11·12 물살(왼쪽·오른쪽으로 미는 물) · 13 무너지는 발판 · 14 금 간 벽(때려 부순다) · 15 승강기 길(발판이 오르내린다)
 //   13·14는 검사 때는 바위, 마지막에 장에서 빼고 장치(gizmo.js)가 그리고 막는다
+const GROUND_NEW = new Set(["gm1_0", "g2_0", "gm2_0"]);
 export const SPEC = { plank: 1, cloud: 2, water: 3, ice: 4, bounce: 5, ladder: 6, rope: 7, vine: 8, zip: 9, wind: 10, curL: 11, curR: 12, crumble: 13, crack: 14, lift: 15, fall: 16, geyser: 17, heal: 18, lever: 19, ferry: 20, draw: 21, swing: 22 };
 // 금 간 벽(14)은 길찾기에서 지나갈 수 있는 것으로 본다 (언제든 부수고 지나간다) — 뒤 숨은 방에도 상자가 놓인다
 const SOLID_SPEC = new Set([1, 2, 4, 5, 13, 21]);
@@ -1239,7 +1240,8 @@ function buildGround(P) {
   applySpecReq(P);
   if (P.deep) flatFloor(P, P.deep.x - 40, P.deep.x + 40, P.deep.y, 12, 30, 18);
   // 하늘: 산만 한 하늘섬(▲ 문) + 큰 섬 + 디딤돌 길 (땅 위 구조물은 두지 않는다)
-  bp?.feats && bpFeats(P, hAt, bp.feats);
+  // 땅 위를 새로 지은 구역(지상 모드 하늘섬)은 옛 설계의 하늘 장식(디딤돌 줄 등)을 쓰지 않는다
+  bp?.feats && !(AR && GROUND_NEW.has(P.z.id)) && bpFeats(P, hAt, bp.feats);
   if (AR) {
     // 지역 설계 코드: 땅 위 하늘도 (지표·구조물 위에 짓는다)
     const C2 = cellsOf(P);

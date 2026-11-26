@@ -2,6 +2,7 @@
 import * as G from "./bg3d.js";
 import { paintGrass } from "./bggrass.js";
 import { paintSteppe } from "./bgsteppe.js";
+import { ZBG, paintZone } from "./bgzones.js";
 const W = 640, HH = 360;
 const mix = (a, b, t) => {
   t = Math.max(0, Math.min(1, t));
@@ -21,10 +22,13 @@ export const THEME = {
   grassmere: "grass",
   // 파랑 지역 (새 설계)
   mossbark: "forest", greenstep: "steppe", stonebridge: "sky", leafcrown: "sky", ironvein: "cave", dripstone: "cave", roothollow: "cave",
+  // 새로 지은 20곳 전용 (bgzones.js)
+  ...Object.fromEntries(Object.keys(ZBG).map((k) => [k, "zone"])),
 };
 const DARK = { cave: 1, abyss: 1 };
 
 export function paintLayer3d(T, S, E, h, id) {
+  if (ZBG[id]) return paintZone(T, S, E, h, id);
   const th = THEME[id] ?? (/forest|wood/.test(id) ? "forest" : "plains");
   if (th === "grass") return paintGrass(T, S, E, h);
   if (th === "steppe") return paintSteppe(T, S, E, h);

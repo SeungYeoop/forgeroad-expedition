@@ -1,3 +1,4 @@
+import { SKY_MAPS } from "./archi_skymaps.js";
 // 지역 설계 코드: 지역마다 지도 전체를 그 지역만의 뼈대로 꽉 채운다 (방 몇 개를 굴로 잇는 대신)
 //   칸 = 8px 블록 (C.cell: 1 바위, -1 공기). 장치(사다리·승강기·짚라인…)는 P.specReq로 (natgen SPEC)
 //   ARCHI[구역 id](K) — K는 아래 kit: 파기·채우기·비탈 굴·장치·뒷벽·재질·방 역할
@@ -5,7 +6,7 @@ import { rng } from "./noise.js";
 import { greenstep as greenstepTepui } from "./archi_greenstep.js";
 import { stonebridge as stonebridgeCity } from "./archi_stonebridge.js";
 import { leafcrown as leafcrownForest } from "./archi_leafcrown.js";
-import { ironvein as ironveinCity } from "./archi_ironvein.js";
+import { UNDER_CAVES, UNDER_GROUND } from "./archi_under.js";
 import { dripstone as dripstoneCave } from "./archi_dripstone.js";
 import { roothollow as roothollowDeep } from "./archi_roothollow.js";
 import { mossbark as mossbarkWood } from "./archi_mossbark.js";
@@ -1135,4 +1136,4 @@ function mossbark(K, o) {
   return rooms;
 }
 
-export const ARCHI = { g0_1: ironveinCity, gm1_1: roothollowDeep, g1_1: dripstoneCave, g1_m1: stonebridgeCity, g0_m1: greenstepTepui, gm1_m1: leafcrownForest, gm1_0: mossbarkWood, g0_m2: lightgarden, g0_2: abyss, g1_2: fossil, gm1_2: spider, g1_m2: ashsky, g2_1: hourglass, gm2_1: mangrove, g2_m1: mirage, gm2_m1: bogsky, gm1_m2: monastery, g2_2: mirror, gm2_m2: sporesky, gm2_2: mistgrove, g2_m2: citadel, gm2_0: blackmarsh, g2_0: glassdune };
+export const ARCHI = { g1_m1: stonebridgeCity, g0_m1: greenstepTepui, gm1_m1: leafcrownForest, g0_m2: lightgarden, g1_m2: ashsky, g2_m1: mirage, gm2_m1: bogsky, gm1_m2: monastery, gm2_m2: sporesky, g2_m2: citadel, ...UNDER_CAVES, ...UNDER_GROUND, ...SKY_MAPS };

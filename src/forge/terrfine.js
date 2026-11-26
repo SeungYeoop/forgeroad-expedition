@@ -461,6 +461,8 @@ export function* pixFine(ch, base, region, S) {
       }
     }
   }
+  // 매달린 것(뿌리·덩굴 장식, 사다리·밧줄·덩굴 장치 …)이 칠한 픽셀: 입체 앞면 그림에서 뺀다
+  const HANG = new Uint8Array(PW * PH), hang = (x, y, c) => (put(x, y, c), x >= 0 && y >= 0 && x < PW && y < PH && (HANG[y * PW + x] = 1));
   // ── 5) 밑면에 매달린 돌·뿌리·덩굴·고드름 ──
   for (let ex = MP - 4; ex < MP + PW + 4; ex++) {
     if ((ex & 15) === 0) yield;
@@ -486,13 +488,13 @@ export function* pixFine(ch, base, region, S) {
         const L2 = 8 + Math.floor(H(wx, r, 62) * 26);
         for (let k = 0; k < L2; k++) {
           const xx = ((k >> 2) + (wx & 1)) % 3 === 0 ? 1 : 0;
-          empty(x + xx, e + k) && put(x + xx, e + k, k % 6 === 5 ? 0x7ab04a : k % 2 ? 0x5a3a22 : 0x6e4a2c);
+          empty(x + xx, e + k) && hang(x + xx, e + k, k % 6 === 5 ? 0x7ab04a : k % 2 ? 0x5a3a22 : 0x6e4a2c);
         }
       } else if (!ugc && (th === "forest" || th === "kingdom") && H(wx, r, 31) > 0.88) {
         const L2 = 6 + Math.floor(H(wx, r, 32) * 22);
         for (let k = 0; k < L2; k++) {
           const xx = x + ((k >> 2) & 1 ? 1 : 0) - ((k >> 3) & 1 ? 1 : 0);
-          empty(xx, e + k) && put(xx, e + k, k % 5 === 4 ? sh(P.top, 0.2) : sh(P.top, -0.35 + (k % 2) * 0.1));
+          empty(xx, e + k) && hang(xx, e + k, k % 5 === 4 ? sh(P.top, 0.2) : sh(P.top, -0.35 + (k % 2) * 0.1));
         }
       } else if (!ugc && th === "snow" && H(wx >> 1, r, 33) > 0.72) {
         const L2 = 3 + Math.floor(H(wx >> 1, r, 34) * 10) - Math.abs((wx & 1) - 0.5) * 2;
@@ -506,6 +508,9 @@ export function* pixFine(ch, base, region, S) {
     const PL = rampOf(mix(0xa07040, P.soil, 0.2)), CL = rampOf(0xf4f8ff), WA = mix(0x3a8ad8, P.sky ? P.sky[0] ?? 0x3a8ad8 : 0x3a8ad8, 0.25);
     const LAD = rampOf(mix(0x9a6a3a, P.soil, 0.15)), ROPE = rampOf(0xc8a870), VIN = rampOf(mix(P.top ?? 0x4a9a3a, 0x2e7a30, 0.4)), RAIL = rampOf(0x8a8c96);
     const ap = (k, c, al) => (buf[k] = ((al << 24) | ((c & 255) << 16) | (c & 0xff00) | ((c >> 16) & 255)) >>> 0);
+    // 매달리는 장치(사다리·밧줄·덩굴·짚라인·바람·승강기·나룻 줄)가 칠한 픽셀: 입체 앞면 그림에서는 뺀다 (지형처럼 여러 겹 복제되지 않게)
+    const putH = (x, y, c) => (put(x, y, c), x >= 0 && y >= 0 && x < PW && y < PH && (HANG[y * PW + x] = 1));
+    const apH = (k, c, al) => (ap(k, c, al), (HANG[k] = 1));
     for (const r of S.spec) {
       if (r.t >= 6 && r.t !== 11 && r.t !== 12) {
         const x0 = Math.max(0, Math.floor(r.x0 - MX2)), x1 = Math.min(PW, Math.ceil(r.x1 - MX2));
@@ -521,48 +526,48 @@ export function* pixFine(ch, base, region, S) {
             if (wx < lo - 4 || wx > hi + 4) continue;
             const ly = Math.round(hi > lo ? r.ay + ((r.by - r.ay) * (Math.min(hi, Math.max(lo, wx)) - r.ax)) / (r.bx - r.ax) : r.ay) - OY;
             if (wx >= lo && wx <= hi) {
-              ly - 1 >= 0 && ly - 1 < PH && put(x, ly - 1, RAIL[1]);
-              ly >= 0 && ly < PH && put(x, ly, RAIL[3]);
+              ly - 1 >= 0 && ly - 1 < PH && putH(x, ly - 1, RAIL[1]);
+              ly >= 0 && ly < PH && putH(x, ly, RAIL[3]);
             }
-            if (Math.abs(wx - lo) <= 3 || Math.abs(wx - hi) <= 3) for (let yy = ly - 4; yy <= ly + 3; yy++) yy >= 0 && yy < PH && put(x, yy, RAIL[(yy - ly + 4) % 3 === 0 ? 4 : 2]);
+            if (Math.abs(wx - lo) <= 3 || Math.abs(wx - hi) <= 3) for (let yy = ly - 4; yy <= ly + 3; yy++) yy >= 0 && yy < PH && putH(x, yy, RAIL[(yy - ly + 4) % 3 === 0 ? 4 : 2]);
             continue;
           }
           for (let y = y0; y < y1; y++) {
             const yw = OY + y, dy = yw - r.y0, k = y * PW + x;
             if (r.t === 6) {
               // 사다리: 양옆 기둥 + 8px마다 가로대
-              if (dx <= 1 || dr <= 1) put(x, y, LAD[dx === 0 || dr === 0 ? 3 : 1]);
-              else if (dy % 8 === 2) put(x, y, LAD[1]);
-              else if (dy % 8 === 3) put(x, y, LAD[4]);
+              if (dx <= 1 || dr <= 1) putH(x, y, LAD[dx === 0 || dr === 0 ? 3 : 1]);
+              else if (dy % 8 === 2) putH(x, y, LAD[1]);
+              else if (dy % 8 === 3) putH(x, y, LAD[4]);
             } else if (r.t === 7) {
               // 밧줄: 꼬인 줄 3px, 24px마다 매듭
               const off = Math.abs(wx - Math.round(cx)), knot = dy % 24 < 3;
-              if (off <= (knot ? 2 : 1)) put(x, y, ROPE[knot ? (off === 2 ? 4 : 2) : (yw + wx) % 4 < 2 ? 1 : 3]);
+              if (off <= (knot ? 2 : 1)) putH(x, y, ROPE[knot ? (off === 2 ? 4 : 2) : (yw + wx) % 4 < 2 ? 1 : 3]);
             } else if (r.t === 8) {
               // 덩굴: 구불구불한 줄기 여러 가닥 + 잎
               const sx = Math.round(Math.sin(yw * 0.09 + Math.floor(wx / 7) * 1.7) * 1.5);
               const stem = (wx + sx) % 7 === 0, leaf = !stem && H(wx >> 1, yw >> 2, 91) > 0.82 && (wx + sx) % 7 <= 2;
-              if (stem) put(x, y, VIN[3]);
-              else if (leaf) put(x, y, VIN[H(wx, yw, 92) > 0.5 ? 0 : 1]);
+              if (stem) putH(x, y, VIN[3]);
+              else if (leaf) putH(x, y, VIN[H(wx, yw, 92) > 0.5 ? 0 : 1]);
             } else if (r.t === 10) {
               // 바람: 옅은 흰 결 (위로 부는 기둥은 세로, 옆으로 부는 바람 길은 가로)
               if (r.dx) {
-                if (yw % 9 === 0 && (wx + yw * 3) % 30 < 11) ap(k, 0xf4fbff, 34);
-                else if (yw % 9 === 4 && (wx + yw * 7) % 38 < 7) ap(k, 0xffffff, 22);
-              } else if (wx % 11 === 0 && (yw + wx * 3) % 26 < 9) ap(k, 0xf4fbff, 38);
-              else if (wx % 11 === 5 && (yw + wx * 5) % 34 < 6) ap(k, 0xffffff, 24);
+                if (yw % 9 === 0 && (wx + yw * 3) % 30 < 11) apH(k, 0xf4fbff, 34);
+                else if (yw % 9 === 4 && (wx + yw * 7) % 38 < 7) apH(k, 0xffffff, 22);
+              } else if (wx % 11 === 0 && (yw + wx * 3) % 26 < 9) apH(k, 0xf4fbff, 38);
+              else if (wx % 11 === 5 && (yw + wx * 5) % 34 < 6) apH(k, 0xffffff, 24);
             } else if (r.t === 15) {
               // 승강기 길: 양옆 쇠 레일 + 64px마다 버팀목
-              if (dx <= 2 || dr <= 2) put(x, y, RAIL[dx === 0 || dr === 0 ? 4 : dx === 1 || dr === 1 ? 2 : 1]);
-              else if (dy % 64 < 4 && dy > 8) put(x, y, LAD[dy % 64 === 0 ? 1 : 3]);
+              if (dx <= 2 || dr <= 2) putH(x, y, RAIL[dx === 0 || dr === 0 ? 4 : dx === 1 || dr === 1 ? 2 : 1]);
+              else if (dy % 64 < 4 && dy > 8) putH(x, y, LAD[dy % 64 === 0 ? 1 : 3]);
             } else if (r.t === 20) {
               // 나룻 줄: 위 2px 꼰 줄, 양 끝 나무 기둥
-              if (dy <= 1) put(x, y, ROPE[dy ? 3 : (wx & 3) < 2 ? 1 : 2]);
-              else if (dx <= 2 || dr <= 2) put(x, y, LAD[dx === 0 || dr === 0 ? 3 : 1]);
+              if (dy <= 1) putH(x, y, ROPE[dy ? 3 : (wx & 3) < 2 ? 1 : 2]);
+              else if (dx <= 2 || dr <= 2) putH(x, y, LAD[dx === 0 || dr === 0 ? 3 : 1]);
             } else if (r.t === 17) {
               // 간헐천 구멍: 바닥 가운데 광물 테
               const off = Math.abs(wx - cx);
-              if (r.y1 - yw <= 3 && off < 14) put(x, y, off < 6 ? 0x2a3a48 : mix(0xd8e0c0, 0xa8b890, off / 14));
+              if (r.y1 - yw <= 3 && off < 14) putH(x, y, off < 6 ? 0x2a3a48 : mix(0xd8e0c0, 0xa8b890, off / 14));
             }
           }
         }
@@ -613,6 +618,7 @@ export function* pixFine(ch, base, region, S) {
   }
   // 입체 레이어용: 밟을 수 있는 것만 담은 그림
   const front = new Uint8ClampedArray(img.data);
+  for (let k = 0; k < HANG.length; k++) HANG[k] && (front[k * 4 + 3] = 0);
   const wall = new Uint8ClampedArray(img.data.length);
   const wallBuf = new Uint32Array(wall.buffer);
   yield;

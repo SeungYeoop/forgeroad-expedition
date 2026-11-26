@@ -7601,7 +7601,7 @@ function On(A, S) {
     h = new Ze(R),
     m = S === 0 ? E.far : S === 1 ? E.mid : E.near,
     t = st(m, 0.15);
-  const pid = A.look ?? A.bgId ?? A.id;
+  const pid = A.zbg ?? A.look ?? A.bgId ?? A.id;
   if (PAINT.paintable(pid) || PAINT.paintable(A.src)) {
     const T2 = new ht(Tt, qt + BGX);
     return (BGN.paintLayer3d(T2, S, E, h, BGN.THEME[pid] ? pid : BGN.THEME[A.src] ? A.src : pid), T2);
@@ -8024,7 +8024,7 @@ try {
 } catch {}
 const BG_PENDING = new Set();
 function AiAsync(A, S) {
-  const pid = S.look ?? S.bgId ?? S.id;
+  const pid = S.zbg ?? S.look ?? S.bgId ?? S.id;
   if (!BGW || !(PAINT.paintable(pid) || PAINT.paintable(S.src))) return void Ai(A, S);
   const T = `bg_${S.id}`;
   if (A.textures.exists(T + "_sky") || BG_PENDING.has(T)) return;
@@ -15010,7 +15010,7 @@ class dr extends Ne {
   }
 }
 const bt = 304,
-  be = 2240;
+  be = 2720;
 class cr {
   move(S, T) {
     ((S.x += S.vx * T),
@@ -15113,12 +15113,17 @@ class pr extends zt.Scene {
         wardrobe: () => new (P().FrLoadout)(this, cl),
         board: () => new (P().Board)(this, cl),
         exit: () => (this.startRun(), null),
+        // 갈림길 요새: 네 갈래 출구 (그 방향 이웃 구역에서 탐험 시작)
+        exitL: () => (FG.setHubDest("L"), this.startRun(), null),
+        exitR: () => (FG.setHubDest("R"), this.startRun(), null),
+        exitU: () => (FG.setHubDest("U"), this.startRun(), null),
+        exitD: () => (FG.setHubDest("D"), this.startRun(), null),
       };
     this.facilities = H2.facilities.map((f) => ({ ...f, open: OPEN[f.id] }));
     this.input.keyboard.on("keydown-B", () => this.panelOpen || FG.toggleDestiny(this));
     const t = (i, e, r) => null;
     const a = FG.hubStats(this);
-    ((this.player = new Ws(this, a, 1200, bt)),
+    ((this.player = new Ws(this, a, FG.hubArrivalX(1420), bt)),
       (this.player.facing = -1),
       Ce(this, 4, 4, 150, 34, "ui_hud_gold").setScrollFactor(0).setDepth(100),
       this.add.image(16, 15, "icon_gold").setScrollFactor(0).setDepth(101),
@@ -15177,7 +15182,7 @@ class pr extends zt.Scene {
   }
   tutorial() {
     const T = [
-        "상점에서 장비를 맞추고 오른쪽 출구로 탐험을 떠나라.",
+        "상점에서 장비를 맞추고 네 갈래 출구(서문·동문·하늘 승강장·갱도 승강기) 중 하나로 탐험을 떠나라.",
         "살아 돌아오면 전리품은 내 것, 쓰러지면 들고 간 것은 모두 잃는다.",
         "탐험 중 [M]으로 구역 지도를 볼 수 있다.",
       ],
@@ -15361,7 +15366,7 @@ class pr extends zt.Scene {
       this.fx.hitstop > 0 && (this.fx.hitstop -= E),
       this.near && !a)
     ) {
-      const l = this.near.id === "exit" ? "[E] 탐험 시작 (0m부터)" : `[E] ${this.near.name}`;
+      const l = this.near.id === "exit" ? "[E] 탐험 시작 (0m부터)" : this.near.exit ? `[E] ${this.near.name} 으로 출발` : `[E] ${this.near.name}`;
       (this.prompt
         .setText(l)
         .setPosition(this.near.x, bt - 64)
@@ -19736,7 +19741,9 @@ class Er extends zt.Scene {
       if (E)
         for (const R of E.layers) {
           const h = R.getData("f");
-          ((R.tilePositionX = (C * h) % 640), (R.tilePositionY = 0), R.setY(xt / 2 - BGUP + Math.min(xt * 1.6, (OREF - xt - T.scrollY) * (0.2 + h * 0.95))));
+          // 새로 지은 구역(zbg): 지도 자체 높이 기준 — 맨 아래에선 땅 띠가 보이고, 위로 오를수록 가까운 층부터 천천히 내려간다
+          const zb = E.region?.zbg, up = zb ? Ut(1 - (T.scrollY + xt / 2) / (E.region.zbgRef ?? 8448), 0, 1) : 0;
+          ((R.tilePositionX = (C * h) % 640), (R.tilePositionY = 0), R.setY(zb ? xt / 2 - BGUP + 40 + up * (50 + h * 420) : xt / 2 - BGUP + Math.min(xt * 1.6, (OREF - xt - T.scrollY) * (0.2 + h * 0.95))));
         }
   }
   beginDeath() {

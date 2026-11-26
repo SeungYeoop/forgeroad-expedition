@@ -159,10 +159,12 @@ export function update(sc) {
   for (const [rt, bs] of D.backs) if (!live.has(rt)) for (const b of bs) b.setVisible(!1);
   for (const [rt, wall] of D.walls) if (!live.has(rt)) wall.setVisible(false);
   // 2) 지하 어둠: 화면 가운데가 옛 지면보다 얼마나 아래인지
-  D.cave.setAlpha(deep).setTilePosition(cam.scrollX * 0.3, cam.scrollY * 0.3);
+  // 전용 배경(zbg)이 있는 구역은 공용 동굴·낮 하늘 덮개를 쓰지 않는다 (배경 층이 그 역할)
+  const zb = !!sc.bg?.region?.zbg;
+  D.cave.setAlpha(zb ? 0 : deep).setTilePosition(cam.scrollX * 0.3, cam.scrollY * 0.3);
   // 높은 하늘: 밝은 낮 하늘과 구름이 서서히 나타난다
   // 하늘 구역은 높이와 상관없이 밝은 하늘과 구름
-  const alt = sc._frSkyZone ? 1 : Math.max(0, Math.min(1, (R.OREF - 520 - vy) / 260));
+  const alt = zb ? 0 : sc._frSkyZone ? 1 : Math.max(0, Math.min(1, (R.OREF - 520 - vy) / 260));
   D.day.setAlpha(alt);
   D.cloud.setAlpha(alt).setTilePosition(cam.scrollX * 0.15, 0);
   const p = sc.player;

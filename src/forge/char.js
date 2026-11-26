@@ -37,9 +37,11 @@ function leg(b, hx, hy, fx, fy, P, back) {
   b.line(hx + 1, hy, kx + 1, ky, sh(pants, 0.18));
   b.thickLine(kx, ky, fx, fy - 2, 3, wrap);
   for (let t = 0.2; t < 0.95; t += 0.33) { const x = kx + (fx - kx) * t, y = ky + (fy - 2 - ky) * t; b.line(x - 1, y + 1, x + 1, y, sh(wrap, -0.35)); }
-  b.rect(fx - 1, fy - 2, 4, 3, boot);
-  b.rect(fx + 2, fy - 1, 1, 2, boot);
-  b.rect(fx - 1, fy - 2, 4, 1, sh(boot, 0.3));
+  b.rect(fx - 1, fy - 3, 4, 4, boot);
+  b.rect(fx + 3, fy - 1, 1, 2, boot);
+  b.rect(fx - 1, fy - 3, 4, 1, sh(boot, 0.35));
+  b.px(fx + 2, fy - 2, sh(boot, 0.2));
+  b.rect(fx - 1, fy, 5, 1, sh(boot, -0.35));
 }
 // 팔: 소매 + 가죽 팔 보호대 + 손
 function arm(b, sx, sy, pose, P, back) {
@@ -47,7 +49,9 @@ function arm(b, sx, sy, pose, P, back) {
   b.thickLine(sx, sy, mx, my, 3, sh(P.sleeve, k));
   b.thickLine(mx, my, hx, hy, 2.5, sh(P.bracer, k));
   b.line(mx, my, mx + (hx - mx) * 0.25, my + (hy - my) * 0.25, sh(P.bracer, k + 0.3));
-  b.rect(hx - 1, hy - 1, 2, 2, back ? SKIN_M : SKIN);
+  b.rect(hx - 1, hy - 1, 3, 2, back ? SKIN_M : SKIN);
+  b.px(hx - 1, hy + 1, back ? SKIN_D : SKIN_M), b.px(hx, hy + 1, back ? SKIN_D : SKIN_M);
+  !back && b.px(hx, hy - 1, sh(SKIN, 0.2));
 }
 // 망토: 어깨에서 뒤로 흘러내리는 양모 망토(주름 · 해진 끝단)
 function cloak(b, x, y, wave, col) {
@@ -62,68 +66,80 @@ function cloak(b, x, y, wave, col) {
   const e = outer[outer.length - 1];
   for (let i = 0; i < 4; i++) b.px(e[0] + i * 1.3, e[1] + (i % 2), sh(col, -0.4));
 }
-// 머리: 뒷머리와 땋은 머리 · 얼굴(코 · 눈썹 그늘) · 수염 · 투구/두건
-function head(b, cx, cy, P, L, id) {
-  const H = P.hair, hood = L.helm === "hood";
-  if (hood) {
-    b.ellipse(cx - 0.5, cy + 0.2, 4.6, 4.8, sh(P.hood, -0.15));
-    b.poly([[cx - 5, cy], [cx - 6, cy + 6], [cx - 1, cy + 5]], sh(P.hood, -0.3));
-  } else {
-    b.ellipse(cx - 1.4, cy - 0.4, 3.6, 3.9, H[1]);
-    P.braid && b.thickLine(cx - 3.5, cy + 1, cx - 4.5, cy + 6, 1.6, H[2]), P.braid && b.px(cx - 4.5, cy + 6, LEATHER[1]);
+// 머리 (12×12 픽셀 설계, 약간 귀엽게): 둥근 머리 · 앞머리 · 두 눈 · 볼 홍조 · 복슬 수염 · 투구/두건/띠/왕관
+//   (ox, oy) = 머리 칸의 왼쪽 위. 얼굴은 오른쪽(앞)을 본다
+const T3 = (p, v) => p[v > 0.3 ? 0 : v > -0.3 ? 1 : 2];
+const BLUSH = 0xe8907a, BONE = [0xf0e6cc, 0xd0c4a4, 0x9a8e74];
+function head(b, ox, oy, P, L, id) {
+  const H = P.hair, helm = L.helm, hood = helm === "hood";
+  const metal = helm === "helm" || helm === "helmet" || helm === "cap" || helm === "horned" || helm === "horns" || id === "steel" || id === "guardian";
+  const put = (x, y, c) => b.px(ox + x, oy + y, c);
+  const cap = (x, y) => ((x - 5.5) / 5.6) ** 2 + ((y - 5.6) / 5.4) ** 2 <= 1;
+  const face = (x, y) => y >= 5 && ((x - 7.2) / 3.5) ** 2 + ((y - 7.5) / 3.4) ** 2 <= 1;
+  const HP = hood ? [sh(P.hood, 0.22), P.hood, sh(P.hood, -0.32)] : H;
+  // 1) 뒤로 늘어진 것: 두건 자락 / 땋은 머리
+  if (hood) for (let y = 8; y < 15; y++) for (let x = 0; x < 4.5 - (y - 8) * 0.45; x++) put(x, y, T3(HP, -0.2 - x * 0.1 - (y - 8) * 0.08));
+  else if (P.braid) { for (let k = 0; k < 5; k++) put(k > 2 ? 0 : 1, 9 + k, k % 2 ? H[2] : H[0]), put(k > 2 ? 1 : 2, 9 + k, H[1]); put(0, 14, LEATHER[1]), put(1, 14, LEATHER[0]); }
+  // 2) 머리 덩어리 (빛: 왼쪽 위, 결: 사선)
+  for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) {
+    if (!cap(x, y) || face(x, y)) continue;
+    put(x, y, T3(HP, -((x - 5.5) / 5.6) * 0.35 - ((y - 5.6) / 5.4) * 0.8 + (!hood && (x * 2 + y) % 5 === 0 ? -0.4 : 0) + (y <= 1 && x >= 4 && x <= 7 ? 0.3 : 0)));
   }
-  // 얼굴
-  b.ellipse(cx + 1, cy + 0.6, 3.2, 3.6, SKIN);
-  b.rect(cx + 2, cy - 1, 2, 4, SKIN);
-  b.px(cx + 4, cy, SKIN), b.px(cx + 4, cy + 1, SKIN_M);
-  b.px(cx - 1, cy + 1, SKIN_M), b.px(cx, cy + 2, SKIN_M), b.px(cx - 1, cy, SKIN_D);
-  // 눈썹 · 눈 · 볼
-  b.px(cx + 2, cy - 1, SKIN_M), b.px(cx + 3, cy - 1, SKIN_M);
-  b.px(cx + 2, cy, EYE);
-  b.px(cx + 3, cy + 1, sh(SKIN, 0.12));
-  // 수염 (P.beard: 0 없음 · 1 짧음 · 2 김)
+  // 3) 얼굴 (위·앞이 밝고 귀 쪽·턱이 어둡다)
+  for (let y = 5; y < 12; y++) for (let x = 3; x < 12; x++) {
+    if (!face(x, y)) continue;
+    const v = -((x - 8.5) / 3.5) * 0.25 - ((y - 6.5) / 3.4) * 0.55;
+    put(x, y, x <= 4 ? SKIN_D : v > 0.35 ? sh(SKIN, 0.1) : v > -0.45 ? SKIN : SKIN_M);
+  }
+  put(11, 8, SKIN), put(11, 9, SKIN_M);
+  // 4) 앞머리 (두건 · 투구가 아니면)
+  if (!hood && !metal) { put(5, 5, H[1]), put(6, 5, H[0]), put(9, 5, H[1]), put(5, 6, H[2]); }
+  if (hood) { put(5, 5, H[1]), put(6, 5, H[0]); }
+  // 귀
+  !hood && (put(4, 7, SKIN), put(4, 8, SKIN_M));
+  // 5) 눈 (1×2, 귀엽게 크게) · 홍조 · 코 · 입
+  const eye = id === "abyss" || L.eyeGlow ? L.glow ?? 0xb070ff : EYE;
+  put(6, 7, eye), put(6, 8, eye), put(7, 8, eye), put(7, 7, eye === EYE ? 0xfaf6ee : sh(eye, 0.5)), put(9, 7, eye), put(9, 8, eye);
+  put(6, 6, sh(SKIN_M, -0.1)), put(7, 6, SKIN_M), put(9, 6, sh(SKIN_M, -0.1));
+  put(5, 9, mix(SKIN, BLUSH, 0.6)), put(10, 9, mix(SKIN, BLUSH, 0.5));
+  !P.beard && put(8, 10, 0x9a5a48);
+  // 6) 수염: 콧수염 + 복슬한 턱수염 (1 짧음 · 2 길게 가슴까지)
   if (P.beard) {
-    const d = P.beard > 1 ? 3 : 1;
-    b.poly([[cx - 1, cy + 1.5], [cx + 1, cy + 2], [cx + 4.5, cy + 2], [cx + 4, cy + 3.5], [cx + 2.5, cy + 4 + d], [cx + 0.5, cy + 3 + d], [cx - 1, cy + 2.5]], H[0]);
-    b.px(cx + 3, cy + 2, H[2]), b.px(cx + 4, cy + 2, H[1]);
-    b.px(cx, cy + 3, H[1]), b.px(cx + 1, cy + 3 + d, H[1]);
-    d > 1 && (b.px(cx + 2, cy + 5, H[1]), b.px(cx + 2, cy + 6, H[1]));
-  }
-  // 앞머리 / 머리 위
-  if (!hood) b.poly([[cx - 4, cy - 1], [cx - 3, cy - 4], [cx, cy - 4.6], [cx + 3, cy - 4], [cx + 4, cy - 2], [cx + 2, cy - 2.6], [cx - 1, cy - 2]], H[0]), b.line(cx - 2, cy - 4, cx + 1, cy - 4, sh(H[0], 0.25));
-  const helm = L.helm;
-  if (hood) {
-    b.poly([[cx - 4.5, cy + 1], [cx - 4, cy - 4], [cx, cy - 5.5], [cx + 3.5, cy - 4.5], [cx + 4.5, cy - 2.5], [cx + 2, cy - 2.2], [cx - 0.5, cy - 1.5], [cx - 1.5, cy + 2]], P.hood);
-    b.line(cx - 1, cy - 5, cx + 3, cy - 4, sh(P.hood, 0.28));
-  } else if (helm === "helm" || helm === "helmet" || helm === "cap" || helm === "horned" || helm === "horns" || id === "steel" || id === "guardian") {
-    // 노르드 투구: 둥근 철 돔 + 테 + 코 가리개
-    b.ellipse(cx + 0.3, cy - 2.2, 4.2, 3, IRON[1]);
-    b.line(cx - 2, cy - 4, cx + 2, cy - 4.5, IRON[0]);
-    b.rect(cx - 4, cy - 2, 9, 1, IRON[2]);
-    b.rect(cx + 3, cy - 2, 1, 3, IRON[2]);
-    b.px(cx - 3, cy - 3, IRON[3]);
-    if (helm === "horned" || helm === "horns") {
-      b.line(cx - 3, cy - 4, cx - 5, cy - 6, 0xe8dcc0), b.px(cx - 5, cy - 7, 0xc8bca0), b.px(cx - 4, cy - 4, 0xd8ccb0);
-      b.line(cx + 3, cy - 4, cx + 4, cy - 6, 0xd8ccb0), b.px(cx + 4, cy - 7, 0xb8ac90);
+    const long = P.beard > 1, ry = long ? 4 : 2.3, cy = long ? 10.6 : 10.3;
+    for (let y = 9; y < 16; y++) for (let x = 3; x < 12; x++) {
+      const t = ((x - 7.6) / 3.9) ** 2 + ((y - cy) / ry) ** 2;
+      if (t > 1 || (y === 9 && (x < 6 || x > 10))) continue;
+      put(x, y, T3(H, 0.35 - ((y - 9) / (ry * 1.6)) - ((x - 7.6) / 3.9) * 0.2 + ((x + y * 2) % 4 === 0 ? -0.45 : 0)));
     }
-    if (id === "guardian") b.rect(cx - 4, cy - 2, 9, 1, GOLD[1]), b.px(cx, cy - 5, GOLD[0]);
-  } else if (helm === "bandana") {
-    b.rect(cx - 3, cy - 3, 7, 1, P.trim);
-    b.poly([[cx - 4, cy - 3], [cx - 6, cy - 1], [cx - 5, cy]], sh(P.trim, -0.2));
-  } else if (helm === "crown") {
-    b.rect(cx - 3, cy - 4, 7, 1, GOLD[1]);
-    for (const dx of [-2, 0.5, 3]) b.px(cx + dx, cy - 5, GOLD[0]);
+    put(7, 9, H[0]), put(8, 9, H[1]), put(9, 9, H[0]), put(10, 9, H[1]);
   }
-  if (id === "abyss" || L.eyeGlow) b.px(cx + 2, cy, L.glow ?? 0xb070ff);
+  // 7) 머리 장비
+  if (metal) {
+    const IP = [0xd0ccc4, 0x928e86, 0x5c5852];
+    for (let y = 0; y < 6; y++) for (let x = 0; x < 12; x++) {
+      if (!cap(x, y)) continue;
+      put(x, y, y === 5 ? (x % 3 === 1 ? IP[0] : IP[2]) : T3(IP, -((x - 5.5) / 5.6) * 0.4 - ((y - 3) / 3) * 0.7 + (x === 6 ? 0.5 : x === 7 ? -0.5 : 0)));
+    }
+    put(8, 6, IP[1]), put(8, 7, IP[2]);
+    id === "guardian" && [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].forEach((x) => put(x, 5, x % 3 ? GOLD[1] : GOLD[0]));
+    if (helm === "horned" || helm === "horns") for (const [x, y, k] of [[1, 3, 1], [0, 2, 0], [0, 1, 0], [1, 0, 1], [10, 3, 1], [11, 2, 0], [11, 1, 1], [10, 0, 2]]) put(x, y, BONE[k]);
+  } else if (helm === "bandana") {
+    for (let x = 1; x < 11; x++) put(x, 4, x % 4 === 2 ? sh(P.trim, 0.25) : P.trim);
+    put(0, 5, P.trim), put(0, 6, sh(P.trim, -0.25)), put(1, 6, sh(P.trim, -0.15));
+  } else if (helm === "crown") {
+    for (let x = 2; x < 10; x++) put(x, 3, x % 3 === 0 ? GOLD[0] : GOLD[1]);
+    for (const x of [3, 6, 9]) put(x, 2, GOLD[0]);
+    put(6, 3, 0xd04040);
+  }
 }
 // 몸통: 양모 튜닉(앞이 밝다) + 목 트임 + 가죽 띠와 쇠 고리 + 갑옷별 무늬
 function torso(b, x, y, h, P, L, id) {
   const c = P.tunic;
-  b.rect(x, y, 9, h, c);
-  b.rect(x, y, 2, h, sh(c, -0.25));
-  b.rect(x + 6, y, 3, h, sh(c, 0.12));
-  b.rect(x + 1, y, 7, 1, sh(c, 0.22));
-  b.px(x + 6, y + 1, sh(c, -0.35)), b.px(x + 7, y + 2, sh(c, -0.35));
+  const tone = [-0.34, -0.18, -0.06, 0, 0, 0.06, 0.12, 0.18, 0.1];
+  for (let xx = 0; xx < 9; xx++) b.rect(x + xx, y, 1, h, sh(c, tone[xx]));
+  b.rect(x + 1, y, 7, 1, sh(c, 0.26));
+  b.px(x + 3, y + 3, sh(c, -0.2)), b.px(x + 3, y + 4, sh(c, -0.2)), b.px(x + 6, y + 4, sh(c, -0.12));
+  b.px(x + 5, y + 1, sh(c, -0.35)), b.px(x + 6, y + 2, sh(c, -0.3)), b.px(x + 7, y + 1, sh(c, -0.35));
   switch (id) {
     case "chain":
       for (let yy = 1; yy < h - 2; yy++) for (let xx = yy % 2; xx < 9; xx += 2) b.px(x + xx, y + yy, sh(c, xx > 5 ? 0.25 : -0.12));
@@ -241,8 +257,26 @@ function frame(b, A, L, id) {
   hem(b, tx, 22 + dy, P, L, id);
   // 모피 깃 → 머리 (수염이 깃 위로) → 앞팔
   mantle(b, tx, 15 + dy + sq, P, L);
-  head(b, tx + 4, 10 + dy + sq, P, L, id);
+  head(b, tx - 2, 3 + dy + sq, P, L, id);
   arm(b, tx + 7, 16 + dy, A.arm, P, !1);
+}
+
+// 선택 외곽선: 테두리 픽셀을 맞닿은 안쪽 색의 짙은 버전으로 (검은 선보다 부드럽고 정교하게)
+function selOut(b) {
+  const W = b.w, H = b.h, src = b.buf.slice(), col = (v) => ((v & 255) << 16) | (((v >> 8) & 255) << 8) | ((v >> 16) & 255);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (src[y * W + x] >>> 24) continue;
+    let best = -1, lum = 1e9;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const X = x + dx, Y = y + dy;
+      if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+      const v = src[Y * W + X];
+      if ((v >>> 24) < 100) continue;
+      const c = col(v), l = ((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255);
+      l < lum && ((lum = l), (best = c));
+    }
+    best >= 0 && b.px(x, y, mix(sh(best, -0.62), OUT, 0.45));
+  }
 }
 
 export function makePlayer(scene, ht, Et, As, le) {
@@ -252,8 +286,8 @@ export function makePlayer(scene, ht, Et, As, le) {
     for (let i = 0; i < As.length; i++) {
       const b = new ht(32, 32);
       frame(b, As[i], L, A.id);
-      b.outline(OUT);
-      b.rimLight(0xfff0d0, 0.2);
+      selOut(b);
+      b.rimLight(0xfff0d0, 0.22);
       frames.push(b);
     }
     Et(scene, `player_${A.id}`, frames, 32, 32);
@@ -266,8 +300,8 @@ export function makeNpc(scene, ht, Et, As, key, look) {
   for (let i = 0; i < 4; i++) {
     const b = new ht(32, 32);
     frame(b, As[i], L, "npc");
-    b.outline(OUT);
-    b.rimLight(0xfff0d0, 0.18);
+    selOut(b);
+    b.rimLight(0xfff0d0, 0.2);
     frames.push(b);
   }
   Et(scene, key, frames, 32, 32);

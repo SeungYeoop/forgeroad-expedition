@@ -3,6 +3,7 @@
 // 2) 카메라가 지하로 내려가면 배경을 어두운 굴로 덮고, 플레이어 주변만 밝게 남긴다
 import { undergroundState, CAVE_STYLES } from "./underground.js";
 import * as G3 from "./bg3d.js";
+import { caveBack } from "./bgzones.js";
 const mixc = (a, b, t) => { const g = (k) => Math.round(((a >> k) & 255) * (1 - t) + ((b >> k) & 255) * t); return (g(16) << 16) | (g(8) << 8) | g(0); };
 let R = null;
 export function bindDepth(r) {
@@ -31,37 +32,13 @@ function lightTex(sc) {
   sc.textures.addCanvas("dp_light", c);
   return "dp_light";
 }
+// 지하 덮개 (거점 화풍): 동굴 구역 배경과 같은 붓 — 입술진 천장·바닥, 돌기둥, 종유석·석순, 겹 사이 안개
+//   세로로도 이어 붙으므로(위·아래 끝은 어둠) 520px 한 장을 반복한다
 function caveTex(sc) {
   if (sc.textures.exists("dp_cave")) return "dp_cave";
-  const w = 256, h = 256, c = document.createElement("canvas");
-  c.width = w;
-  c.height = h;
-  const x = c.getContext("2d");
-  x.fillStyle = "#120c16";
-  x.fillRect(0, 0, w, h);
-  const H = (a, b) => {
-    let v = (a * 374761393 + b * 668265263) | 0;
-    v = Math.imul(v ^ (v >>> 13), 1274126177);
-    return ((v ^ (v >>> 16)) >>> 0) / 4294967296;
-  };
-  // 멀리 보이는 바위 덩어리와 결
-  for (let i = 0; i < 70; i++) {
-    const cx = H(i, 1) * w, cy = H(i, 2) * h, r = 8 + H(i, 3) * 26, l = 14 + Math.floor(H(i, 4) * 14);
-    x.fillStyle = `rgb(${l + 6},${l},${l + 10})`;
-    for (const [dx, dy] of [[0, 0], [w, 0], [-w, 0], [0, h], [0, -h]]) {
-      x.beginPath();
-      x.ellipse(cx + dx, cy + dy, r, r * 0.7, H(i, 5) * 3, 0, Math.PI * 2);
-      x.fill();
-    }
-  }
-  // 빛나는 광석
-  for (let i = 0; i < 26; i++) {
-    x.fillStyle = H(i, 9) > 0.5 ? "#4ad0c0" : "#a070ff";
-    x.globalAlpha = 0.5 + H(i, 8) * 0.5;
-    x.fillRect(Math.floor(H(i, 6) * w), Math.floor(H(i, 7) * h), 2, 2);
-  }
-  x.globalAlpha = 1;
-  sc.textures.addCanvas("dp_cave", c);
+  const CB = G3.buffer(640, 520, !0);
+  caveBack(CB, 0x3c343a, 777, { warm: 0xd8c4a4, n: 2, ceil: 150, floor: 360 });
+  sc.textures.addCanvas("dp_cave", CB.toCanvas());
   return "dp_cave";
 }
 function dayTex(sc) {

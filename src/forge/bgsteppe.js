@@ -4,6 +4,7 @@
 //   근경: 화면 아래 큰 뭉게구름 꼭대기
 //   빛은 왼쪽 위(아침 해), 멀수록 하늘색에 묻힌다. 가로 W 주기로 끝없이 이어진다
 import * as G from "./bg3d.js";
+import { mass, ramp } from "./bgart.js";
 const W = 640;
 const mix = (a, b, t) => {
   t = Math.max(0, Math.min(1, t));
@@ -34,28 +35,25 @@ const BANDS = [0, 0.08, -0.05, 0.05, -0.1, 0.03, -0.03];
 function tepui(B, cx, base, w, h, o) {
   const { rock, top, skyC, haze = 0, seed = 1, falls = [] } = o;
   const topY = Math.round(base - h);
-  for (let y = topY; y < B.h; y++) {
-    const t = (y - topY) / h;
-    const hw = (w / 2) * (1 + Math.max(0, t) ** 2 * 0.22) + (pn(y * 3, 11, seed) - 0.5) * 3;
-    const l = cx - hw, r = cx + hw;
-    for (let x = Math.floor(l); x <= Math.ceil(r); x++) {
-      const u = (x - l) / Math.max(1, r - l);
-      // 윗면 풀 (가장자리에서 조금 처진다)
-      const capN = 2 + Math.floor(pn(x * 2, 9, seed + 4) * 3) + (u < 0.05 || u > 0.95 ? 2 : 0);
-      let c;
-      if (y - topY < capN) c = y === topY ? sh(top, 0.25) : y - topY < 2 ? top : sh(top, -0.18);
-      else {
-        const band = Math.floor((y - topY + pn(x, 40, seed) * 5) / 6);
-        c = sh(rock, BANDS[((band % 7) + 7) % 7]);
-        // 세로 골 (풍화된 홈)
-        if ((x + Math.floor(pn(y, 30, seed + 2) * 6) + seed) % 9 === 0 && u > 0.1 && u < 0.92) c = sh(c, -0.14);
-        // 빛: 왼쪽 가장자리 밝게, 오른쪽 그늘
-        c = u < 0.1 ? sh(c, 0.14) : u > 0.66 ? sh(c, -0.12 - (u - 0.66) * 0.7) : c;
-        // 윗면 바로 밑 붉은 흙 띠
-        y - topY < capN + 2 && (c = mix(c, 0x6a3424, 0.35));
-      }
-      B.put(x, y, mix(c, skyC, haze));
+  // 가장자리는 풍화로 들쭉날쭉, 어깨는 둥글게, 아래로 조금 벌어진다
+  const half = (y) => (w / 2) * (1 + Math.max(0, (y - topY) / h) ** 2 * 0.22);
+  const eL = (y) => cx - half(y) + (pn(y * 3, 11, seed) - 0.5) * 7 + (pn(y, 37, seed + 9) - 0.5) * 12;
+  const eR = (y) => cx + half(y) + (pn(y * 3, 13, seed + 1) - 0.5) * 7 + (pn(y, 41, seed + 10) - 0.5) * 12;
+  const topAt = (x) => topY + (pn(x * 2, 17, seed + 5) - 0.5) * 4 + Math.max(0, Math.abs(x - cx) - w * 0.4) * 0.7;
+  mass(B, cx - w * 0.8, topY - 8, w * 1.6, B.h - topY + 8, (X, Y) => Y >= topAt(X) && X > eL(Y) && X < eR(Y), { col: rock, round: Math.max(6, w * 0.1), bump: 0.45, sc: 10, strata: 0.6, grooves: 0.32, haze, skyC, seed, warp: 1.2 });
+  // 윗면 풀 덮개 (붓 뭉치 · 가장자리로 처진 풀)
+  const GR = ramp(top);
+  for (let x = Math.floor(cx - w * 0.75); x <= cx + w * 0.75; x++) {
+    let y0 = -1;
+    for (let y = topY - 8; y < topY + 30; y++) if (y >= topAt(x) && x > eL(y) && x < eR(y)) { y0 = y; break; }
+    if (y0 < 0) continue;
+    const capN = 3 + Math.floor(pn(x * 2, 9, seed + 4) * 3) + (hash(x >> 1, 3, seed) > 0.8 ? 2 : 0);
+    for (let j = 0; j < capN; j++) {
+      const hb = hash(x >> 1, (y0 + j) >> 1, seed + 6);
+      const L = j === 0 ? 1 : j === capN - 1 ? 4 : hb > 0.85 ? 1 : hb < 0.12 ? 3 : 2;
+      B.put(x, y0 + j, mix(GR[L], skyC, haze));
     }
+    hash(x, seed, 7) > 0.6 && B.put(x, y0 - 1, mix(GR[hash(x, 8) > 0.5 ? 1 : 2], skyC, haze));
   }
   // 폭포: 윗면 가장자리 근처에서 아래로 (흰 줄 + 흔들림), 아래 물보라
   for (const fx of falls) {

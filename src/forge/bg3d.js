@@ -153,11 +153,12 @@ export function hills(B, o) {
       let c;
       if (G5 && t < 7) c = t === 0 ? G5[1] : t < 3 ? G5[slope > 0 ? 1 : 2] : t < 6 ? G5[slope > 0 ? 2 : 3] : G5[4];
       else {
-        // 둥근 돌 덩어리 결
-        const n = pn2(x, y, 11, 8, W, seed + 9), n2 = pn2(x + 3, y + 2, 11, 8, W, seed + 9);
-        let L = n - n2 > 0.04 ? 1 : n - n2 < -0.06 ? 3 : 2;
-        t > 30 && (L = Math.min(4, L + 1));
-        c = R5[L];
+        // 흙·바위 (거점 화풍): 깊을수록 어둡고 비탈 쪽 빛, 2px 붓 뭉치 + 큰 얼룩, 옅은 지층 줄, 드문 둥근 돌 (미로 무늬 금지)
+        let v = 0.3 - t / 55 + (slope < 0 ? 0.15 : -0.1) + (hash(x >> 1, y >> 1, seed + 9) - 0.5) * 0.45 + (pn2(x, y, 23, 17, W, seed + 9) - 0.5) * 0.55;
+        (y + Math.round(pn(x, 40, W, seed + 3) * 6)) % 9 === 0 && (v -= 0.3);
+        const st = hash(Math.floor(x / 7), Math.floor(y / 6), seed + 11);
+        st > 0.9 && (v += ((x % 7) + (y % 6)) < 6 ? 0.35 : -0.2);
+        c = R5[v > 0.45 ? 1 : v > 0.05 ? 2 : v > -0.35 ? 3 : 4];
       }
       B.put(x, y, mix(c, skyC, haze));
     }
@@ -211,14 +212,20 @@ export function ball(B, cx, cy, r, R5, hz = (c) => c) {
 }
 // 각진 덩어리 (탑·벽)
 export function box(B, x, y, w, h, col, hz = (c) => c, o = {}) {
-  const R5 = ramp5(col);
+  const R5 = ramp5(col), sd = Math.round(x * 3 + y);
   for (let j = 0; j < h; j++)
     for (let i = 0; i < w; i++) {
-      let L = 2;
-      if (i === 0 || i === w - 1) L = 5;
-      else if (i < Math.max(2, w * 0.3)) L = 1;
-      else if (i > w * 0.75) L = 3;
-      if (o.bricks && (j % 6 === 0 || (j % 12 < 6 ? i % 8 === 0 : i % 8 === 4))) L = Math.min(5, L + 1);
+      const u = i / Math.max(1, w - 1);
+      let v = 0.35 - u * 1.1 + (hash((x + i) >> 1, (y + j) >> 1, 5) - 0.5) * 0.35;
+      if (o.bricks) {
+        // 막돌: 줄 높이 4~6, 돌 폭 5~9, 돌마다 밝기
+        const row = Math.floor(j / 5), rj = j % 5, off = Math.floor(hash(row, sd) * 6), si = Math.floor((i + off) / 7), sx = (i + off) % 7;
+        v += (hash(si, row, sd + 1) - 0.5) * 0.5;
+        (rj === 4 || sx === 6) && (v -= 0.7);
+        rj === 0 && (v += 0.2);
+      }
+      let L = v > 0.55 ? 0 : v > 0.18 ? 1 : v > -0.22 ? 2 : v > -0.58 ? 3 : 4;
+      (i === 0 || i === w - 1) && (L = 5);
       B.put(x + i, y + j, hz(R5[L]));
     }
 }
@@ -228,7 +235,11 @@ export function cone(B, cx, by, w, h, col, hz = (c) => c) {
   for (let j = 0; j < h; j++) {
     const half = (w / 2) * (j / h);
     for (let i = -Math.ceil(half); i <= Math.ceil(half); i++) {
-      const L = Math.abs(i) >= Math.ceil(half) ? 5 : i < -half * 0.45 ? 0 : i < 0 ? 1 : i < half * 0.5 ? 3 : 4;
+      const u = i / Math.max(1, half);
+      // 너와 지붕: 3px마다 겹친 줄, 왼쪽(빛) 밝고 오른쪽 그늘, 2px 붓 뭉치
+      let v = 0.4 - u * 0.95 + (hash((cx + i) >> 1, (by + j) >> 1, 7) - 0.5) * 0.35 - (j % 3 === 0 ? 0.35 : 0);
+      let L = v > 0.55 ? 0 : v > 0.18 ? 1 : v > -0.22 ? 2 : v > -0.58 ? 3 : 4;
+      Math.abs(i) >= Math.ceil(half) && (L = 5);
       B.put(cx + i, by - h + j, hz(R5[L]));
     }
   }
@@ -255,11 +266,10 @@ export function island(B, x, y, w, grass, rock, hz = (c) => c, seed = 1) {
       let c;
       if (t < 5) c = t === 0 ? G5[5] : t === 1 ? G5[0] : t < 4 ? G5[1] : G5[3];
       else {
-        const n = pn2(i * 1.0 + seed * 50, yy, 7, 5, 4096, seed), n2 = pn2(i + 2 + seed * 50, yy + 1, 7, 5, 4096, seed);
-        let L = n - n2 > 0.05 ? 1 : n - n2 < -0.07 ? 3 : 2;
-        u < -0.3 && (L = Math.max(0, L - 1));
-        u > 0.25 && (L = Math.min(4, L + 1));
-        t > hgt * 0.6 && (L = Math.min(4, L + 1));
+        // 섬 바위 (거점 화풍): 왼쪽 밝고 오른쪽 그늘, 아래로 어둡게, 가로 지층, 2px 붓 뭉치
+        let v = 0.2 - u * 1.1 - (t / hgt) * 0.6 + (hash((i + seed * 50) >> 1, yy >> 1, seed) - 0.5) * 0.5 + (pn2(i + seed * 50, yy, 13, 9, 4096, seed) - 0.5) * 0.45;
+        (yy + Math.round(pn(i + seed * 50, 30, 4096, seed + 2) * 4)) % 7 === 0 && (v -= 0.3);
+        let L = v > 0.45 ? 1 : v > 0.05 ? 2 : v > -0.35 ? 3 : 4;
         (i === 0 || i === w - 1 || yy === bot) && (L = 5);
         c = R5[L];
       }

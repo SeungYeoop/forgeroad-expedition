@@ -15,7 +15,7 @@ const cl = (v) => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v));
 // o: { clump(엉김 확률) · mute(채도 누름) · warm(따뜻하게) · tex(얼룩 세기) · ox, oy(세계 좌표 어긋남 — 조각 사이 이음매 없게) · lim(같은 재질로 볼 색 차) }
 export function finishBuf(buf, w, h, o = {}) {
   const clump = o.clump ?? 0.3, mute = o.mute ?? 0.12, warm = o.warm ?? 0.025, tex = o.tex ?? 0.05, ox = o.ox ?? 0, oy = o.oy ?? 0, lim = o.lim ?? 80;
-  const src = clump ? buf.slice() : buf;
+  const src = clump || o.despeck ? buf.slice() : buf;
   for (let y = 0; y < h; y++) {
     const Y = y + oy, by = Y >> 1;
     for (let x = 0; x < w; x++) {
@@ -25,6 +25,7 @@ export function finishBuf(buf, w, h, o = {}) {
       if (!a) continue;
       const X = x + ox, bx = X >> 1;
       if (clump && hash(bx, by, 11) < clump) {
+        // 2×2 덩어리 단위로 옆 덩어리의 같은 자리 색을 가져온다 (1px 점이 생기지 않게)
         const d = DIRS[(hash(bx, by, 12) * 4) | 0], xx = x + d[0], yy = y + d[1];
         if (xx >= 0 && yy >= 0 && xx < w && yy < h) {
           const u = src[yy * w + xx];
@@ -35,6 +36,11 @@ export function finishBuf(buf, w, h, o = {}) {
       if (mute) { const l = R * 0.3 + G * 0.59 + B * 0.11; R += (l - R) * mute; G += (l - G) * mute; B += (l - B) * mute; }
       if (warm) { R *= 1 + warm; B *= 1 - warm * 1.6; }
       if (tex) { const k = 1 + (hash(bx, by, 13) - 0.5) * tex + (hash(X >> 3, Y >> 3, 14) - 0.5) * tex * 0.7; R *= k; G *= k; B *= k; }
+      // 고립된 1px 점 정리: 위아래·좌우 이웃이 모두 같은 색이면 그 색으로 (점박이 소금·후추 없애기)
+      if (o.despeck && x > 0 && y > 0 && x < w - 1 && y < h - 1) {
+        const l = src[i - 1], r = src[i + 1], u = src[i - w], dn = src[i + w];
+        if (l === r && u === dn && l === u && l !== v && l >>> 24 === a) { R = l & 255; G = (l >> 8) & 255; B = (l >> 16) & 255; if (mute) { const lm = R * 0.3 + G * 0.59 + B * 0.11; R += (lm - R) * mute; G += (lm - G) * mute; B += (lm - B) * mute; } }
+      }
       buf[i] = ((a << 24) | (cl(B) << 16) | (cl(G) << 8) | cl(R)) >>> 0;
     }
   }

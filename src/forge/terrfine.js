@@ -766,7 +766,7 @@ export function* pixFine(ch, base, region, S) {
               L = bv < 0.18 ? 2 : bv > 0.86 ? 4 : 3;
               if (by === 0 || bx === 0) L = Math.max(1, L - 1);
               else if (by === 6 || bx === 14) L = Math.min(5, L + 1);
-              H(wx, yw, 9) > 0.965 && (L = Math.min(5, L + 1));
+              H(wx >> 1, yw >> 1, 9) > 0.97 && (L = Math.min(5, L + 1));
             }
             vn2(wx / 60, yw / 48, 141) > 0.74 && L < 5 && (L = Math.min(4, L + 1));
           } else if (r.m === "leaf") {
@@ -996,7 +996,7 @@ export function* pixFine(ch, base, region, S) {
         for (let x = x0; x <= x1; x++) {
           const d2 = (x - cx) * (x - cx) + (y - cy) * (y - cy);
           if (d2 > r * r) continue;
-          const t = 1 - Math.sqrt(d2) / r, q = Math.round((Lp[2] * t * t + (H(x + X0, y + OY, 131) - 0.5) * 0.08) * 8) / 8;
+          const t = 1 - Math.sqrt(d2) / r, q = Math.round((Lp[2] * t * t + (H((x + X0) >> 1, (y + OY) >> 1, 131) - 0.5) * 0.08) * 8) / 8;
           if (q <= 0) continue;
           const k = y * PW + x;
           if (wallBuf[k]) wallBuf[k] = lit(wallBuf[k], tint, q);

@@ -264,8 +264,8 @@ export function* bandPixels(ch, base, raw, region, band) {
     (r = cropBand(yield* pixSteps(ch, base, raw, region), band * BANDH, H2)), (oy = band * BANDH);
   }
   // 거점 화풍 마무리 붓질 (작업 스레드와 같은 값)
-  finishRGBA(r.img.data, r.img.width, r.img.height, { ox: base * 16, oy, clump: 0.28, mute: 0.16, tex: 0.06, lim: 70 });
-  finishRGBA(r.wall, r.img.width, r.img.height, { ox: base * 16, clump: 0.2, mute: 0.18, tex: 0.05, lim: 70 });
+  finishRGBA(r.img.data, r.img.width, r.img.height, { ox: base * 16, oy, clump: 0.28, mute: 0.16, tex: 0.06, lim: 70, despeck: 1 });
+  finishRGBA(r.wall, r.img.width, r.img.height, { ox: base * 16, clump: 0.12, mute: 0.18, tex: 0.04, lim: 34, despeck: 1 });
   return r;
 }
 function* paintSteps(scene, S, ch, base, raw, region, band = 0) {

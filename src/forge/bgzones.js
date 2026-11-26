@@ -317,7 +317,7 @@ function stalac(B, col, n, maxL, seed, o = {}) {
 // 석순 (아래에서 솟은 뾰족 바위)
 function stalag(B, x, gy, w, h, col, o = {}) { spire(B, x, gy, w, h, col, { ...o, pow: 0.9, strata: 0.35 }); }
 // 동굴 뒷벽: 부드러운 어둠 + 천장·바닥 바위 겹 셋 (먼 겹은 어둠에 묻힌다)
-function caveBack(B, col, seed, o = {}) {
+export function caveBack(B, col, seed, o = {}) {
   const dark = o.dark ?? mix(col, 0x000000, 0.72), mid = mix(col, 0x000000, 0.45), n = o.n ?? 3, amp = o.amp ?? 100;
   // 바탕: 가운데(굴 속 공기)가 조금 밝은 어둠 + 아주 큰 부드러운 얼룩
   for (let y = 0; y < B.h; y++) for (let x = 0; x < W; x++) B.put(x, y, mix(dark, mid, Math.max(0, 1 - Math.abs(y - 250) / 230) * (0.55 + vn(x, y, 120, seed) * 0.45)));

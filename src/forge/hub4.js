@@ -2,10 +2,11 @@
 //   ◀ 서문(서쪽 지상) · ▼ 갱도 승강기(지하) · 운명의 비석 광장(가운데) · ▲ 하늘 승강장(하늘, 정박한 비행선) · ▶ 동문(동쪽 지상)
 //   그림: bgart 화법(높이장 음영 · 디더링 · 대기 원근) 버퍼를 캔버스로. 원경은 시차 타일, 건물·길은 월드 그림
 import * as G3 from "./bg3d.js";
-import { mix, sh, hash, vn, fbm, ramp, tone, mass, ranges, fog, glint, isle, crystals, tree } from "./bgart.js";
+import { mix, sh, hash, vn, fbm, ramp, tone, mass, ranges, fog, glint, isle, crystals, tree, land } from "./bgart.js";
 import { tower as towerB, wall as wallB, banner, chain, glowSpot, tube } from "./bgzones.js";
 import { lamp } from "./hub2.js";
 import { storehouse, smithy, armorer, wizardTower, dojoHall, noticeBoard, waystone } from "./hubbuild.js";
+import { townRow, roofsea, smelter, lumbermill, tannery, loom, stonecutter, marketStall, cart } from "./hubtown.js";
 import * as ZN from "./zones.js";
 
 export const HUB_W = 2720;
@@ -26,8 +27,22 @@ function skyCanvas(W, H) {
 // 먼 산맥 + 떠 있는 섬 (하늘 갈래가 보인다)
 function farCanvas() {
   return canvasOf(640, 240, (B) => {
-    for (let i = 0; i < 4; i++) isle(B, 40 + i * 160, 40 + (i % 2) * 30, 40 + (i % 3) * 14, 0x8a90a8, 0x9ac87a, { haze: 0.55, skyC: SKYC, roots: 0.5, seed: 70 + i });
-    ranges(B, { n: 2, base: 236, amp: 90, col: 0x8a9ab8, col1: 0x6a7a98, skyC: SKYC, seed: 41, snow: 1, haze0: 0.72, haze1: 0.55, giant: 1.15, sharp: 0.6 });
+    ranges(B, { n: 2, base: 236, amp: 80, col: 0x8a9ab8, col1: 0x6a7a98, skyC: SKYC, seed: 41, snow: 1, haze0: 0.72, haze1: 0.55, giant: 1.1, sharp: 0.6 });
+    // 언덕 위 성채 (도시의 성)
+    mass(B, 300, 150, 260, 90, (X, Y) => Y > 230 - 70 * Math.exp(-(((X - 430) / 90) ** 2)) + (vn(X, 0, 20, 5) - 0.5) * 6, { col: 0x6a8a6a, round: 8, bump: 0.5, sc: 10, haze: 0.45, skyC: SKYC, seed: 5 });
+    wallB(B, 370, 166, 120, 22, 0xb8b0a0, { haze: 0.45, skyC: SKYC });
+    for (const [x, h, w] of [[372, 50, 14], [404, 80, 18], [430, 110, 22], [462, 70, 16], [484, 46, 12]]) towerB(B, x, 168, w, h, 0xc0b8a8, 0x3a5a9a, 0xffd890, { haze: 0.45, skyC: SKYC, flag: 0xc03020 });
+  });
+}
+// 들판: 산 아래부터 거리 뒤까지 끊김 없이 이어지는 땅 (구릉 · 밭고랑 · 생울타리 · 나무 · 농가) — 거점이 땅 위에 있다
+function fieldsCanvas() {
+  return canvasOf(640, 220, (B) => {
+    const f1 = land(B, { base: 60, amp: 34, col: 0x6a8a52, cap: 0x8ab85a, skyC: SKYC, haze: 0.32, seed: 21, sc: 220, capH: 8 });
+    for (let y = 70; y < 220; y += 7) for (let x = 0; x < 640; x++) y > f1(x) + 8 && (x + y * 3) % 23 < 2 && B.put(x, y, mix(0x5a7a40, SKYC, 0.3));
+    for (let k = 0; k < 14; k++) { const x = (k * 53 + 11) % 640; tree(B, x, Math.round(f1(x)) + 6, 0.55 + (k % 3) * 0.15, 0x4a7a3a, 0x5a4030, { haze: 0.3, skyC: SKYC, kind: k % 4 ? "round" : "pine" }); }
+    for (const x of [120, 410]) { const g = Math.round(f1(x)) + 10; for (let j = 0; j < 12; j++) for (let i = 0; i < 18; i++) B.put(x + i, g - j, mix(0xe8dcc0, SKYC, 0.3)); for (let j = 0; j < 8; j++) { const h = 11 * (j / 8); for (let i = -h; i <= h; i++) B.put(x + 9 + i, g - 20 + j, mix(i < 0 ? 0xa04a32 : 0x7a3424, SKYC, 0.3)); } }
+    const f2 = land(B, { base: 150, amp: 26, col: 0x5a7a42, cap: 0x7aa84a, skyC: SKYC, haze: 0.16, seed: 33, sc: 160, capH: 7 });
+    for (let x = 0; x < 640; x += 3) hash(x, 4) > 0.35 && mass(B, x - 4, Math.round(f2(x)) - 6, 9, 8, (X, Y) => (X - x) ** 2 + ((Y - f2(x) + 2) * 1.4) ** 2 < 14, { col: 0x4a7a36, round: 2, bump: 0.8, sc: 2, haze: 0.16, skyC: SKYC, warp: 0.5 });
   });
 }
 // 중경: 요새 성벽 실루엣 · 망루 · 성 언덕
@@ -38,20 +53,28 @@ function midCanvas() {
     for (let k = 0; k < 9; k++) towerB(B, 20 + k * 92 + (k % 2) * 20, 172, 14 + (k % 3) * 4, 50 + ((k * 37) % 50), 0xa8a294, [0x3a5a9a, 0x8a3a2a, 0x3a6a4a][k % 3], 0xffd890, { haze: 0.38, skyC: SKYC, flag: [0xc03020, 0x2a6ad8, 0xe0b040][k % 3] });
   });
 }
-// 길: 끝에서 끝까지 이어진 돌길 (빛 받는 윗변 · 줄눈 · 크기가 다른 돌) + 길가 풀
+// 길: 돌길(빛 받는 윗변 · 줄눈 · 크기가 다른 돌) → 연석 → 흙과 풀 길가(꽃 · 돌멩이 · 울타리 말뚝) — 땅 위 마을
 function streetCanvas(W, H) {
   return canvasOf(W, H, (B) => {
-    const R5 = ramp(0x8a8478), G5 = ramp(0x5a8a42);
-    for (let y = 0; y < H; y++) {
+    const R5 = ramp(0x8a8478), G5 = ramp(0x5a8a42), S5 = ramp(0x7a5a3a), road = 26;
+    for (let y = 0; y < Math.min(H, road); y++) {
       const row = Math.floor(y / 6), off = (row * 7) % 11;
       for (let x = 0; x < W; x++) {
         const bw = 9 + Math.floor(hash(Math.floor((x + off) / 10), row, 3) * 5), bx = (x + off) % bw, by = y % 6;
-        let I = 0.62 - y / (H * 2.4) + (hash(Math.floor((x + off) / bw), row, 7) - 0.5) * 0.25 + (by === 1 ? 0.12 : 0) - (bx === 0 || by === 0 ? 0.3 : 0);
+        const I = 0.62 - y / 90 + (hash(Math.floor((x + off) / bw), row, 7) - 0.5) * 0.25 + (by === 1 ? 0.12 : 0) - (bx === 0 || by === 0 ? 0.3 : 0);
         B.put(x, y, tone(R5, I, x, y));
       }
     }
-    for (let x = 0; x < W; x++) for (let k = 0; k < 2 + Math.floor(hash(x, 5) * 3); k++) B.put(x, k, tone(G5, 0.8 - k * 0.2, x, k));
-    for (let x = 0; x < W; x += 2) hash(x, 9) > 0.5 && B.put(x, -1 + 0, G5[0]);
+    for (let x = 0; x < W; x++) for (let j = 0; j < 4; j++) B.put(x, road + j, tone(ramp(0xa8a090), 0.8 - j * 0.18 - (x % 22 === 0 ? 0.3 : 0), x, j));
+    for (let y = road + 4; y < H; y++) for (let x = 0; x < W; x++) {
+      const n = fbm(x, y, 18, 5, 3), grass = n > 0.42 - (y - road) * 0.004;
+      B.put(x, y, grass ? tone(G5, 0.62 + (n - 0.5) * 0.6 - (y - road) / 120, x, y) : tone(S5, 0.55 + (fbm(x, y, 5, 9, 2) - 0.5) * 0.4 - (y - road) / 140, x, y));
+    }
+    for (let x = 0; x < W; x += 2) if (hash(x, 11) > 0.4) { const L = 2 + Math.floor(hash(x, 12) * 4); for (let k = 0; k < L; k++) B.put(x, road + 4 - k, k === L - 1 ? G5[0] : G5[1]); }
+    for (let k = 0; k < W / 9; k++) { const x = Math.floor(hash(k, 13) * W), y = road + 8 + Math.floor(hash(k, 14) * (H - road - 12)), c = [0xffffff, 0xf0d040, 0xe06080, 0xb090f0][k % 4]; B.put(x, y, c), B.put(x + 1, y, sh(c, -0.2)), B.put(x, y + 1, 0x3a6a2a); }
+    for (let k = 0; k < W / 30; k++) { const x = Math.floor(hash(k, 15) * W), y = road + 10 + Math.floor(hash(k, 16) * (H - road - 16)), r = 2 + Math.floor(hash(k, 17) * 3); mass(B, x - r, y - r, r * 2 + 1, r * 2 + 1, (X, Y) => (X - x) ** 2 + ((Y - y) * 1.3) ** 2 < r * r, { col: 0x9a9488, round: 1.5, warp: 0 }); }
+    for (let x = 6; x < W; x += 34) { for (let j = 0; j < 12; j++) B.put(x, road + 16 - j, j === 11 ? 0x8a6a40 : 0x6a4a2a), B.put(x + 1, road + 16 - j, 0x4a3020); }
+    for (const y of [road + 8, road + 12]) for (let x = 6; x < W; x++) B.put(x, y, 0x7a5a34);
   });
 }
 // ── 출구 건물 ──
@@ -145,7 +168,8 @@ export function buildHub(sc, R, gy) {
   const layers = [];
   const lay = (key, cv, f, y, d) => { const t = sc.add.tileSprite(W / 2, y, W, cv.height, tex(key, cv)).setOrigin(0.5, 1).setScrollFactor(0).setDepth(d); t.setData("f", f); layers.push(t); return t; };
   lay("h4_far", farCanvas(), 0.06, gy - 70, -98);
-  lay("h4_mid", midCanvas(), 0.3, gy + 6, -95);
+  lay("h4_fields", fieldsCanvas(), 0.14, gy + 56, -97);
+  lay("h4_mid", roofsea(SKYC).c, 0.3, gy - 20, -95);
   // 길가 안개 (원경과 마을 사이)
   const fogG = sc.add.graphics().setScrollFactor(0).setDepth(-96);
   for (let i = 0; i < 18; i++) fogG.fillStyle(0xe8f2ff, 0.014 * i).fillRect(0, gy - 110 + i * 4, W, 4);
@@ -166,6 +190,32 @@ export function buildHub(sc, R, gy) {
     return { ox, oy, w: p.w, h: p.h };
   };
   const out = { facilities: [], layers, street };
+  // 길 뒤 연립 주택 줄 (시설 건물 뒤, 길 전체)
+  const row = townRow(HUB_W, SKYC);
+  sc.add.image(0, gy + 1, tex("h4_row", row.c)).setOrigin(0, 1).setDepth(0.6);
+  for (const [lx, ly, s2, col] of row.lights) glow(lx, gy + 1 - row.h + ly, s2 * 1.4, col ?? 0xffb050, 0.3);
+  // 가로수 (화분 돌 받침 + 둥근 나무) — 거리에 땅의 느낌
+  const tr = canvasOf(70, 110, (B) => { mass(B, 18, 96, 34, 14, () => true, { col: 0xa8a090, round: 3, warp: 0.5 }); for (let x = 20; x < 50; x++) B.put(x, 96, 0x4a3a2a); tree(B, 35, 98, 1.5, 0x4a8a3a, 0x6a4a2a, {}); });
+  for (const x of [190, 690, 1290, 1780, 2290]) sc.add.image(x, gy + 1, tex("h4_tree", tr)).setOrigin(0.5, 1).setDepth(0.8);
+  // 제작 작업장 · 시장 노점 · 수레 (시설 사이 빈 곳)
+  for (const [k, p, x] of [["h4_smelt", smelter(), 462], ["h4_lumber", lumbermill(), 736], ["h4_tan", tannery(), 1010], ["h4_st1", marketStall(0xc03040, 0xf0e8d8, "fruit"), 1240], ["h4_st2", marketStall(0x2a6ad8, 0xf0e8d8, "cloth"), 1560], ["h4_loom", loom(), 1840], ["h4_stone", stonecutter(), 2060], ["h4_cart", cart(), 2330], ["h4_st3", marketStall(0x3aa85a, 0xf0e0b0, "pots"), 225]]) place(k, p, x, 1.4);
+  // 집과 집 사이 깃발 줄
+  const lg = sc.add.graphics().setDepth(0.9);
+  for (let a = 0; a < 11; a++) {
+    const x0 = 60 + a * 250, x1 = x0 + 230, y0 = gy - 150 - (a % 3) * 12;
+    lg.lineStyle(1, 0x2a1a10, 1);
+    let prev = null;
+    for (let t = 0; t <= 1.0001; t += 0.04) {
+      const x = x0 + (x1 - x0) * t, y = y0 + Math.sin(t * Math.PI) * 24;
+      prev && lg.lineBetween(prev[0], prev[1], x, y);
+      prev = [x, y];
+      if (Math.round(t * 25) % 2 === 0 && t > 0 && t < 1) {
+        const fc = [0xd83a2a, 0xf0c040, 0x2a8ad8, 0x3aa85a, 0xf0f0f0][Math.round(t * 25 + a) % 5];
+        lg.fillStyle(sh(fc, 0.15), 1).fillTriangle(x - 3, y, x, y, x, y + 8);
+        lg.fillStyle(sh(fc, -0.25), 1).fillTriangle(x, y, x + 3, y, x, y + 8);
+      }
+    }
+  }
   for (const f of FAC()) {
     const p = f.art();
     const { ox, oy } = place("h4_" + f.id, p, f.x, f.exit ? 1.2 : 1);

@@ -8,7 +8,7 @@ const art = (w, h, fn) => { const B = G3.buffer(w, h, !1), lights = []; fn(B, li
 
 // ── 부품 ──
 // 돌 블록 벽: 줄마다 높이가 다른 돌, 돌마다 밝기 조금씩, 줄눈 어둡게, 왼쪽이 밝다
-function stones(B, x0, y0, x1, y1, col, sd = 1) {
+export function stones(B, x0, y0, x1, y1, col, sd = 1) {
   const R = ramp(col);
   let y = y1, row = 0;
   while (y > y0) {
@@ -26,7 +26,7 @@ function stones(B, x0, y0, x1, y1, col, sd = 1) {
   }
 }
 // 회벽 + 나무 골조 (기둥 · 가로대 · 엇갈린 버팀)
-function timber(B, x0, y0, x1, y1, wallC, beamC) {
+export function timber(B, x0, y0, x1, y1, wallC, beamC) {
   const W = ramp(wallC), Bm = ramp(beamC);
   for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) B.put(x, y, tone(W, 0.72 - ((x - x0) / (x1 - x0)) * 0.2 + (fbm(x, y, 6, 3, 2) - 0.5) * 0.2, x, y));
   const beam = (xa, ya, xb, yb) => { const n = Math.max(Math.abs(xb - xa), Math.abs(yb - ya)); for (let k = 0; k <= n; k++) for (let t = 0; t < 3; t++) B.put(xa + ((xb - xa) * k) / n + (xa === xb ? t : 0), ya + ((yb - ya) * k) / n + (xa === xb ? 0 : t), Bm[t === 0 ? 1 : t === 1 ? 2 : 4]); };
@@ -35,7 +35,7 @@ function timber(B, x0, y0, x1, y1, wallC, beamC) {
   for (let x = x0 + 18; x < x1 - 18; x += 36) beam(x, y1 - 3, x + 18, (y0 + y1) >> 1);
 }
 // 박공 지붕: 처마가 나오고 비늘 기와 줄, 왼쪽 면 밝고 오른쪽 어둡게, 용마루 빛
-function gable(B, cx, yb, w, h, col, o = {}) {
+export function gable(B, cx, yb, w, h, col, o = {}) {
   const R = ramp(col), eave = o.eave ?? 6;
   for (let j = 0; j < h; j++) {
     const half = (w / 2 + eave) * (j / h) ** (o.curve ?? 1);
@@ -51,7 +51,7 @@ function gable(B, cx, yb, w, h, col, o = {}) {
   if (o.upturn) for (const s of [-1, 1]) for (let k = 0; k < 7; k++) B.put(cx + s * (w / 2 + eave + k), yb - k * 0.8, R[1]), B.put(cx + s * (w / 2 + eave + k), yb - k * 0.8 + 1, R[4]);
 }
 // 창: 돌 테 + 빛나는 유리(위가 밝다) + 십자 창살
-function windowL(B, L, x, y, w, h, lit = 0xffd890, o = {}) {
+export function windowL(B, L, x, y, w, h, lit = 0xffd890, o = {}) {
   for (let j = -2; j < h + 2; j++) for (let i = -2; i < w + 2; i++) (j < 0 || j >= h || i < 0 || i >= w) && B.put(x + i, y + j, j === h + 1 ? 0x6a5a4a : 0xc8bca8);
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
     const bar = i === (w >> 1) || j === (h >> 1);
@@ -61,7 +61,7 @@ function windowL(B, L, x, y, w, h, lit = 0xffd890, o = {}) {
   lit && L.push([x + w / 2, y + h / 2, Math.max(w, h) * 0.8, lit]);
 }
 // 문: 둥근 위 · 세로 판자 · 쇠 띠 · 손잡이
-function door(B, x, yb, w, h, col = 0x7a4a28) {
+export function door(B, x, yb, w, h, col = 0x7a4a28) {
   const R = ramp(col);
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
     const top = j > h - w / 2 ? Math.sqrt(Math.max(0, (w / 2) ** 2 - (j - (h - w / 2)) ** 2)) : w / 2;
@@ -71,15 +71,15 @@ function door(B, x, yb, w, h, col = 0x7a4a28) {
   }
   B.put(x + w - 4, yb - h / 2, 0xe0c060), B.put(x + w - 4, yb - h / 2 + 1, 0x8a6a30);
 }
-function chimney(B, x, yb, w, h, col) { stones(B, x, yb - h, x + w, yb, col, x); for (let i = -1; i <= w; i++) B.put(x + i, yb - h, 0x6a6058), B.put(x + i, yb - h + 1, 0x4a4440); }
+export function chimney(B, x, yb, w, h, col) { stones(B, x, yb - h, x + w, yb, col, x); for (let i = -1; i <= w; i++) B.put(x + i, yb - h, 0x6a6058), B.put(x + i, yb - h + 1, 0x4a4440); }
 // 걸린 간판: 사슬 두 줄 + 판 + 그림(색 점)
-function sign(B, x, y, w, h, col, mark) {
+export function sign(B, x, y, w, h, col, mark) {
   for (let j = 0; j < 6; j++) B.put(x + 3, y - 6 + j, 0x3a3a3a), B.put(x + w - 4, y - 6 + j, 0x3a3a3a);
   const R = ramp(col);
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) B.put(x + i, y + j, i === 0 || j === 0 || i === w - 1 || j === h - 1 ? R[4] : tone(R, 0.7 - j * 0.03, x + i, j));
   mark && mark(x + w / 2, y + h / 2);
 }
-const barrel = (B, x, yb) => { mass(B, x - 6, yb - 15, 13, 16, (X, Y) => Math.abs(X - x) < 6 - Math.abs(Y - yb + 7) * 0.12, { col: 0x8a5a30, round: 3, grooves: 1.6, warp: 0, seed: x }); for (const y of [yb - 3, yb - 12]) for (let i = -6; i <= 6; i++) B.put(x + i, y, 0x4a4a50); };
+export const barrel = (B, x, yb) => { mass(B, x - 6, yb - 15, 13, 16, (X, Y) => Math.abs(X - x) < 6 - Math.abs(Y - yb + 7) * 0.12, { col: 0x8a5a30, round: 3, grooves: 1.6, warp: 0, seed: x }); for (const y of [yb - 3, yb - 12]) for (let i = -6; i <= 6; i++) B.put(x + i, y, 0x4a4a50); };
 const crate = (B, x, yb, s = 12) => { mass(B, x, yb - s, s, s, () => true, { col: 0xa07040, round: 2, warp: 0, seed: x }); for (let i = 0; i < s; i++) B.put(x + i, yb - s + i, 0x6a4a28), B.put(x + i, yb - 1 - i, 0x6a4a28); };
 const lantern = (B, L, x, y, c = 0xffc060) => { for (let j = 0; j < 4; j++) B.put(x, y - 4 + j, 0x2a2a2a); mass(B, x - 3, y, 7, 8, () => true, { col: c, round: 2, warp: 0, rim: false }); L.push([x, y + 4, 8, c]); };
 

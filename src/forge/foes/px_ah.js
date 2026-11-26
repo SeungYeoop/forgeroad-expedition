@@ -20,21 +20,21 @@ const fin = (C, p) => (p.hurt ? flash(C) : C);
 const toPx = (W, H, K, AX = W / 2) => (x, y) => [Math.round(W * K) / 2 + (x - AX) * K, H * K + (y - H) * K];
 
 // 황금 태양 문장 (원판 + 빛살 여덟)
-function sun(S, c, r, o = {}) {
+export function sun(S, c, r, o = {}) {
   S.add(ellR(c[0], c[1], r * 0.48, r * 0.48), o.M ?? GOLD, { on: o.on ?? 1, lift: 0.5, h: 0.6, z: o.z });
   for (let k = 0; k < 8; k++) { const a = (k / 8) * T2 + 0.2; S.add(polyF([pol(c, a + 0.28, r * 0.42), pol(c, a, r), pol(c, a - 0.28, r * 0.42)]), o.M ?? GOLD, { on: o.on ?? 1, lift: 0.4, h: 0.4, z: o.z }); }
 }
 // 갑옷 다리: 넓적다리(사슬) · 판금 정강이 · 무릎 컵 · 철 신발 — 무릎 위치를 돌려준다
-function leg(S, hp, ft, far, o = {}) {
+export function leg(S, hp, ft, far, o = {}) {
   const w = o.w ?? 1, m = lerp(hp, ft, 0.5), kn = [m[0] + (o.bend ?? 2) * w, m[1]];
   S.add(capF(hp, kn, 4.6 * w, 4 * w), far ? (o.thighF ?? MAILF) : (o.thigh ?? MAIL), { z: far ? -3 : 3, h: 4 * w });
-  S.add(capF(kn, [ft[0], ft[1] - 3 * w], 3.9 * w, 3.4 * w), far ? STEELF : STEEL, { z: far ? -2.5 : 3.5, h: 3.6 * w });
-  S.add(ellR(kn[0] + w, kn[1], 3.4 * w, 3 * w), far ? STEELF : STEEL, { z: far ? -2 : 4, h: 2.6 * w });
+  S.add(capF(kn, [ft[0], ft[1] - 3 * w], 3.9 * w, 3.4 * w), far ? (o.shinF ?? STEELF) : (o.shin ?? STEEL), { z: far ? -2.5 : 3.5, h: 3.6 * w });
+  o.knee !== !1 && S.add(ellR(kn[0] + w, kn[1], 3.4 * w, 3 * w), far ? STEELF : STEEL, { z: far ? -2 : 4, h: 2.6 * w });
   S.add(U(ellR(ft[0] + 2.6 * w, ft[1] - 1.8 * w, 5.6 * w, 2.4 * w), capF([ft[0] - 2 * w, ft[1] - 3.6 * w], [ft[0] + w, ft[1] - 3 * w], 3 * w)), far ? (o.bootF ?? STEELF) : (o.boot ?? STEEL), { z: far ? -2 : 4.5, h: 2.4 * w });
   return kn;
 }
 // 병사 몸 (다리 · 갑옷 몸통 · 겉옷 · 허리띠 · 머리와 투구). Y = 가슴 높이. 어깨 두 곳과 머리 위치를 돌려준다
-function soldier(S, o) {
+export function soldier(S, o) {
   const { cx, Y, G } = o, b = o.b ?? 0, g = o.legs ?? { n: [0, 0], f: [0, 0] }, hipY = Y + 20 + b;
   leg(S, [cx - 3, hipY], [cx - 4 + g.f[0], G - 1 - g.f[1]], 1, o.legO);
   o.back?.();
@@ -51,8 +51,9 @@ function soldier(S, o) {
   leg(S, [cx + 3, hipY], [cx + 4 + g.n[0], G - 1 - g.n[1]], 0, o.legO);
   // 머리 (사슬 두건 + 투구)
   const hx = cx + 3, hy = Y - 9 + b;
-  S.add(U(ellR(hx, hy + 1.6, 6.4, 6.8), polyF([[hx - 7, hy + 4], [hx + 6, hy + 4], [hx + 9, hy + 11], [hx - 9, hy + 11]])), MAIL, { z: 3, h: 5 });
-  if (o.helm === "kettle") {
+  !o.head && S.add(U(ellR(hx, hy + 1.6, 6.4, 6.8), polyF([[hx - 7, hy + 4], [hx + 6, hy + 4], [hx + 9, hy + 11], [hx - 9, hy + 11]])), MAIL, { z: 3, h: 5 });
+  if (o.head) o.head(hx, hy);
+  else if (o.helm === "kettle") {
     S.add(ellR(hx + 3, hy + 1.6, 3.8, 4.4), SKIN, { z: 4, h: 3 });
     S.add(ellR(hx + 3.6, hy + 5, 3, 1.8), BEARD, { z: 4.2, h: 1.2 });
     !o.hurt && S.decal(hx + 5, hy + 0.6, 0x1a1210).decal(hx + 2.4, hy + 0.6, 0x1a1210);
@@ -76,7 +77,7 @@ function soldier(S, o) {
   return { S0: [cx + 5, Y - 1 + b], S1: [cx - 5, Y - 1 + b], hx, hy };
 }
 // 팔 (어깨 → 팔꿈치 → 손), 판금 또는 천 소매 + 장갑
-function arm(S, sh, hd, far, o = {}) {
+export function arm(S, sh, hd, far, o = {}) {
   const el = ik(sh, hd, o.l ?? 9, o.l ?? 9, o.bend ?? 1), M = far ? (o.MF ?? STEELF) : (o.M ?? STEEL), z = o.z ?? (far ? -2 : 8);
   S.add(U(capF(sh, el, 3.4, 3), capF(el, hd, 3, 2.6)), M, { z, h: 2.6 });
   S.add(ellR(el[0], el[1], 2.6, 2.4), far ? STEELF : STEEL, { z: z + 0.1, h: 1.8 });

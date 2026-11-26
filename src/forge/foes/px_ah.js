@@ -1,7 +1,7 @@
 // 앰버홀드 몬스터 12종 (조각 도구, 오른쪽을 본다) — 해질녘 메사 위 호박빛 기사 성채
 //   아래 섬 줄: 성채 경비견 · 미늘창병 · 수지 덩어리 · [정예] 텅 빈 갑주 거인
-//   가운데 줄: 석궁병 · 호박 말벌 · 깃발 기수 · [정예] 기마 창기사
-//   위 줄: 망루 매 · 날개 투구 · 망령 전령 · [정예] 그리폰
+//   가운데 줄: 석궁병 · 호박 왕잠자리 · 깃발 기수 · [정예] 기마 창기사
+//   위 줄: 태엽 매 · 날개 투구 · 망령 전령 · [정예] 전투 그리폰
 import { ellR, capF, polyF, U, minus, pol, lerp, ik, ramp, rampF, rampGlow, gait4, gait2, flash, T2, L } from "./kit.js";
 import { sculpt, mat } from "./px3.js";
 
@@ -359,60 +359,60 @@ export const pxCrossbow = {
   },
 };
 
-// ════ 호박 말벌 ════ 검은 키틴과 호박색 줄무늬 배 · 굵은 독침 · 커다란 호박빛 겹눈 · 큰 턱 · 반투명한 두 쌍 날개(날개맥)
-//   p: flap · tilt · sting(배 앞으로 굽힘) · hurt
+// ════ 호박 왕잠자리 ════ 호박 속에 갇혔다 깨어난 듯한 거대 잠자리 · 마디진 긴 배(호박색과 검은 마디) · 머리를 감싼 큰 겹눈 ·
+//   수평으로 편 두 쌍의 긴 유리 날개(날개맥 · 끝의 호박 반점) · 앞으로 모은 바구니 다리
+//   p: flap(-1~1, 앞뒤 날개가 엇갈림) · tilt · curl(배 말기) · hurt
 const WSK = 0.72;
-const CHB = mat(ramp(0x2e2622), { tex: "metal", amp: 0.5, spec: 0.6 }), CHBF = mat(rampF(0x241e1a), { tex: "metal", amp: 0.4 }), CHA = mat(ramp(0xd8902c), { tex: "metal", amp: 0.5, spec: 0.6 });
+const CHB = mat(ramp(0x2e2622), { tex: "metal", amp: 0.5, spec: 0.6 }), CHA = mat(ramp(0xd8902c), { tex: "metal", amp: 0.5, spec: 0.6 }), CHA2 = mat(ramp(0xb87420), { tex: "metal", amp: 0.5, spec: 0.6 });
 const WNG = mat(ramp(0xa8a490, { hi: 0.6 }), { tex: "glass", amp: 0.5, spec: 0.7 }), WNGF = mat(rampF(0x8a8676), { tex: "glass", amp: 0.4 });
-function waspFrame(p = {}) {
-  const W = 70, H = 56, S = sculpt(W, H, { k: WSK, ax: 34 });
-  const fl = p.flap ?? 0, tl = p.tilt ?? 0, sg = p.sting ?? 0, cx = 36, cy = 22;
+function dragonflyFrame(p = {}) {
+  const W = 84, H = 50, S = sculpt(W, H, { k: WSK, ax: 40 });
+  const fl = p.flap ?? 0, tl = p.tilt ?? 0, cu = p.curl ?? 0, cx = 46, cy = 24;
   const R = (x, y) => { const c = Math.cos(tl * 0.5), s = Math.sin(tl * 0.5), dx = x - cx, dy = y - cy; return [cx + dx * c - dy * s, cy + dx * s + dy * c]; };
-  const wing = (back) => {
-    const root = R(cx - 1 - (back ? 2 : 0), cy - 4), a = -Math.PI / 2 - 1.1 + (1 - fl) * 0.7 + (back ? 0.15 : 0);
-    for (const [da, l, w] of [[0, 24, 3.8], [0.5, 16, 2.8]]) {
-      const c = pol(root, a + da, l / 2);
-      S.add(ellR(c[0], c[1], l / 2, w, a + da), back ? WNGF : WNG, { z: back ? -4 : 7, h: 0.8, prof: "flat" });
-      S.add(capF(pol(root, a + da, 1), pol(root, a + da, l - 2), 0.4), CHB, { z: back ? -3.9 : 7.1, h: 0.3 });
-      for (const q of [0.35, 0.6, 0.82]) S.add(capF(pol(root, a + da, l * q * 0.8), pol(pol(root, a + da, l * q), a + da + 1.57, w * 0.8), 0.25), CHB, { z: back ? -3.9 : 7.1, h: 0.2 });
-      S.add(ellR(...pol(c, a + da + 1.57, -w * 0.3), l * 0.3, w * 0.3, a + da), mat(ramp(0xe8e8d8)), { on: 1, lift: 0.3, h: 0.2 });
-    }
+  const wing = (root, a, l, w, back) => {
+    const c = pol(root, a, l / 2), z = back ? -4 : 7;
+    S.add(ellR(c[0], c[1], l / 2, w, a), back ? WNGF : WNG, { z, h: 0.8, prof: "flat" });
+    S.add(capF(pol(root, a, 1), pol(root, a, l - 2), 0.4), CHB, { z: z + 0.1, h: 0.3 });
+    for (const q of [0.3, 0.5, 0.7]) S.add(capF(pol(root, a, l * q), pol(pol(root, a, l * (q + 0.12)), a - 1.57, w * 0.85), 0.25), CHB, { z: z + 0.1, h: 0.2 });
+    S.add(ellR(...pol(pol(root, a, l - 4), a + 1.57, w * 0.35), 2, 1, a), mat(ramp(0xc86a18)), { z: z + 0.15, h: 0.3 });
   };
-  wing(1);
-  // 다리 (먼 쪽)
-  for (let k = 0; k < 3; k++) { const r0 = R(cx - 2 + k * 3, cy + 4), kn = R(cx - 4 + k * 4, cy + 10), ft = R(cx - 6 + k * 5 + sg * 2, cy + 17 + k); S.add(U(capF(r0, kn, 0.9), capF(kn, ft, 0.8, 0.5)), CHBF, { z: -2, h: 0.6 }); }
-  // 배 (줄무늬 · 독침) — sting 이면 앞아래로 굽는다
-  const ab = -0.6 - sg * 1.1, A0 = R(cx - 6, cy + 2), Ac = pol(A0, Math.PI + ab, 11), At = pol(A0, Math.PI + ab, 22);
-  S.add(capF(A0, pol(A0, Math.PI + ab, 3), 1.4), CHB, { z: 0, h: 1 });
-  S.add(ellR(Ac[0], Ac[1], 11, 7, Math.PI + ab), CHA, { z: 1, h: 6 });
-  for (const t of [-5, 0, 5]) { const q = pol(Ac, Math.PI + ab, t), nn = Math.PI + ab + Math.PI / 2; S.add(capF(pol(q, nn, 7.4), pol(q, nn, -7.4), 1.4, 1.4), CHB, { on: 1, lift: 0.3, h: 0.4 }); }
-  S.add(polyF([pol(At, Math.PI + ab + 1.57, 1.6), pol(At, Math.PI + ab, 7), pol(At, Math.PI + ab - 1.57, 1.6)]), CHB, { z: 1.2, h: 1, prof: "sharp" });
-  // 가슴 · 머리 · 겹눈 · 큰 턱 · 더듬이
-  S.add(ellR(...R(cx, cy), 7.4, 6.4), CHB, { z: 2, h: 5 });
-  for (const [u, v] of [[-3, -3], [2, -4], [-1, 3]]) S.add(ellR(...R(cx + u, cy + v), 1.8, 1), CHA, { on: 1, lift: 0.3, h: 0.4 });
-  const hd = R(cx + 9, cy - 1);
-  S.add(ellR(hd[0], hd[1], 5.4, 5), CHA, { z: 3, h: 4 });
-  S.add(ellR(hd[0] + 1, hd[1] - 1, 3.2, 3.8), mat(ramp(0x6a2a10), { tex: "glass", spec: 0.8 }), { z: 3.5, lift: 0.6, h: 1.6 });
-  for (const d of [-1, 1]) S.add(U(capF([hd[0] + 4, hd[1] + 2 + d], [hd[0] + 8, hd[1] + 4 + d * 1.6], 1, 0.6), capF([hd[0] + 8, hd[1] + 4 + d * 1.6], [hd[0] + 6.6, hd[1] + 6 + d], 0.6, 0.3)), CHB, { z: 3.6 + d * 0.2, h: 0.6 });
-  for (const d of [0, 2]) S.add(U(capF([hd[0] + 2, hd[1] - 4], [hd[0] + 6 + d, hd[1] - 10], 0.5), capF([hd[0] + 6 + d, hd[1] - 10], [hd[0] + 11 + d, hd[1] - 9], 0.5, 0.3)), CHB, { z: 2.5 + d, h: 0.4 });
-  !p.hurt && S.decal(hd[0] + 1.6, hd[1] - 2, 0xffd080);
-  // 다리 (가까운 쪽 · 호박색 끝마디)
-  for (let k = 0; k < 3; k++) { const r0 = R(cx + k * 3, cy + 5), kn = R(cx - 2 + k * 4, cy + 11), ft = R(cx - 4 + k * 5 + sg * 2, cy + 18 + k); S.add(U(capF(r0, kn, 1), capF(kn, ft, 0.9, 0.5)), CHB, { z: 5, h: 0.8 }); S.add(capF(lerp(kn, ft, 0.6), ft, 0.7, 0.4), CHA, { z: 5.1, h: 0.5 }); }
-  wing(0);
+  const fa = -Math.PI / 2 - 1.05 - fl * 0.35, ba = -Math.PI / 2 - 1.3 + fl * 0.35;
+  wing(R(cx - 1, cy - 3), ba, 30, 3, 1), wing(R(cx + 2, cy - 3), fa, 30, 3.2, 1);
+  // 긴 배 (마디 열 개, 끝이 살짝 위로 · curl이면 앞아래로 말림)
+  let q = R(cx - 6, cy + 1), a = Math.PI + 0.05;
+  for (let k = 0; k < 10; k++) {
+    a -= (0.03 - cu * 0.17) * (k > 4 ? 1.6 : 0.6);
+    const n2 = pol(q, a, 3.6), w = 2.4 - k * 0.1;
+    S.add(capF(q, n2, w, w - 0.1), k % 2 ? CHA : CHA2, { z: 1, h: 2 });
+    S.add(capF(pol(q, a, 2.9), pol(q, a, 3.6), w + 0.1), CHB, { z: 1.1, h: 2 });
+    q = n2;
+  }
+  for (const d of [-0.5, 0.5]) S.add(capF(q, pol(q, a + d, 3.4), 0.6, 0.3), CHB, { z: 1.2, h: 0.5 });
+  // 다리 (앞으로 모은 바구니)
+  for (let k = 0; k < 3; k++) { const r0 = R(cx - 2 + k * 2.6, cy + 3), kn = R(cx + 1 + k * 3, cy + 8), ft = R(cx + 5 + k * 2, cy + 10.4); S.add(U(capF(r0, kn, 0.8), capF(kn, ft, 0.7, 0.4)), CHB, { z: 3, h: 0.6 }); }
+  // 가슴 (줄무늬) + 머리 (큰 겹눈)
+  S.add(ellR(...R(cx, cy), 7, 5.6, -0.3), CHA, { z: 2, h: 5 });
+  for (const d of [-2.4, 1]) S.add(capF(R(cx + d, cy - 4.4), R(cx + d - 2.6, cy + 4), 0.8), CHB, { on: 1, lift: 0.3, h: 0.4 });
+  const hd = R(cx + 8.4, cy - 1);
+  S.add(ellR(hd[0], hd[1], 4.4, 4.2), CHB, { z: 3, h: 3.6 });
+  S.add(ellR(hd[0] + 0.6, hd[1] - 0.8, 4.2, 4.4), mat(ramp(0xb04818, { hi: 0.5 }), { tex: "scale", amp: 0.8, spec: 0.8 }), { z: 3.5, h: 3.6 });
+  S.add(ellR(hd[0] + 3.4, hd[1] + 2.4, 1.6, 1.2), CHA, { z: 3.6, h: 1 });
+  !p.hurt && S.decal(hd[0] - 0.6, hd[1] - 2.6, 0xffe0b0).decal(hd[0] + 0.2, hd[1] - 2.8, 0xffffff);
+  wing(R(cx - 1, cy - 3), ba + 0.2, 32, 3.4, 0), wing(R(cx + 2, cy - 3), fa + 0.2, 32, 3.6, 0);
   return fin(S.render({ rim: !0 }), p);
 }
-export const pxWasp = {
-  fw: Math.round(70 * WSK), fh: Math.round(56 * WSK), w: 20, h: 14, flying: !0,
-  anims: { idle: [4, 14], move: [4, 16], wind: [3, 10, !1], atk: [3, 16, !1], rec: [3, 9, !1], hurt: [2, 10, !1] },
+export const pxDragonfly = {
+  fw: Math.round(84 * WSK), fh: Math.round(50 * WSK), w: 22, h: 12, flying: !0,
+  anims: { idle: [4, 16], move: [4, 18], wind: [3, 10, !1], atk: [3, 16, !1], rec: [3, 9, !1], hurt: [2, 10, !1] },
   px(nm, f, n) {
-    const t = f / Math.max(1, n - 1), fl = [1, -0.4, 0.6, -0.8][f % 4];
+    const t = f / Math.max(1, n - 1), fl = [1, -0.2, -1, 0.2][f % 4];
     let P = { flap: fl };
     if (nm === "move") P = { flap: fl, tilt: 0.2 };
-    if (nm === "wind") P = { flap: fl, tilt: -0.3 * t, sting: 0.6 * t };
-    if (nm === "atk") P = { flap: fl, tilt: 0.5, sting: 1 };
-    if (nm === "rec") P = { flap: fl, sting: 1 - t };
+    if (nm === "wind") P = { flap: fl, tilt: -0.3 * t, curl: 0.5 * t };
+    if (nm === "atk") P = { flap: fl, tilt: 0.5, curl: 1 };
+    if (nm === "rec") P = { flap: fl, curl: 1 - t };
     if (nm === "hurt") P = { hurt: f === 0, flap: 0.6, tilt: -0.4 };
-    return waspFrame(P);
+    return dragonflyFrame(P);
   },
 };
 
@@ -551,56 +551,65 @@ export const pxLancer = {
   },
 };
 
-// ════ 망루 매 ════ 청회색 등깃 · 크림색 가슴의 가로 줄무늬 · 검은 뺨 무늬 · 노란 눈테와 발 · 갈고리 부리 · 가죽 매끈과 놋쇠 방울
-//   p: flap · tilt · talon · hurt
+// ════ 태엽 매 ════ 성채 장인이 만든 놋쇠 태엽 매 · 겹겹의 놋쇠 깃 판(리벳) · 강철 날개 칼깃 · 가슴 속 톱니가 보이는 틈 ·
+//   호박 렌즈 눈 · 등에 꽂힌 태엽 열쇠가 돈다 · 강철 발톱
+//   p: flap · tilt · talon · key(태엽 각) · hurt
 const FCK = 0.72;
-const FCB = mat(ramp(0x5a6272), { tex: "feather", amp: 1, dir: 0.3, spec: 0.3 }), FCBF = mat(rampF(0x484e5c), { tex: "feather", amp: 0.9, dir: 0.3 }), FCC = mat(ramp(0xe4d8bc), { tex: "feather", amp: 0.7 });
-const YEL = mat(ramp(0xe0b040), { spec: 0.4 });
+const FCB = mat(ramp(0xb08a44), { tex: "metal", amp: 0.8, spec: 0.6 }), FCBF = mat(rampF(0x8a6a34), { tex: "metal", amp: 0.7, spec: 0.4 }), FCS = mat(ramp(0x9a9ca0), { tex: "metal", amp: 0.7, spec: 0.7 }), FCSF = mat(rampF(0x6e7074), { tex: "metal", amp: 0.6 });
 function falconFrame(p = {}) {
-  const W = 72, H = 54, S = sculpt(W, H, { k: FCK, ax: 34 });
-  const fl = p.flap ?? 0, tl = p.tilt ?? 0, tn = p.talon ?? 0, cx = 34, cy = 26;
+  const W = 72, H = 56, S = sculpt(W, H, { k: FCK, ax: 34 });
+  const fl = p.flap ?? 0, tl = p.tilt ?? 0, tn = p.talon ?? 0, ky = p.key ?? 0, cx = 34, cy = 28;
   const R = (x, y) => { const c = Math.cos(tl * 0.5), s = Math.sin(tl * 0.5), dx = x - cx, dy = y - cy; return [cx + dx * c - dy * s, cy + dx * s + dy * c]; };
   const wing = (back) => {
     const up = fl * (back ? 0.85 : 1), root = R(cx + 2 - (back ? 3 : 0), cy - 3), a = -Math.PI / 2 - 0.55 + (1 - up) * 1.0;
     S.add(ellR(...pol(root, a + 0.2, 9), 11, 5.4, a), back ? FCBF : FCB, { z: back ? -5 : 7, h: 2.4 });
-    for (let k = 0; k < 7; k++) { const ak = a - 0.12 * k - 0.1, tip = pol(root, ak, 30 - k * 2.4); S.add(capF(pol(root, ak, 12), tip, 2.2, 0.7), back ? FCBF : mat(ramp(k < 3 ? 0x3e4450 : 0x545a68), { tex: "feather", amp: 1, dir: ak }), { z: back ? -4.9 : 7.1 + k * 0.01, h: 1 }); }
-    !back && S.add(capF(pol(root, a, 6), pol(root, a - 0.3, 14), 0.5), FCC, { on: 1, lift: 0.3, h: 0.3 });
+    for (let k = 0; k < 7; k++) {
+      const ak = a - 0.12 * k - 0.1, tip = pol(root, ak, 30 - k * 2.4), r0 = pol(root, ak, 12);
+      S.add(polyF([pol(r0, ak + 1.57, 1.8), pol(tip, ak + 1.57, 0.6), tip, pol(r0, ak - 1.57, 1.2)]), back ? FCSF : FCS, { z: back ? -4.9 : 7.1 + k * 0.01, h: 1, prof: "sharp" });
+      !back && S.add(capF(pol(root, ak, 13), pol(root, ak, 22 - k * 2), 0.4), FCB, { on: 1, lift: 0.3, h: 0.3 });
+    }
+    if (!back) for (const d of [6, 11]) S.add(ellR(...pol(root, a + 0.2, d), 0.8, 0.8), mat(ramp(0xe0c070), { spec: 0.8 }), { on: 1, lift: 0.5, h: 0.4 });
   };
   wing(1);
-  for (const d of [-0.16, 0, 0.16]) S.add(capF(R(cx - 9, cy + 1), R(cx - 21, cy + 3 + d * 10), 2.6, 1.8), FCBF, { z: 0, h: 1.4 });
-  S.add(capF(R(cx - 21, cy + 2), R(cx - 23, cy + 3), 2.4), mat(ramp(0x2a2e36)), { z: 0.1, h: 1 });
+  // 꼬리 (놋쇠 판 부채)
+  for (const d of [-0.2, 0, 0.2]) S.add(polyF([R(cx - 8, cy), R(cx - 21, cy + 1 + d * 12), R(cx - 22, cy + 3 + d * 12), R(cx - 8, cy + 3)]), d ? FCBF : FCB, { z: d ? -0.2 : 0, h: 1.2 });
+  // 몸 (놋쇠 깃 판 겹 · 가슴 톱니 틈)
   S.add(ellR(...R(cx, cy + 1), 11, 7), FCB, { z: 2, h: 6 });
-  S.add(ellR(...R(cx + 4, cy + 4), 7, 4.4), FCC, { z: 2.2, h: 5 });
-  for (let k = 0; k < 4; k++) S.carve(capF(R(cx + 1 + k * 1.6, cy + 2 + k * 1.4), R(cx + 4 + k * 1.6, cy + 2 + k * 1.4), 0.35), 0.8);
-  // 다리 · 매끈 · 방울
+  for (let r = 0; r < 2; r++) for (let k = 0; k < 4; k++) { const q = R(cx - 7 + k * 4 + r * 2, cy - 2 + r * 3.4); S.carve(minus(ellR(q[0], q[1] + 1, 2.4, 1.8), ellR(q[0], q[1] - 0.4, 2.4, 1.8)), 0.6); }
+  const gc = R(cx + 4, cy + 4);
+  S.add(ellR(gc[0], gc[1], 4.6, 3.4), DARK, { on: 1, lift: 0.1, h: 0.2 });
+  for (const [dx, dy, r] of [[-1.4, 0, 2.2], [2, 0.6, 1.4]]) { const g = [gc[0] + dx, gc[1] + dy]; S.add(ellR(g[0], g[1], r, r), mat(ramp(0xd0a850), { spec: 0.8 }), { on: 1, lift: 0.4, h: 0.4 }); S.add(ellR(g[0], g[1], r * 0.35, r * 0.35), DARK, { on: 1, lift: 0.5, h: 0.2 }); }
+  // 태엽 열쇠 (등)
+  const k0 = R(cx - 2, cy - 6), k1 = R(cx - 3, cy - 11), kw = Math.cos(ky) * 4;
+  S.add(capF(k0, k1, 0.8), FCS, { z: 1, h: 0.8 });
+  S.add(U(ellR(k1[0] - kw * 0.5 - 1.6, k1[1] - 1.4, Math.abs(kw) * 0.4 + 0.8, 1.8), ellR(k1[0] + kw * 0.5 + 1.6, k1[1] - 1.4, Math.abs(kw) * 0.4 + 0.8, 1.8)), FCB, { z: 1.1, h: 1 });
+  // 다리 (강철 · 발톱)
   for (const d of [-2, 2]) {
     const hp = R(cx + d + 2, cy + 6), ft = R(cx + d + 3 + tn * 6, cy + 12 + tn * 3);
-    S.add(capF(hp, ft, 2, 1.4), YEL, { z: 3 + d * 0.1, h: 1.4 });
+    S.add(capF(hp, ft, 1.8, 1.4), FCS, { z: 3 + d * 0.1, h: 1.4 });
     for (const e of [-0.5, 0, 0.5]) S.add(capF(ft, pol(ft, 1 + e - tn * 0.6, 3.4), 0.7, 0.3), DARK, { z: 3.5, h: 0.5 });
-    S.add(capF(lerp(hp, ft, 0.4), R(cx + d - 2, cy + 16 - tn * 2), 0.5), LEATH, { z: 3.2, h: 0.4 });
   }
-  S.add(ellR(...R(cx - 1, cy + 17 - tn * 2), 1.4, 1.4), BRASS, { z: 3.4, h: 1 });
-  // 머리 (검은 두건 · 뺨 무늬 · 노란 눈테 · 갈고리 부리)
+  // 머리 (놋쇠 · 강철 부리 · 호박 렌즈 눈)
   const hd = R(cx + 12, cy - 5);
-  S.add(ellR(hd[0], hd[1], 5.6, 5), FCC, { z: 4, h: 4.6 });
-  S.add(minus(ellR(hd[0] - 0.6, hd[1] - 0.6, 5.6, 5), (x, y) => y > hd[1] + 0.4 && x > hd[0] + 1), mat(ramp(0x2e323a), { tex: "feather", amp: 0.8 }), { on: 1, lift: 0.3, h: 0.4 });
-  S.add(capF([hd[0] + 1, hd[1]], [hd[0] + 1.6, hd[1] + 4.6], 1.2, 0.8), mat(ramp(0x2e323a)), { on: 1, lift: 0.4, h: 0.3 });
-  S.add(polyF([[hd[0] + 3.4, hd[1] - 1.6], [hd[0] + 9, hd[1] - 0.2], [hd[0] + 8.6, hd[1] + 2.6], [hd[0] + 6.6, hd[1] + 2], [hd[0] + 3.4, hd[1] + 1.6]]), mat(ramp(0x6a7480), { spec: 0.4 }), { z: 5, h: 1.6 });
-  S.add(ellR(hd[0] + 3.8, hd[1] - 0.6, 1.2, 1.2), YEL, { z: 5.1, h: 0.8 });
-  !p.hurt && S.decal(hd[0] + 1.8, hd[1] - 1.6, 0x0e0c0a).decal(hd[0] + 1.6, hd[1] - 2.2, 0xffe080);
+  S.add(ellR(hd[0], hd[1], 5.6, 5), FCB, { z: 4, h: 4.6 });
+  S.carve(capF([hd[0] - 3, hd[1] + 2.6], [hd[0] + 3, hd[1] + 3], 0.4), 0.7);
+  S.add(polyF([[hd[0] + 3.4, hd[1] - 1.6], [hd[0] + 9, hd[1] - 0.2], [hd[0] + 8.6, hd[1] + 2.6], [hd[0] + 6.6, hd[1] + 2], [hd[0] + 3.4, hd[1] + 1.6]]), FCS, { z: 5, h: 1.6 });
+  S.add(ellR(hd[0] + 1.6, hd[1] - 1.4, 2, 2), FCS, { z: 5, h: 1.2 });
+  S.add(ellR(hd[0] + 1.8, hd[1] - 1.4, 1.3, 1.3), AMBG, { z: 5.2, h: 0.8 });
+  !p.hurt && S.decal(hd[0] + 1.4, hd[1] - 2, 0xfff0c0);
   wing(0);
   return fin(S.render({ rim: !0 }), p);
 }
-export const pxFalcon = {
-  fw: Math.round(72 * FCK), fh: Math.round(54 * FCK), w: 20, h: 14, flying: !0,
+export const pxClockFalcon = {
+  fw: Math.round(72 * FCK), fh: Math.round(56 * FCK), w: 20, h: 14, flying: !0,
   anims: { idle: [4, 8], move: [4, 11], wind: [3, 9, !1], atk: [3, 16, !1], rec: [3, 9, !1], hurt: [2, 10, !1] },
   px(nm, f, n) {
-    const t = f / Math.max(1, n - 1), fl = [1, 0.2, -1, 0.2][f % 4];
-    let P = { flap: fl };
-    if (nm === "move") P = { flap: fl, tilt: 0.15 };
-    if (nm === "wind") P = { flap: 1, tilt: -0.3 * t, talon: 0.5 * t };
-    if (nm === "atk") P = { flap: -0.9, tilt: 0.7, talon: 1 };
-    if (nm === "rec") P = { flap: fl, talon: 1 - t };
+    const t = f / Math.max(1, n - 1), fl = [1, 0.2, -1, 0.2][f % 4], ky = (f / n) * T2;
+    let P = { flap: fl, key: ky };
+    if (nm === "move") P = { flap: fl, tilt: 0.15, key: ky };
+    if (nm === "wind") P = { flap: 1, tilt: -0.3 * t, talon: 0.5 * t, key: ky * 2 };
+    if (nm === "atk") P = { flap: -0.9, tilt: 0.7, talon: 1, key: ky };
+    if (nm === "rec") P = { flap: fl, talon: 1 - t, key: ky };
     if (nm === "hurt") P = { hurt: f === 0, flap: 0.6, tilt: -0.4 };
     return falconFrame(P);
   },
@@ -717,7 +726,8 @@ export const pxHerald = {
   },
 };
 
-// ════ [정예] 그리폰 ════ 독수리 앞몸(흰 머리 · 갈고리 부리 · 호박빛 눈 · 귀깃 · 황금빛 가슴 깃) + 사자 뒷몸(황갈색 털 · 꼬리 술) ·
+// ════ [정예] 전투 그리폰 ════ 기사를 잃고 혼자 남은 기사단 군용 그리폰 · 가슴 판금 · 붉은 안장 천과 빈 안장 · 머리 판금과 깃털 장식 ·
+//   독수리 앞몸(흰 머리 · 갈고리 부리 · 호박빛 눈 · 귀깃 · 황금빛 가슴 깃) + 사자 뒷몸(황갈색 털 · 꼬리 술) ·
 //   층층이 겹친 큰 날개 · 노란 비늘 다리와 검은 발톱
 //   p: flap · tilt · talon · jaw · hurt
 const GFK = 0.7;
@@ -746,6 +756,16 @@ function griffonFrame(p = {}) {
   S.add(U(ellR(...R(cx - 20, cy + 4), 17, 13), ellR(...R(cx + 4, cy), 18, 15)), LION, { z: 1, h: 13 });
   S.add(ellR(...R(cx + 8, cy - 2), 15, 15), GFG, { z: 1.5, h: 13 });
   for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) { const q = R(cx + 2 + k * 4.4 + (r % 2) * 2, cy - 8 + r * 5); S.carve(minus(ellR(q[0], q[1] + 1, 2.6, 2), ellR(q[0], q[1] - 0.4, 2.6, 2)), 0.5); }
+  // 마갑: 가슴 판금 · 붉은 안장 천(황금 테) · 빈 안장과 늘어진 등자
+  S.add(polyF([R(cx + 4, cy - 9), R(cx + 17, cy - 12), R(cx + 22, cy + 1), R(cx + 15, cy + 11), R(cx + 5, cy + 8)]), STEEL, { lift: 1.4, h: 3 });
+  S.add(capF(R(cx + 5, cy - 1), R(cx + 21, cy - 4), 0.8), GOLD, { on: 1, lift: 0.5, h: 0.4 });
+  sun(S, R(cx + 13, cy + 3), 4);
+  const cl = [R(cx - 32, cy + 4), R(cx - 26, cy + 12), R(cx - 16, cy + 9), R(cx - 6, cy + 12), R(cx + 2, cy + 6)];
+  S.add(polyF([R(cx - 30, cy - 8), R(cx - 2, cy - 12), ...cl.slice().reverse()]), RED, { lift: 1.2, h: 2.4 });
+  S.add(U(...cl.slice(0, -1).map((q, k) => capF(q, cl[k + 1], 1))), GOLD, { lift: 1.8, h: 0.6 });
+  S.add(U(ellR(...R(cx - 13, cy - 11), 9, 3.4), ellR(...R(cx - 21, cy - 13), 2.4, 3.2), ellR(...R(cx - 5, cy - 13), 2, 3.6)), LEATH, { lift: 2.2, h: 3 });
+  S.add(capF(R(cx - 12, cy - 8), R(cx - 11, cy + 15), 0.45), LEATH, { lift: 3, h: 0.3 });
+  S.add(minus(ellR(...R(cx - 11, cy + 17), 2.2, 2.2), ellR(...R(cx - 11, cy + 17), 1.1, 1.1)), STEEL, { lift: 3, h: 0.6 });
   // 독수리 앞다리 (노란 비늘 · 검은 발톱)
   const foreL = (far) => {
     const hp = R(cx + 10 + (far ? -3 : 0), cy + 10), ft = R(cx + 16 + tn * 14 + (far ? -3 : 0), cy + 26 - tn * 6);
@@ -764,6 +784,9 @@ function griffonFrame(p = {}) {
   S.add(polyF([[hd[0] + 5, hd[1] + 2.6 + jw], [hd[0] + 12, hd[1] + 3 + jw * 3], [hd[0] + 6, hd[1] + 5 + jw * 2]]), mat(ramp(0xb88a30)), { z: 5.8, h: 1.4 });
   jw > 0.3 && S.add(polyF([[hd[0] + 5, hd[1] + 2], [hd[0] + 12, hd[1] + 2.4], [hd[0] + 12, hd[1] + 3 + jw * 3]]), mat(ramp(0x6a2a2a)), { z: 5.9, h: 0.4 });
   S.add(capF([hd[0] - 1, hd[1] - 4.4], [hd[0] + 5, hd[1] - 3.6], 1.4, 1), mat(ramp(0xc8bca0), { tex: "feather" }), { z: 6.2, h: 1.4 });
+  S.add(polyF([[hd[0] - 7, hd[1] - 5], [hd[0] + 3, hd[1] - 7.4], [hd[0] + 9, hd[1] - 3.6], [hd[0] + 4, hd[1] - 3.6], [hd[0] - 5, hd[1] - 1.6]]), STEEL, { z: 6.4, h: 1.6 });
+  S.add(capF([hd[0] - 5, hd[1] - 5], [hd[0] + 7, hd[1] - 4.4], 0.5), GOLD, { on: 1, lift: 0.4, h: 0.3 });
+  for (let k = 0; k < 4; k++) S.add(capF([hd[0] - 3, hd[1] - 7], [hd[0] - 12 - k * 2.4, hd[1] - 9 + k * 2.6], 1.6 - k * 0.2, 0.6), k % 2 ? REDF : RED, { z: 6.3, h: 1.2 });
   !p.hurt && S.decal(hd[0] + 2.6, hd[1] - 2, 0x120c08).decal(hd[0] + 2, hd[1] - 2.4, 0xffb040).decal(hd[0] + 3.2, hd[1] - 1.6, 0xffb040);
   hindL(0), foreL(0);
   wing(0);

@@ -174,9 +174,9 @@ register("ah_xbow", {
   },
 });
 
-// ════ 호박 말벌 ════ 붕붕 맴돌다 배를 굽혀 독침을 찌르러 내리꽂는다
-register("ah_wasp", {
-  ...X.pxWasp, speed: 120, sight: 280, atkMul: 0.8,
+// ════ 호박 왕잠자리 ════ 이리저리 순간 방향을 틀며 날다 배를 말아 가시 꼬리로 찌르러 내리꽂는다
+register("ah_dfly", {
+  ...X.pxDragonfly, speed: 130, sight: 280, atkMul: 0.8,
   *brain(e, A) {
     cool(e, "sting", 0.8, 1.6);
     for (;;) {
@@ -185,7 +185,8 @@ register("ah_wasp", {
         continue;
       }
       if (ready(e, "sting") && Math.abs(A.dx) < 200) {
-        yield* dive(e, A, { tele: 0.35, v: 380, dur: 0.45, mult: 0.8, st: POIS(0.12, 3), fw: 16, fh: 14 });
+        for (let k = 0; k < 2; k++) { e.body.vy = (Math.random() - 0.5) * 300; yield 0.12; }
+        yield* dive(e, A, { tele: 0.3, v: 420, dur: 0.4, mult: 0.8, st: BLEED(0.1, 2), fw: 18, fh: 12 });
         cool(e, "sting", 1.4, 2.2);
         continue;
       }
@@ -255,9 +256,9 @@ register("ah_lancer", {
   },
 });
 
-// ════ 망루 매 ════ 높이 맴돌다 날개를 접고 발톱으로 내리꽂는다 (출혈)
-register("ah_falcon", {
-  ...X.pxFalcon, speed: 140, sight: 320, atkMul: 0.9,
+// ════ 태엽 매 ════ 태엽이 감긴 만큼 높이 맴돌다 강철 칼깃을 접고 내리꽂는다 (출혈)
+register("ah_clock", {
+  ...X.pxClockFalcon, speed: 140, sight: 320, atkMul: 0.9,
   *brain(e, A) {
     cool(e, "dive", 1, 2);
     for (;;) {
@@ -327,7 +328,7 @@ register("ah_herald", {
   },
 });
 
-// ════ [정예] 그리폰 ════ 높이서 발톱을 세우고 내리꽂는다(출혈) · 날갯짓 돌풍 세 갈래(밀려남) · 울부짖어 가까운 적을 굳히고 망루 매를 부른다
+// ════ [정예] 전투 그리폰 ════ 높이서 발톱을 세우고 내리꽂는다(출혈) · 날갯짓 돌풍 세 갈래(밀려남) · 울부짖어 가까운 적을 굳히고 태엽 매를 부른다
 register("ah_griffon", {
   ...X.pxGriffon, speed: 110, sight: 340, atkMul: 1.7,
   *brain(e, A) {
@@ -344,7 +345,7 @@ register("ah_griffon", {
         e.host.fx.anim("ring", e.cx, e.cy, { scale: 3, tint: GOLDC });
         near(A, 90, 70) && e.hit(0.4, !1, "phys", STUN(0.5), 0.6);
         yield 0.5;
-        yield* summon(e, A, { id: "ah_falcon", n: 2, max: 2, dx: 50, dy: 20, anim: "gust", col: GOLDC });
+        yield* summon(e, A, { id: "ah_clock", n: 2, max: 2, dx: 50, dy: 20, anim: "gust", col: GOLDC });
         cool(e, "call", 11, 14);
         continue;
       }

@@ -200,6 +200,139 @@ export const VEG = {
     };
   },
 };
+
+// ── 마을 소품 (거점 화풍 2D) ──
+const STRAW = R5(0xc8a860), PLANK = R5(0x8a6440), IRONP = R5(0x6a6660), WOOL = R5(0xd8d0bc), CLOTHS = [0xa85a3c, 0xc8a04c, 0x5a7090, 0x6a8a4a, 0xd8ccb0];
+// 둥근 통나무 한 토막 (어느 방향이든): 원통 음영 + 길이 방향 결
+function logPiece(B, x0, y0, x1, y1, r, P, sd) {
+  const L = Math.hypot(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / L, uy = (y1 - y0) / L, nx = -uy, ny = ux, lit = -(nx * 0.6 + ny * 0.8);
+  for (let t = 0; t <= L; t += 0.5) for (let q = -r; q <= r; q += 0.5) {
+    const X = Math.round(x0 + ux * t + nx * q), Y = Math.round(y0 + uy * t + ny * q), u = q / r, lm = lit * u;
+    let v = 0.15 + lm * 0.75 + tx(Math.round(q * 2) + 40, Math.round(t / 3), 0.55, sd);
+    Math.abs(u) > 0.78 && (v = lm < 0 ? -0.9 : v - 0.15);
+    B.put(X, Y, T5(P, v));
+  }
+}
+// 나이테 단면
+function endGrain(B, x, y, r, sd) {
+  for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) {
+    const d = Math.hypot(i, j);
+    if (d > r) continue;
+    B.put(x + i, y + j, d > r - 1.2 ? BARK[3] : Math.round(d + hash(i, j, sd) * 0.6) % 3 === 0 ? T5(R5(0xb08a58), -0.3) : T5(R5(0xb08a58), 0.35 - (i + j) / (r * 3)));
+  }
+}
+Object.assign(VEG, {
+  // 쓰러진 통나무: 껍질 결 · 앞쪽 나이테 · 위에 이끼와 작은 버섯
+  p_log(s, R, c) {
+    const L = 24 + s * 12, r = 3.4 + s * 0.8, W = L + 14, H = Math.ceil(r * 2) + 10, seed = Math.floor(R() * 9999);
+    return {
+      W, H,
+      p2: (B) => {
+        const cy = H - 1 - r;
+        logPiece(B, 4 + r, cy, W - 4 - r, cy - 1, r, BARK, seed);
+        endGrain(B, Math.round(4 + r), Math.round(cy), Math.round(r), seed);
+        const MP = R5(mute(c.top, 0.25));
+        for (let x = 8; x < W - 6; x++) if (vn(x, 3, 9, seed) > 0.5) for (let j = 0; j < 2 + (hash(x, seed) > 0.6 ? 1 : 0); j++) B.put(x, cy - r - j + 1, T5(MP, 0.4 - j * 0.4 + tx(x, j, 0.3, seed)));
+        const mx = W * 0.6;
+        for (let k = 0; k < 2; k++) { const x = mx + k * 4; B.put(x, cy - r - 1, 0xe8dcc0); B.put(x, cy - r - 2, 0xe8dcc0); for (let i = -2; i <= 2; i++) B.put(x + i, cy - r - 3, mute(c.acc, 0.3)); }
+      },
+    };
+  },
+  // 짚더미: 둥근 짚단 둘·셋, 짚 결(가는 줄) · 끈 · 흘린 짚
+  p_hay(s, R, c) {
+    const W = 34 + s * 10, H = 22 + s * 6, seed = Math.floor(R() * 9999);
+    return {
+      W, H,
+      p2: (B) => {
+        const g = H - 1;
+        const bale = (cx, cy, rx, ry) => {
+          for (let j = -ry; j <= ry; j++) for (let i = -rx; i <= rx; i++) {
+            const d = (i / rx) ** 2 + (j / ry) ** 2;
+            if (d > 1) continue;
+            const X = Math.round(cx + i), Y = Math.round(cy + j), lam = -(i / rx) * 0.55 - (j / ry) * 0.8;
+            let v = lam * 0.8 + 0.1 + (hash(X, Y >> 1, seed) - 0.5) * 0.5 + ((X + Math.round(Y * 0.3)) % 3 === 0 ? -0.3 : 0);
+            d > 0.85 && lam < 0 && (v = -0.9);
+            Math.abs(i - rx * 0.35) < 0.8 && (v = -0.7);
+            B.put(X, Y, T5(STRAW, v));
+          }
+        };
+        bale(W * 0.32, g - 6, 9 + s * 2, 6 + s);
+        bale(W * 0.68, g - 6, 9 + s * 2, 6 + s);
+        bale(W * 0.5, g - 14 - s * 2, 9 + s * 2, 6 + s);
+        for (let k = 0; k < 14; k++) { const x = hash(k, seed) * W, L = 2 + hash(seed, k) * 4, lean = (hash(k, 3) - 0.5) * 2; for (let j = 0; j < L; j++) B.put(x + lean * j * 0.4, g - j, T5(STRAW, 0.4 - j * 0.2)); }
+      },
+    };
+  },
+  // 엮은 울타리: 기둥 셋 + 휘어 엮은 가지 세 줄
+  p_fence(s, R, c) {
+    const W = 36 + s * 10, H = 22 + s * 4, seed = Math.floor(R() * 9999);
+    return {
+      W, H,
+      p2: (B) => {
+        const g = H - 1, n = 3;
+        for (let k = 0; k < n; k++) { const x = 3 + (k * (W - 8)) / (n - 1); logPiece(B, x, g, x + (hash(k, seed) - 0.5) * 2, g - H + 3, 1.4, BARK, seed + k); }
+        for (const hy of [6, 11, 16]) for (let x = 2; x < W - 2; x++) {
+          const y = g - hy + Math.round(Math.sin(x * 0.7 + hy) * 1);
+          B.put(x, y, T5(BARK, (x + hy) % 5 < 3 ? 0.35 : -0.35)), B.put(x, y + 1, T5(BARK, -0.6));
+        }
+      },
+    };
+  },
+  // 깃발 줄: 기둥 둘 사이로 처진 줄과 흙빛으로 누른 천 조각들 (바람에 살짝 기운다)
+  p_flags(s, R, c) {
+    const W = 40 + s * 14, H = 34 + s * 8, seed = Math.floor(R() * 9999);
+    return {
+      W, H,
+      p2: (B) => {
+        const g = H - 1, top = 4;
+        logPiece(B, 3, g, 3, top, 1.3, BARK, seed), logPiece(B, W - 4, g, W - 4, top + 4, 1.3, BARK, seed + 1);
+        const n = Math.floor((W - 10) / 6);
+        for (let x = 4; x < W - 4; x++) { const t = (x - 4) / (W - 8), y = top + 1 + t * 4 + Math.sin(t * Math.PI) * 6; B.put(x, y, 0x4a3a28); }
+        for (let k = 0; k < n; k++) {
+          const t = (k + 0.7) / (n + 0.4), x = 4 + t * (W - 8), y = top + 2 + t * 4 + Math.sin(t * Math.PI) * 6, col = mute(CLOTHS[(k + seed) % CLOTHS.length], 0.2), P = R5(col);
+          for (let j = 0; j < 7; j++) for (let i = 0; i < 4 - (j > 4 ? j - 4 : 0); i++) B.put(x + i + Math.round(j * 0.25), y + j, T5(P, 0.35 - i * 0.2 - j * 0.04 + tx(Math.round(x) + i, j, 0.25, seed)));
+        }
+      },
+    };
+  },
+  // 양: 복슬한 양털 뭉치(크림색, 잎 뭉치 붓) + 짙은 얼굴과 다리
+  p_sheep(s, R, c) {
+    const W = 30, H = 22, seed = Math.floor(R() * 9999);
+    return {
+      W, H,
+      p2: (B) => {
+        const g = H - 1, F = R5(0x3a3028);
+        for (const x of [8, 11, 18, 21]) for (let j = 0; j < 6; j++) B.put(x, g - j, T5(F, x % 2 ? -0.4 : 0.1));
+        canopy(B, 15, g - 10, 10, 6.5, WOOL, seed, 3, 4.5);
+        for (let j = -3; j <= 3; j++) for (let i = -2; i <= 3; i++) (i * i) / 9 + (j * j) / 10 <= 1 && B.put(25 + i, g - 12 + j, T5(F, 0.3 - i * 0.2 - j * 0.1));
+        B.put(26, g - 13, 0xd8c8a0), B.put(23, g - 14, T5(F, -0.6)), B.put(23, g - 13, T5(F, -0.6));
+      },
+    };
+  },
+  // 나무 상자 둘 + 자루: 판자 결 · 쇠 모서리 · 못, 자루는 천 주름과 묶은 끈
+  p_crates(s, R, c) {
+    const W = 34, H = 30, seed = Math.floor(R() * 9999);
+    return {
+      W, H,
+      p2: (B) => {
+        const g = H - 1;
+        const crate = (x0, sz, sd, lift = 0) => {
+          for (let j = 0; j < sz; j++) for (let i = 0; i < sz; i++) {
+            const X = x0 + i, Y = g - lift - j, edge = i === 0 || j === 0 || i === sz - 1 || j === sz - 1, frame = i < 2 || i > sz - 3 || j < 2 || j > sz - 3, diag = Math.abs(i - j) < 1.2;
+            let v = 0.3 - (i / sz) * 0.5 + tx(X, Y >> 1, 0.35, sd) + (j % 4 === 0 ? -0.3 : 0);
+            frame && (v += 0.15), diag && !frame && (v += 0.1);
+            edge && (v = -0.9);
+            B.put(X, Y, T5(PLANK, v));
+          }
+          for (const [i, j] of [[1, 1], [sz - 2, 1], [1, sz - 2], [sz - 2, sz - 2]]) B.put(x0 + i, g - lift - j, IRONP[1]);
+        };
+        crate(2, 14, seed), crate(17, 12, seed + 1), crate(4, 10, seed + 2, 14);
+        const SK = R5(0xb8a07a);
+        for (let j = 0; j < 12; j++) { const hw = 4.5 * Math.sqrt(1 - ((j - 5) / 7) ** 2); for (let i = -Math.ceil(hw); i <= hw; i++) B.put(29 + i, g - 12 - j + (j > 9 ? 0 : 0), j === 9 ? 0x4a3a28 : T5(SK, 0.3 - i / hw * 0.5 - j * 0.02 + tx(29 + i, j, 0.3, seed))); }
+      },
+    };
+  },
+});
 // 버퍼 → RGBA + 선택 외곽선 (맞닿은 색을 어둡게 한 테두리)
 export function bufToRGBA(B, W, H) {
   const data = new Uint8ClampedArray(W * H * 4);

@@ -13,6 +13,14 @@ const PAL = [
   { b: [0x5a1420, 0x8c2432, 0xb84250, 0x6c1a28], m: [0x8a5a10, 0xe0aa28, 0xfff0a0], lock: [0x8a5a10, 0xf0c040, 0xfff6c0], gem: [0x1a7a4a, 0x48e890], glow: 0xfff0a0, o: 0x1a0608 },
   { b: [0x24163a, 0x3c2860, 0x5c4290, 0x2c1c48], m: [0x8a5a10, 0xe8b830, 0xfff4b0], lock: [0x5a2a8a, 0xb070ff, 0xf0d8ff], gem: [0x6a1aa8, 0xe070ff], glow: 0xf0c8ff, o: 0x0a0614, rune: 0x7af0ff },
 ];
+// 거점 화풍: 원색을 흙빛 쪽으로 누르고(보석·빛·문양은 그대로), 2px 붓 결로 나무·쇠 표면에 질감
+const mixc = (a, b, t) => { const g = (k) => Math.round(((a >> k) & 255) * (1 - t) + ((b >> k) & 255) * t); return (g(16) << 16) | (g(8) << 8) | g(0); };
+for (const P of PAL) {
+  P.b = P.b.map((c) => mixc(c, 0x5e4a36, 0.28));
+  P.m = P.m.map((c) => mixc(c, 0x6e6250, 0.18));
+  P.lock = P.lock.map((c) => mixc(c, 0x6e6250, 0.15));
+}
+const hh = (a, b, c = 0) => { let x = (a * 374761393 + b * 668265263 + c * 1274126177) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
 const rgb = (c) => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
 
 export function chestFrame(t, f) {
@@ -152,7 +160,7 @@ export function chestTextures(scene) {
         for (let x = 0; x < CW; x++) {
           const c = px[y * CW + x];
           if (c < 0) continue;
-          const k = (y * cv.width + f * CW + x) * 4, [r, g, b] = rgb(c);
+          const k = (y * cv.width + f * CW + x) * 4, kk = 1 + (hh(x >> 1, y >> 1, t) - 0.5) * 0.12 + (hh(x >> 3, y, t + 9) - 0.5) * 0.06, [r, g, b] = rgb(c).map((v) => Math.max(0, Math.min(255, Math.round(v * kk))));
           d[k] = r;
           d[k + 1] = g;
           d[k + 2] = b;

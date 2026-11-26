@@ -12,6 +12,7 @@
 //     하늘 나룻 바구니(20): 줄에 매달린 바구니가 두 섬 나루 사이를 옆으로 오간다
 //     도개교(21): 다리 판이 주기마다 경첩 쪽으로 들렸다 내려온다 (놓였을 때 건넌다)
 //     덩굴 그네(22): 위 키로 잡아 진자처럼 흔들고, 점프로 놓아 날아간다
+import * as G3 from "./bg3d.js";
 let R = null;
 export const bindDevices = (r) => (R = r);
 const near = (v, t, d) => (v < t ? Math.min(t, v + d) : Math.max(t, v - d));
@@ -131,41 +132,61 @@ function mkTex(sc) {
     f(c.getContext("2d"), w, h);
     sc.textures.addCanvas(k, c);
   };
-  // 무너지는 판: 금 간 나무판 (8px 높이, 8px 단위로 이어 붙인다)
-  cv("dv_plank", 16, 8, (x) => {
-    x.fillStyle = "#8a6038"; x.fillRect(0, 0, 16, 8);
-    x.fillStyle = "#b08050"; x.fillRect(0, 0, 16, 2);
-    x.fillStyle = "#5a3a20"; x.fillRect(0, 7, 16, 1); x.fillRect(15, 0, 1, 8);
-    x.fillStyle = "#3a2414"; x.fillRect(5, 2, 1, 3); x.fillRect(6, 4, 2, 1); x.fillRect(11, 3, 1, 3);
+  // 거점 화풍 붓: 5단 램프(밝음 따뜻 · 그늘 차갑게) + 2px 붓 결
+  const pix = (k, w, h, f) => { const B = G3.buffer(w, h, !0); f(B); sc.textures.addCanvas(k, B.toCanvas()); };
+  const hs = (a, b, c = 0) => { let v = (a * 374761393 + b * 668265263 + c * 1274126177) | 0; v = Math.imul(v ^ (v >>> 13), 1274126177); return ((v ^ (v >>> 16)) >>> 0) / 4294967296; };
+  const R5 = (c) => [mixc(shc(c, 0.36), 0xffe8c4, 0.15), shc(c, 0.14), c, mixc(shc(c, -0.32), 0x262230, 0.15), mixc(shc(c, -0.58), 0x161218, 0.3)];
+  const T5 = (p2, v) => p2[v > 0.55 ? 0 : v > 0.18 ? 1 : v > -0.22 ? 2 : v > -0.58 ? 3 : 4];
+  const WOOD = R5(0x7e5a38), IRN = R5(0x787470), STN = R5(0x847a6e), ROPE = R5(0xb09868);
+  const grain = (x, y, sd) => (hs(x >> 1, y >> 1, sd) - 0.5) * 0.4 + (((x + Math.round(Math.sin(y * 0.9 + sd) * 2)) % 5) === 0 ? -0.25 : 0);
+  // 무너지는 판: 금 간 나무판 (8px 높이, 16px마다 이어 붙인다) — 위 빛 · 아래 그늘 · 나뭇결 · 갈라진 금
+  pix("dv_plank", 16, 8, (B) => {
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 16; x++) {
+      let v = 0.15 + grain(x, y, 3) - (y === 7 ? 1 : y === 6 ? 0.45 : 0) + (y === 0 ? 0.6 : y === 1 ? 0.25 : 0);
+      x === 15 && (v = -0.9);
+      B.put(x, y, T5(WOOD, v));
+    }
+    for (const [x, y] of [[5, 2], [5, 3], [6, 4], [7, 4], [7, 5], [11, 3], [11, 4], [12, 5]]) B.put(x, y, WOOD[4]);
+    B.put(3, 3, IRN[1]), B.put(13, 3, IRN[1]);
   });
-  // 금 간 벽 (16px 무늬): 밝은 금 + 부스러기
-  cv("dv_crack", 16, 16, (x) => {
-    x.fillStyle = "#6a6070"; x.fillRect(0, 0, 16, 16);
-    x.fillStyle = "#7c7284"; x.fillRect(1, 1, 7, 6); x.fillRect(9, 8, 6, 7);
-    x.fillStyle = "#4a4250"; x.fillRect(0, 7, 16, 1); x.fillRect(8, 0, 1, 16);
-    x.fillStyle = "#e8d8a0"; x.fillRect(3, 3, 1, 1); x.fillRect(4, 4, 1, 2); x.fillRect(5, 6, 2, 1); x.fillRect(7, 7, 1, 2); x.fillRect(10, 9, 2, 1); x.fillRect(12, 10, 1, 2);
+  // 금 간 벽 (16px): 막돌 두 장 + 밝은 금 + 부스러기
+  pix("dv_crack", 16, 16, (B) => {
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const st = y < 8 ? (x < 9 ? 0 : 1) : x < 6 ? 2 : 3, lx = st === 1 ? x - 9 : st === 3 ? x - 6 : x, ly = y % 8, sw = st === 0 ? 9 : st === 1 ? 7 : st === 2 ? 6 : 10;
+      let v = 0.2 - (lx / sw) * 0.5 - (ly / 8) * 0.4 + (hs(st, 1) - 0.5) * 0.4 + (hs(x >> 1, y >> 1, 4) - 0.5) * 0.35;
+      (ly === 7 || lx === sw - 1) && (v = -0.9);
+      ly === 0 && (v += 0.35);
+      B.put(x, y, T5(STN, v));
+    }
+    for (const [x, y] of [[3, 3], [4, 4], [4, 5], [5, 6], [6, 6], [7, 7], [10, 9], [11, 9], [12, 10], [12, 11]]) B.put(x, y, 0x2a2420), B.put(x + 1, y, 0xd8c894);
   });
-  // 도개교 판: 두꺼운 나무에 쇠띠
-  cv("dv_draw", 16, 8, (x) => {
-    x.fillStyle = "#6a4426"; x.fillRect(0, 0, 16, 8);
-    x.fillStyle = "#9a6a3c"; x.fillRect(0, 0, 16, 2);
-    x.fillStyle = "#3a2414"; x.fillRect(0, 7, 16, 1); x.fillRect(7, 2, 1, 5);
-    x.fillStyle = "#8a8c96"; x.fillRect(12, 0, 2, 8); x.fillStyle = "#c0c2cc"; x.fillRect(12, 1, 2, 1);
+  // 도개교 판: 두꺼운 판자 + 쇠띠 + 못
+  pix("dv_draw", 16, 8, (B) => {
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 16; x++) {
+      let v = 0.05 + grain(x, y, 5) - (y === 7 ? 1 : 0) + (y === 0 ? 0.55 : 0);
+      x === 7 && (v = -0.8);
+      B.put(x, y, x === 12 || x === 13 ? T5(IRN, (x === 12 ? 0.3 : -0.2) + (y === 0 ? 0.4 : 0) - (y === 7 ? 0.8 : 0)) : T5(WOOD, v));
+    }
+    B.put(12, 2, IRN[0]), B.put(12, 5, IRN[0]);
   });
-  // 승강기 발판
-  cv("dv_lift", 16, 10, (x) => {
-    x.fillStyle = "#6a4a2c"; x.fillRect(0, 0, 16, 10);
-    x.fillStyle = "#9a7048"; x.fillRect(0, 0, 16, 3);
-    x.fillStyle = "#3a281a"; x.fillRect(0, 9, 16, 1);
-    x.fillStyle = "#b0b0b8"; x.fillRect(0, 4, 16, 1);
+  // 승강기 발판: 판자 + 가운데 쇠 띠 + 밑 그늘
+  pix("dv_lift", 16, 10, (B) => {
+    for (let y = 0; y < 10; y++) for (let x = 0; x < 16; x++) {
+      let v = 0.1 + grain(x, y, 7) + (y === 0 ? 0.6 : y < 3 ? 0.25 : 0) - (y === 9 ? 1 : y === 8 ? 0.4 : 0);
+      B.put(x, y, y === 4 ? T5(IRN, 0.3 - (x % 6 === 0 ? 0.5 : 0)) : T5(WOOD, v));
+    }
   });
-  cv("dv_cable", 2, 8, (x) => ((x.fillStyle = "#8a8a90"), x.fillRect(0, 0, 1, 8), (x.fillStyle = "#c0c0c8"), x.fillRect(1, 0, 1, 4)));
-  // 종유석 (떨어지는 것): 위가 넓은 뾰족돌
-  cv("dv_stal", 12, 28, (x) => {
+  pix("dv_cable", 2, 8, (B) => { for (let y = 0; y < 8; y++) B.put(0, y, ROPE[(y & 3) < 2 ? 1 : 3]), B.put(1, y, ROPE[(y & 3) < 2 ? 3 : 2]); });
+  // 종유석 (떨어지는 것): 위가 넓은 뾰족돌, 왼쪽 빛 · 오른쪽 그늘 · 가로 결
+  pix("dv_stal", 12, 28, (B) => {
     for (let y = 0; y < 28; y++) {
-      const w = Math.max(1, Math.round(6 * (1 - y / 28)));
-      x.fillStyle = y < 3 ? "#8a8494" : "#a8a0b0"; x.fillRect(6 - w, y, w * 2, 1);
-      x.fillStyle = "#6a6474"; x.fillRect(6 + w - 1, y, 1, 1);
+      const w = Math.max(1, 6 * Math.pow(1 - y / 28, 0.85));
+      for (let x = Math.round(6 - w); x < Math.round(6 + w); x++) {
+        const u = (x - 6) / w;
+        let v = 0.3 - u * 0.8 + (hs(x >> 1, y >> 1, 8) - 0.5) * 0.3 - (y % 5 === 0 ? 0.25 : 0);
+        Math.abs(u) > 0.82 && u > 0 && (v = -0.9);
+        B.put(x, y, T5(STN, v));
+      }
     }
   });
   cv("dv_px", 2, 2, (x) => ((x.fillStyle = "#fff"), x.fillRect(0, 0, 2, 2)));
@@ -174,17 +195,19 @@ function mkTex(sc) {
     g.addColorStop(0, "rgba(255,255,255,0)"), g.addColorStop(0.7, "rgba(255,255,255,0.9)"), g.addColorStop(1, "rgba(255,255,255,0)");
     (x.fillStyle = g), x.fillRect(0, 0, 10, 1);
   });
-  // 레버 (꺼짐·켜짐): 돌 받침 + 손잡이
+  // 레버 (꺼짐·켜짐): 막돌 받침 + 둥근 나무 손잡이 + 쇠 머리, 켜면 초록 · 꺼지면 붉은 등
   for (const on of [0, 1])
-    cv(on ? "dv_lever1" : "dv_lever0", 16, 24, (x) => {
-      (x.fillStyle = "#5a5464"), x.fillRect(3, 18, 10, 6);
-      (x.fillStyle = "#7a7484"), x.fillRect(3, 18, 10, 2);
-      x.fillStyle = "#3a2a1e";
-      for (let i = 0; i < 14; i++) x.fillRect(on ? 8 + Math.round(i * 0.45) : 8 - Math.round(i * 0.45), 18 - i, 2, 1);
-      x.fillStyle = on ? "#7af07a" : "#e05a4a";
-      x.fillRect(on ? 12 : 1, 2, 4, 4);
+    pix(on ? "dv_lever1" : "dv_lever0", 16, 24, (B) => {
+      for (let y = 18; y < 24; y++) for (let x = 2; x < 14; x++) { let v = 0.25 - ((x - 2) / 12) * 0.6 + (hs(x >> 1, y >> 1, 11) - 0.5) * 0.3 + (y === 18 ? 0.4 : 0) - (y === 23 ? 0.8 : 0); (x === 2 || x === 13) && (v = -0.9); B.put(x, y, T5(STN, v)); }
+      for (let i = 0; i < 14; i++) { const x = on ? 8 + i * 0.45 : 8 - i * 0.45, y = 18 - i; B.put(x, y, WOOD[1]), B.put(x + 1, y, WOOD[3]); }
+      const hx = on ? 14 : 2;
+      for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) i * i + j * j <= 5 && B.put(hx + i, 4 + j, T5(IRN, -(i + j) / 3));
+      const lc = on ? 0x8ac870 : 0xc86a50;
+      B.put(8, 16, lc), B.put(7, 16, shc(lc, -0.3)), B.put(8, 15, shc(lc, 0.3));
     });
 }
+const mixc = (a, b, t) => { const g = (k) => Math.round(((a >> k) & 255) * (1 - t) + ((b >> k) & 255) * t); return (g(16) << 16) | (g(8) << 8) | g(0); };
+const shc = (c, f) => { const g = (k) => { const v = (c >> k) & 255; return Math.max(0, Math.min(255, Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f)))); }; return (g(16) << 16) | (g(8) << 8) | g(0); };
 const KEYGONE = new Set(); // 부서진 벽 (구역:자리) — 그 판 동안
 const SWITCH = new Set(); // 켠 레버 (구역:이름) — 그 판 동안
 let HEALMSG = 0;

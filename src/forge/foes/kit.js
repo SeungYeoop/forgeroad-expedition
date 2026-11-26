@@ -13,7 +13,9 @@ export const mixc = (a, b, t) => {
 };
 // 7단 색 묶음 [0 외곽 · 1 그늘 · 2 어둠 · 3 중간 · 4 기본 · 5 밝음 · 6 반짝]: 그늘은 푸르게, 빛은 누렇게
 export function ramp(c, o = {}) {
-  const cool = o.cool ?? 0x141c34, warm = o.warm ?? 0xfff0c4;
+  // 거점 팔레트: 원색을 흙빛 쪽으로 살짝 누르고(o.raw면 그대로), 그늘은 차갑게 · 빛은 따뜻하게
+  if (!o.raw) { const l = ((c >> 16) & 255) * 0.3 + ((c >> 8) & 255) * 0.59 + (c & 255) * 0.11, gr = (Math.round(l) << 16) | (Math.round(l) << 8) | Math.round(l); c = mixc(mixc(c, gr, 0.14), 0x6e5e48, 0.1); }
+  const cool = o.cool ?? 0x1e2236, warm = o.warm ?? 0xfff0c8;
   return [mixc(c, 0x08060c, 0.84), mixc(c, cool, 0.66), mixc(c, cool, 0.46), mixc(c, cool, 0.22), c, mixc(c, warm, o.hi ?? 0.3), mixc(c, 0xfffbea, o.sh ?? 0.62)];
 }
 // 먼 쪽(뒤 다리·뒤 날개): 한 단 어둡고 반짝 없음

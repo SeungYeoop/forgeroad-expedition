@@ -42,6 +42,31 @@ export const minus = (a, b) => (x, y) => a(x, y) && !b(x, y);
 export const pol = (p, ang, d) => [p[0] + Math.cos(ang) * d, p[1] + Math.sin(ang) * d];
 export const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 const BAY = [0, 2, 3, 1];
+// ── 거점 화풍 붓 결 (재질마다 다른 결 · 2px 붓 뭉치 · 큰 얼룩) — 픽셀 좌표 기준 ──
+const hs = (a, b, c = 0) => { let h = (a * 374761393 + b * 668265263 + c * 1274126177) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+const vnz = (x, y, s = 0) => { const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), a = hs(ix, iy, s), b = hs(ix + 1, iy, s), c = hs(ix, iy + 1, s), d = hs(ix + 1, iy + 1, s); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
+export const BRUSH = {
+  // 살·가죽: 부드러운 얼룩 + 드문 2px 점
+  skin: (x, y) => (vnz(x / 4, y / 4, 1) - 0.5) * 0.2 + (hs(x >> 1, y >> 1, 2) - 0.5) * 0.12,
+  // 털: 아래로 흐르는 짧은 털 결 (세로로 긴 뭉치)
+  fur: (x, y) => (vnz(x / 1.6, y / 5, 3) - 0.5) * 0.34 + (hs(x, y >> 2, 4) > 0.82 ? 0.14 : 0) + (hs(x, y >> 2, 5) < 0.12 ? -0.14 : 0),
+  // 쇠·놋쇠: 가로 긁힘 + 얼룩(녹·때)
+  metal: (x, y) => (hs(x >> 2, y, 6) - 0.5) * 0.14 + (vnz(x / 6, y / 6, 7) - 0.5) * 0.22 + (hs(x, y, 8) > 0.96 ? -0.22 : 0),
+  // 나무: 세로 나뭇결 (굽이침)
+  wood: (x, y) => Math.sin(x * 1.1 + vnz(x / 6, y / 14, 9) * 6) * 0.11 + (hs(x, y >> 2, 10) > 0.9 ? -0.16 : 0),
+  // 돌: 큰 얼룩 + 2px 점 + 금
+  stone: (x, y) => (vnz(x / 5, y / 5, 11) - 0.5) * 0.3 + (hs(x >> 1, y >> 1, 12) - 0.5) * 0.16,
+  // 천: 짠 결 (엇갈린 2px)
+  cloth: (x, y) => ((((x >> 1) + (y >> 1)) & 1) ? 0.05 : -0.05) + (vnz(x / 5, y / 7, 13) - 0.5) * 0.2,
+  // 잎·풀: 잎 덩이 얼룩
+  leaf: (x, y) => (vnz(x / 3, y / 3, 14) - 0.5) * 0.32 + (hs(x >> 1, y >> 1, 15) - 0.5) * 0.14,
+  // 유리·수정: 비스듬한 반사 줄 + 매끈
+  glass: (x, y) => (((x + y * 2) % 11 === 0) ? 0.22 : 0) + (vnz(x / 7, y / 7, 16) - 0.5) * 0.12,
+  // 껍질·비늘: 작은 비늘 무늬
+  scale: (x, y) => { const u = x / 3 + ((y >> 1) & 1) * 0.5, f = u - Math.floor(u); return (f < 0.25 ? -0.14 : f > 0.75 ? 0.08 : 0) + (hs(x >> 1, y >> 1, 17) - 0.5) * 0.1; },
+  // 깃털: 비스듬히 겹친 깃 결
+  feather: (x, y) => { const u = (x + y * 0.6) / 3.2, f = u - Math.floor(u); return (f < 0.22 ? -0.16 : 0.04) + (vnz(x / 4, y / 4, 18) - 0.5) * 0.14; },
+};
 const LX = -0.55, LY = -0.68, LZ = 0.48, LN = Math.hypot(LX, LY, LZ);
 
 // 그림판 + 부위별 외곽색 기록
@@ -81,8 +106,13 @@ export function board(DW, DH, k = 1) {
         const nx = -gx * 0.6, ny = -gy * 0.6, nl = Math.hypot(nx, ny, 1);
         let v = (nx * LX + ny * LY + LZ) / (nl * LN) + (o.lv ?? 0);
         v += (BAY[(x & 1) + (y & 1) * 2] - 1.5) * 0.02;
+        // 재질 결 (o.tex = 0 이면 끔) — 기본은 살결
+        const tf = o.tex === 0 ? null : BRUSH[o.tex ?? "skin"];
+        tf && (v += tf(x, y) * (o.amp ?? 1));
         let k = v < -0.05 ? 1 : v < 0.28 ? 2 : v < 0.52 ? 3 : v < 0.7 ? 4 : v < 0.86 ? 5 : o.shine ? 6 : 5;
         if (o.sep !== !1 && k <= 3 && (und(x + 1, y) || und(x, y + 1) || und(x - 1, y) || und(x, y - 1))) k = 0;
+        // 빛 쪽(왼쪽 위) 바깥 가장자리: 한 단 밝은 테 (거점 캐릭터처럼 윤곽이 빛을 받는다)
+        else if (o.rim !== !1 && k >= 2 && k < 6 && ((y > 0 && !m[i - W] && C.d[i - W] < 0) || (x > 0 && !m[i - 1] && C.d[i - 1] < 0))) k = Math.min(o.shine ? 6 : 5, k + 1);
         C.d[i] = R[k];
         oc[i] = R[0];
       }

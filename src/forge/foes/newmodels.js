@@ -7,7 +7,12 @@ import * as GS from "./px_gs.js";
 import * as IV from "./px_iv.js";
 import * as LC from "./px_lc.js";
 import * as RH from "./px_rh.js";
+import * as GB from "./px_gb.js";
 export const NEW_MODELS = {
+  // 글래스블룸 (노랑)
+  gb_snail: GB.pxSnail, gb_gardener: GB.pxGardener, gb_pot: GB.pxPot, gb_golem: GB.pxGolem,
+  gb_moth: GB.pxMoth, gb_bee: GB.pxBee, gb_vine: GB.pxVine, gb_flytrap: GB.pxFlytrap,
+  gb_prism: GB.pxPrism, gb_hummer: GB.pxHummer, gb_shard: GB.pxShard, gb_peacock: GB.pxPeacock,
   gm_goat: pxGoat, gm_queen: pxQueen, gm_shaman: pxShaman, gm_mole: pxMole,
   // 스톤브리지
   sb_lizard: SB.pxLizard, sb_statue: SB.pxStatue, sb_mason: SB.pxMason, sb_warden: SB.pxWarden,

@@ -33,6 +33,20 @@ const TEX = {
   leather: (x, y) => (vnoise(x * 0.6, y * 0.6, 11) - 0.5) * 1.2 + (hash(x, y, 4) > 0.97 ? 0.8 : 0),
   cloth: (x, y) => ((x + y) & 1 ? 0.25 : -0.25) + (vnoise(x * 0.3, y * 0.3, 13) - 0.5),
   stone: (x, y) => (vnoise(x * 0.35, y * 0.35, 17) - 0.5) * 1.6 + (hash(x, y, 8) > 0.9 ? -0.6 : 0),
+  // 쇠·놋쇠: 결 방향 긁힘 + 녹·때 얼룩 + 드문 흠
+  metal: (x, y, m) => { const c = Math.cos(m.dir), s = Math.sin(m.dir), u = x * c + y * s, w = -x * s + y * c; return (hash(Math.round(u * 0.25), Math.round(w), 19) - 0.5) * 0.8 + (vnoise(x * 0.18, y * 0.18, 20) - 0.5) * 1.4 + (hash(x, y, 21) > 0.97 ? -1 : 0); },
+  // 유리: 비스듬한 반사 띠 + 매끈한 굴절 얼룩
+  glass: (x, y) => ((((x + y * 1.6) % 13) + 13) % 13 < 1.2 ? 1.4 : 0) + (vnoise(x * 0.15, y * 0.15, 22) - 0.5) * 0.8,
+  // 수정: 결정 면 띠 (비스듬한 평행 면) + 속 반짝
+  crystal: (x, y, m) => { const c = Math.cos(m.dir + 0.7), s = Math.sin(m.dir + 0.7), u = (x * c + y * s) / 3.5; return (Math.floor(u) % 2 ? 0.6 : -0.4) + (hash(x, y, 23) > 0.96 ? 1.2 : 0); },
+  // 깃털: 깃 끝이 겹친 비늘 무늬 (결 방향으로 흐름)
+  feather: (x, y, m) => { const c = Math.cos(m.dir), s = Math.sin(m.dir), u = (x * c + y * s) / 3.2, w = (-x * s + y * c) / 2.4, fu = u - Math.floor(u + (Math.floor(w) & 1) * 0.5); return (fu < 0.25 ? -1 : 0.25) + (vnoise(x * 0.3, y * 0.3, 24) - 0.5) * 0.6; },
+  // 비늘: 엇갈린 작은 반달
+  scale: (x, y) => { const v = y / 2.6, row = Math.floor(v), u = x / 3 + (row & 1) * 0.5, fu = u - Math.floor(u), fv = v - row; return (Math.hypot(fu - 0.5, fv * 0.8) > 0.48 ? -0.9 : 0.2) + (hash(x, y, 25) - 0.5) * 0.3; },
+  // 잎: 잎 덩이 얼룩 + 잎맥
+  leaf: (x, y) => (vnoise(x * 0.3, y * 0.3, 26) - 0.5) * 1.6 + (hash(x >> 1, y >> 1, 27) - 0.5) * 0.6,
+  // 테라코타·흙: 거친 얼룩 + 점
+  clay: (x, y) => (vnoise(x * 0.25, y * 0.25, 28) - 0.5) * 1.2 + (hash(x, y, 29) > 0.93 ? -0.7 : hash(x, y, 30) > 0.95 ? 0.6 : 0),
 };
 const mixc = (a, b, t) => { const g = (s) => Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t); return (g(16) << 16) | (g(8) << 8) | g(0); };
 const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => v / 16 - 0.47);

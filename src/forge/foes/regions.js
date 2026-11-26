@@ -7,3 +7,4 @@ import "./rgs.js";
 import "./riv.js";
 import "./rlc.js";
 import "./rrh.js";
+import "./rgb.js";

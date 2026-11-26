@@ -178,7 +178,8 @@ export const roll = (...a) => hash(...a) / 4294967296;
     }
     // 새로 지은 20곳: 전용 배경 (bgzones.js) + 배경 색
     if (ZBG["z_" + id]) (reg.zbg = "z_" + id), (reg.zbgRef = /^(gm1_0|g2_0|gm2_0)$/.test(id) ? 5000 : 8448), ZPAL[id] && (reg.pal = { ...reg.pal, ...ZPAL[id] });
-    const LY = layersOf(NEW ? id : blueOf(x, y)) ?? layersOf("g1_0");
+    // 자기 몬스터가 있는 구역(파랑 8곳 + 다 만든 노랑 구역)은 자기 목록, 아직 없으면 같은 방향 파랑 구역 것을 빌린다
+    const LY = layersOf(BESTIARY[id] ? id : NEW ? id : blueOf(x, y)) ?? layersOf("g1_0");
     reg.layers = LY;
     // 엔진이 쓰는 기본 목록 (떠도는 정예 무리·매복 행사): 지표(지상) 또는 모든 띠
     reg.enemies = LY.ground?.enemies ?? Object.values(LY).flatMap((b) => b.enemies);

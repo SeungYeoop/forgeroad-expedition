@@ -4,6 +4,7 @@
 import * as G3 from "./bg3d.js";
 import { mix, sh, hash, vn, fbm, ramp, tone, mass, ranges, fog, glint, isle, crystals, tree, land, setDither } from "./bgart.js";
 import { skyRef, hillsRef, pinesRef, bigTree, deadTree, tent, lanternPost, soilStrip, waterStrip, reedsStrip } from "./hubref.js";
+import { PAL, skyGold, hillsVillage, pineBand, leafTree, birch, houseArt, palisadeGate, groundBank, waterBank, waterPlants, barrelB, crateB, hay, canvasOf as canvasP } from "./hubpaint.js";
 import { tower as towerB, wall as wallB, banner, chain, glowSpot, tube } from "./bgzones.js";
 import { lamp } from "./hub2.js";
 import { storehouse, smithy, armorer, wizardTower, dojoHall, noticeBoard, waystone } from "./hubbuild.js";
@@ -178,96 +179,102 @@ function FAC() {
   ];
 }
 
+// ── 시설 그림 (이엉지붕 긴 집 계열) ──
+const anvil = (B, x, g) => { for (let j = 0; j < 4; j++) for (let i = -9; i < 11; i++) B.put(x + i, g - 12 + j, j === 0 ? 0x9a9aa4 : 0x5a5a62); for (let j = 4; j < 9; j++) for (let i = -3; i < 4; i++) B.put(x + i, g - 12 + j, 0x4a4a52); for (let j = 9; j < 12; j++) for (let i = -6; i < 7; i++) B.put(x + i, g - 12 + j, 0x3a3a42); };
+const armorStand = (B, x, g) => { for (let j = 0; j < 26; j++) B.put(x, g - j, 0x5a3e28); for (let j = 0; j < 14; j++) for (let i = -6; i <= 6; i++) Math.abs(i) < 6 - Math.max(0, j - 9) * 0.6 && B.put(x + i, g - 24 + j, i < -2 ? 0xd8dce4 : i < 3 ? 0xa8acb8 : 0x6a6e7a); for (let j = 0; j < 6; j++) for (let i = -3; i <= 3; i++) B.put(x + i, g - 31 + j, i < 0 ? 0xc8ccd4 : 0x8a8e9a); };
+const dummyPost = (B, x, g) => { for (let j = 0; j < 30; j++) for (let i = 0; i < 3; i++) B.put(x + i - 1, g - j, i ? 0x5a3e28 : 0x7a5a3c); for (let i = -9; i <= 9; i++) for (let j = 0; j < 3; j++) B.put(x + i, g - 22 + j, j ? 0x5a3e28 : 0x7a5a3c); hay(B, x, g - 26, 12, 8); };
+function FAC5() {
+  return [
+    { id: "exitL", name: `◀ 서문 · ${dirName(-1, 0)}`, x: 100, art: () => palisadeGate(0x3a7a44), exit: "L" },
+    { id: "wardrobe", name: "창고", x: 330, art: () => houseArt({ w: 150, wallH: 30, roofH: 54, beams: !0, windows: [-46], seed: 2, extra: (B, L, cx, g) => { barrelB(B, cx + 62, g), barrelB(B, cx + 76, g), crateB(B, cx - 84, g), crateB(B, cx - 72, g, 10), crateB(B, cx - 80, g - 12, 9); } }), npc: ["npc_quarter", 46, !0] },
+    { id: "forge", name: "대장간 · 무기", x: 590, art: () => houseArt({ w: 160, wallH: 32, roofH: 50, seed: 4, lit: 0xff7a20, doorDX: -30, windows: [40], extra: (B, L, cx, g) => { anvil(B, cx + 10, g); for (let y = g - 110; y < g - 30; y++) for (let i = 0; i < 12; i++) B.put(cx + 46 + i, y, (y + (i > 5 ? 3 : 0)) % 6 === 0 || i === 0 ? 0x5e5850 : i < 6 ? 0xa8a090 : 0x847c70); L.push([cx - 30, g - 14, 30, 0xff8030]); } }), npc: ["npc_smith", 24, !0] },
+    { id: "exitD", name: `▼ 갱도 승강기 · ${dirName(0, 1)}`, x: 870, art: mineLiftArt, exit: "D" },
+    { id: "armory", name: "갑옷 공방", x: 1130, art: () => houseArt({ w: 160, wallH: 30, roofH: 52, seed: 6, beams: !0, windows: [-40, 40], extra: (B, L, cx, g) => { armorStand(B, cx + 74, g), armorStand(B, cx + 90, g); } }), npc: ["npc_armorer", -36, !0] },
+    { id: "destiny", name: "운명의 비석", x: 1370, art: waystone },
+    { id: "plaza", x: 1470, art: signpost },
+    { id: "exitU", name: `▲ 하늘 승강장 · ${dirName(0, -1)}`, x: 1680, art: skyLiftArt, exit: "U" },
+    { id: "lab", name: "마법사 탑", x: 1950, art: wizardTower, npc: ["npc_mage", 44, !0] },
+    { id: "dojo", name: "무술 도장", x: 2190, art: () => houseArt({ w: 190, wallH: 32, roofH: 58, seed: 8, beams: !0, windows: [-56, 56], extra: (B, L, cx, g) => { dummyPost(B, cx - 104, g), dummyPost(B, cx - 120, g); } }), npc: ["npc_trainer", 40, !0], dummy: -150 },
+    { id: "board", name: "기록 게시판", x: 2430, art: noticeBoard, npc: ["npc_scribe", -66, !1] },
+    { id: "exitR", name: `▶ 동문 · ${dirName(1, 0)}`, x: 2620, art: () => palisadeGate(0xb87a30), exit: "R" },
+  ];
+}
+
 export function buildHub(sc, R, gy) {
-  // 레퍼런스 화풍(docs/reference/maps): 디더링 없는 평면 음영 · 강한 대기 원근 · 땅 단면 + 물 전경
+  // 레퍼런스 ref08 기준: 역광 하늘 · 구릉 마을 · 침엽수 띠 · 잎 뭉치 나무 · 이엉지붕 긴 집 · 흙 단면 · 비치는 물 · 물풀 전경
   setDither(!1);
   const { ot: W, xt: Hh, zt } = R;
   const ADD = zt.BlendModes.ADD;
   const tex = (key, canvas) => (sc.textures.exists(key) || sc.textures.addCanvas(key, canvas), key);
-  const HZ = 0xc8dce4;
-  sc.add.image(W / 2, Hh / 2, tex("h5_sky", skyRef(W, Hh))).setScrollFactor(0).setDepth(-100);
+  const SUN = [130, 118];
+  sc.add.image(W / 2, Hh / 2, tex("h6_sky", skyGold(W, Hh, SUN))).setScrollFactor(0).setDepth(-100);
   const layers = [];
   const lay = (key, cv, f, y, d) => { const t = sc.add.tileSprite(W / 2, y, W, cv.height, tex(key, cv)).setOrigin(0.5, 1).setScrollFactor(0).setDepth(d); t.setData("f", f); layers.push(t); return t; };
-  lay("h5_hills", hillsRef(HZ), 0.04, gy - 30, -98);
-  lay("h5_pine1", pinesRef(HZ, 0.58, 3, 120, 0x3a5a44), 0.1, gy - 18, -97);
-  const fogG = sc.add.graphics().setScrollFactor(0).setDepth(-96.5);
-  for (let i = 0; i < 16; i++) fogG.fillStyle(0xe8f0e8, 0.02 * (16 - Math.abs(i - 8) * 2)).fillRect(0, gy - 70 + i * 3, W, 3);
-  lay("h5_pine2", pinesRef(HZ, 0.32, 7, 160, 0x2e4a32), 0.2, gy + 2, -96);
+  lay("h6_hills", hillsVillage(640, 200).c, 0.08, gy + 6, -98);
+  const haze = sc.add.graphics().setScrollFactor(0).setDepth(-97);
+  for (let i = 0; i < 20; i++) haze.fillStyle(0xf4e8c4, 0.018 * (20 - Math.abs(i - 10) * 2)).fillRect(0, gy - 96 + i * 3, W, 3);
+  lay("h6_pines", pineBand(640, 190, 5), 0.24, gy + 4, -96);
   for (let i = 0; i < 5; i++) {
-    const b = sc.add.text(-20, 40 + i * 12, "v", { fontSize: "8px", color: "#2a3a4a" }).setScrollFactor(0.1).setDepth(-97);
-    sc.tweens.add({ targets: b, x: W + 200, y: b.y - 16, duration: 28000 + i * 2500, delay: i * 2100, repeat: -1 });
+    const b = sc.add.text(-20, 50 + i * 10, "v", { fontSize: "8px", color: "#3a3428" }).setScrollFactor(0.1).setDepth(-97);
+    sc.tweens.add({ targets: b, x: W + 200, y: b.y - 14, duration: 30000 + i * 2500, delay: i * 2300, repeat: -1 });
   }
   const glow = (x, y, s, col = 0xffb050, a = 0.5) => {
     const g = sc.add.image(x, y, "vx_glow").setBlendMode(ADD).setTint(col).setAlpha(a).setScale(s / 24).setDepth(7);
     sc.tweens.add({ targets: g, alpha: a * 0.6, duration: 900 + Math.random() * 900, yoyo: !0, repeat: -1, ease: "Sine.easeInOut" });
   };
-  // 입체 두께: 어두운 사본을 소실점 쪽으로 줄여 겹친다
-  const ext = [], VY = gy - 170, TINTS = [0xb0b0b8, 0x94949e, 0x7a7a86, 0x64646e, 0x52525c];
-  const extrude = (key, x, y, ox, oy, depth, n, k = 0.011) => {
-    for (let i = n; i >= 1; i--) ext.push({ im: sc.add.image(x, y, key).setOrigin(ox, oy).setDepth(depth - 0.004 * i).setTint(TINTS[Math.min(TINTS.length - 1, i - 1)]), x, y, s: 1 - k * i });
-  };
-  // 물에 비친 그림 (거꾸로 · 어둡게 · 흐리게)
-  const WL = gy + 22, refl = [];
-  const reflect = (key, x, ox, a = 0.3) => refl.push(sc.add.image(x, WL, key).setOrigin(ox, 0).setFlipY(!0).setAlpha(a).setTint(0x5a7480).setDepth(2.05));
+  const WL = gy + 30, refl = [];
   const shadows = sc.add.graphics().setDepth(2.3);
-  const place = (key, p, x, depth = 1, n = 4, rf = 0.3) => {
+  const place = (key, p, x, depth = 1, rf = 0.28) => {
     sc.add.image(x, gy + 1, tex(key, p.c)).setOrigin(0.5, 1).setDepth(depth);
-    n && extrude(key, x, gy + 1, 0.5, 1, depth, n);
-    rf && reflect(key, x, 0.5, rf);
-    const w = p.w * 0.8, x0 = x - w / 2;
-    for (let i = 0; i < 5; i++) shadows.fillStyle(0x0a0814, 0.08).fillRect(x0 + i * 2, gy - 1, w - i * 4, 2 + i * 0.6);
+    rf && refl.push(sc.add.image(x, WL + 22, key).setOrigin(0.5, 0).setFlipY(!0).setAlpha(rf).setTint(0x7a8a84).setDepth(2.05));
+    const w = p.w * 0.75, x0 = x - w / 2;
+    for (let i = 0; i < 4; i++) shadows.fillStyle(0x1a1208, 0.09).fillRect(x0 + i * 3, gy - 1, w - i * 6, 2 + i * 0.5);
     const ox = x - p.w / 2, oy = gy + 1 - p.h;
-    for (const [lx, ly, s, col] of p.lights ?? []) glow(ox + lx, oy + ly, s * 1.6, col ?? 0xffb050, 0.5);
+    for (const [lx, ly, s, col] of p.lights ?? []) glow(ox + lx, oy + ly, s * 1.7, col ?? 0xffb050, 0.55);
     return { ox, oy, w: p.w, h: p.h };
   };
-  const out = { facilities: [], layers, street: null, floor: [], ext, VY };
-  // 길 뒤 집 줄 (돌 기단 + 세로 널판 + 짙은 널지붕)
-  const row = townRow(HUB_W, HZ);
-  sc.add.image(0, gy + 1, tex("h5_row", row.c)).setOrigin(0, 1).setDepth(0.6);
-  extrude("h5_row", 0, gy + 1, 0, 1, 0.6, 3, 0.012), reflect("h5_row", 0, 0, 0.22);
-  for (const [lx, ly, s2, col] of row.lights) glow(lx, gy + 1 - row.h + ly, s2 * 1.4, col ?? 0xffb050, 0.32);
-  // 거대 활엽수 · 마른 고목 (집 앞, 시설 뒤)
-  for (const [k, p, x] of [["h5_tree1", bigTree(1, 1, 0x4a6a2e), 40], ["h5_tree2", bigTree(4, 1.1, 0x42602a), 760], ["h5_dead", deadTree(3, 1), 1240], ["h5_tree3", bigTree(7, 0.95, 0x4e6e30), 1560], ["h5_tree4", bigTree(9, 1.15, 0x3e5a28), 2310]]) place(k, p, x, 0.75, 2, 0.25);
-  // 천막 시장 (붉은 물결 장식) · 제작 작업장 · 수레
-  for (const [k, p, x] of [["h5_tent1", tent(80, 70), 228], ["h5_tent2", tent(70, 64, 0x2a5a8a), 1535]]) place(k, p, x, 0.8, 2, 0.25);
-  for (const [k, p, x] of [["h4_smelt", smelter(), 462], ["h4_lumber", lumbermill(), 736], ["h4_tan", tannery(), 1010], ["h4_loom", loom(), 1840], ["h4_stone", stonecutter(), 2060], ["h4_cart", cart(), 2330]]) place(k, p, x, 1.4, 2, 0.25);
-  for (const f of FAC()) {
+  const out = { facilities: [], layers, street: null, floor: [], ext: [], VY: gy - 170 };
+  // 큰 나무 (가을 노랑 · 올리브 · 자작) — 한 화면에 한두 그루, 사이로 구릉이 보이게
+  for (const [k, p, x] of [["h6_t1", leafTree(PAL.autumn, 1, 1), 210], ["h6_t2", leafTree(PAL.olive, 4, 1.05), 750], ["h6_t3", birch(PAL.olive, 7, 1), 1010], ["h6_t4", leafTree(PAL.autumn, 9, 0.95), 1560], ["h6_t5", leafTree(PAL.olive, 12, 1.1), 2060], ["h6_t6", birch(PAL.autumn, 15, 0.95), 2320]]) place(k, p, x, 0.7, 0.22);
+  // 천막 (붉은 물결 장식) · 제작 작업장 · 짚더미
+  for (const [k, p, x] of [["h6_tent1", tent(80, 70), 228], ["h6_tent2", tent(70, 64, 0x2a5a8a), 1535]]) place(k, p, x, 0.8);
+  for (const [k, p, x] of [["h4_smelt", smelter(), 462], ["h4_lumber", lumbermill(), 736], ["h4_tan", tannery(), 1010], ["h4_loom", loom(), 1840], ["h4_stone", stonecutter(), 2060], ["h4_cart", cart(), 2330]]) place(k, p, x, 1.4, 0.2);
+  for (const f of FAC5()) {
     const p = f.art();
-    const { ox, oy } = place("h5_" + f.id, p, f.x, f.exit ? 1.2 : 1);
+    const { ox, oy } = place("h6_" + f.id, p, f.x, f.exit ? 1.2 : 1);
     if (f.id === "forge") {
-      sc.add.particles(ox + 159, oy + 2, "hub_smoke", { speedY: { min: -26, max: -12 }, speedX: { min: 4, max: 12 }, lifespan: 3200, frequency: 260, alpha: { start: 0.55, end: 0 }, scale: { start: 0.6, end: 1.8 } }).setDepth(0);
-      sc.add.particles(ox + 60, oy + p.h - 20, "vx_px", { x: { min: -20, max: 20 }, speedY: { min: -70, max: -30 }, lifespan: 1100, frequency: 80, tint: [0xffd060, 0xff7020], blendMode: ADD }).setDepth(8);
+      sc.add.particles(ox + p.w / 2 + 52, oy + 30, "hub_smoke", { speedY: { min: -26, max: -12 }, speedX: { min: 4, max: 12 }, lifespan: 3600, frequency: 240, alpha: { start: 0.5, end: 0 }, scale: { start: 0.6, end: 2 } }).setDepth(0);
+      sc.add.particles(ox + p.w / 2 - 30, gy - 16, "vx_px", { x: { min: -10, max: 10 }, speedY: { min: -70, max: -30 }, lifespan: 1100, frequency: 70, tint: [0xffd060, 0xff7020], blendMode: ADD }).setDepth(8);
     }
     if (f.id === "destiny") sc.add.particles(f.x, oy + 110, "vx_px", { x: { min: -22, max: 22 }, y: { min: -60, max: 40 }, speedY: { min: -30, max: -12 }, lifespan: 1800, frequency: 120, tint: [0xffd060, 0xfff0b0], blendMode: ADD }).setDepth(8);
     if (f.exit === "D") sc.add.particles(f.x, gy - 8, "vx_px", { x: { min: -18, max: 18 }, speedY: { min: -40, max: -16 }, lifespan: 1400, frequency: 90, tint: [0xff8040, 0xffc060], blendMode: ADD }).setDepth(8);
-    if (f.exit === "U") sc.add.particles(f.x + 20, gy - 60, "vx_soft", { x: { min: -14, max: 14 }, speedY: { min: -60, max: -30 }, lifespan: 2200, frequency: 140, scale: { start: 0.25, end: 0 }, tint: [0xd8f0ff, 0xffffff], blendMode: ADD }).setDepth(8);
-    if (f.exit === "L" || f.exit === "R") sc.add.particles(f.x, gy - 40, "vx_soft", { x: { min: -24, max: 24 }, y: { min: -50, max: 20 }, speedY: { min: -20, max: -8 }, lifespan: 1600, frequency: 120, scale: { start: 0.28, end: 0 }, tint: [f.exit === "L" ? 0xa0ffb0 : 0xffe0a0], blendMode: ADD }).setDepth(8);
+    if (f.exit === "U") sc.add.particles(f.x + 20, gy - 60, "vx_soft", { x: { min: -14, max: 14 }, speedY: { min: -60, max: -30 }, lifespan: 2200, frequency: 140, scale: { start: 0.25, end: 0 }, tint: [0xfff0d0, 0xffffff], blendMode: ADD }).setDepth(8);
     if (f.npc) {
       const [k, dx, flip] = f.npc;
       sc.textures.exists(k) && sc.add.sprite(f.x + dx, gy + 1, k, 0).setOrigin(0.5, 1).setDepth(6).setFlipX(flip).play(k + "_idle");
     }
     if (f.name) {
-      R.ct(sc, f.x, Math.max(oy - 8, 22), f.name, "small", f.exit ? "#e8f4ff" : "#ffe8c0", { stroke: "#1a1410", strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(9);
+      R.ct(sc, f.x, Math.max(oy - 8, f.exit ? 66 : 22), f.name, "small", f.exit ? "#fff4d8" : "#ffe8c0", { stroke: "#2a1a0c", strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(9);
       out.facilities.push({ id: f.id, name: f.name, x: f.x, labelY: oy, dummyX: f.dummy ? f.x + f.dummy : null, exit: f.exit });
     }
   }
-  const lampXs = [210, 460, 730, 1000, 1250, 1560, 1820, 2060, 2310, 2530];
-  for (const x of lampXs) place("h5_lantern", lanternPost(), x, 3, 0, 0.3);
-  // 전경: 땅 단면 → 물(반사 위 물결) → 갈대·부들 (세계와 같이 흐르고, 갈대는 더 빠르게)
-  const fl = (key, cv, f, y, d, a = 1) => { const t = sc.add.tileSprite(W / 2, y, W, cv.height, tex(key, cv)).setOrigin(0.5, 0).setScrollFactor(0).setDepth(d).setAlpha(a); t.setData("f", f), out.floor.push(t); return t; };
-  fl("h5_water", waterStrip(640, Hh - WL + 2), 1, WL, 2.0);
-  const rip = sc.add.graphics().setScrollFactor(0).setDepth(2.1);
-  for (let y = WL + 4; y < Hh; y += 5) rip.fillStyle(0x0e161a, 0.25).fillRect(0, y, W, 1);
-  fl("h5_soil", soilStrip(640, 26), 1, gy - 4, 2.2);
-  fl("h5_reeds", reedsStrip(640, 46), 1.3, Hh - 46, 3);
-  // 랜턴 빛이 물에 길게 비친다
-  for (const x of lampXs) {
-    const pl = sc.add.image(x + 6, WL + 14, "vx_glow").setBlendMode(ADD).setTint(0xffb050).setScale(0.35, 1.4).setAlpha(0.35).setDepth(2.15);
-    sc.tweens.add({ targets: pl, alpha: 0.2, duration: 1300 + (x % 7) * 110, yoyo: !0, repeat: -1, ease: "Sine.easeInOut" });
+  const lampXs = [460, 1000, 1250, 1820, 2310];
+  for (const x of lampXs) place("h6_lantern", lanternPost(), x, 3, 0.25);
+  // 전경: 흙 단면(땅선 = 캔버스 8번 줄) → 비치는 물 → 물풀 (물풀은 더 빠르게 흐른다)
+  const fl = (key, cv, f, y, d) => { const t = sc.add.tileSprite(W / 2, y, W, cv.height, tex(key, cv)).setOrigin(0.5, 0).setScrollFactor(0).setDepth(d); t.setData("f", f), out.floor.push(t); return t; };
+  fl("h6_water", waterBank(640, Hh - WL + 2), 1, WL, 2.0);
+  fl("h6_bank", groundBank(640, 46), 1, gy - 8, 2.2);
+  fl("h6_plants", waterPlants(640, 110), 1.22, Hh - 110, 3);
+  // 물 위 오리 두 마리 (생기)
+  const duck = canvasP(12, 8, (B) => { for (let i = 0; i < 9; i++) for (let j = 0; j < 4; j++) B.put(1 + i, 4 + j - (i > 6 ? 1 : 0), j === 0 ? 0xa08060 : 0x6a5038); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) B.put(8 + i, 1 + j, j === 0 ? 0x3a7a4a : 0x2a5a3a); B.put(11, 2, 0xe8a030); });
+  for (let k = 0; k < 2; k++) {
+    const d = sc.add.image(500 + k * 900, WL + 24 + k * 10, tex("h6_duck", duck)).setDepth(2.25);
+    sc.tweens.add({ targets: d, x: d.x + 260, duration: 26000 + k * 6000, yoyo: !0, repeat: -1, ease: "Sine.easeInOut", onYoyo: () => d.setFlipX(!0), onRepeat: () => d.setFlipX(!1) });
+    sc.tweens.add({ targets: d, y: d.y + 1, duration: 900, yoyo: !0, repeat: -1 });
   }
-  sc.add.particles(0, 0, "vx_soft", { x: { min: -40, max: W + 40 }, y: { min: 100, max: gy }, speedX: { min: -8, max: 8 }, speedY: { min: -10, max: -3 }, lifespan: 6000, frequency: 700, alpha: { start: 0, end: 0.16 }, scale: { min: 0.5, max: 1.2 }, tint: [0xfff0d0], blendMode: ADD }).setScrollFactor(1.3, 0).setDepth(55);
-  const vg = sc.add.graphics().setScrollFactor(0).setDepth(57);
-  for (let i = 0; i < 22; i++) vg.fillStyle(0x05030a, 0.03).fillRect(0, 0, 22 - i, Hh).fillRect(W - 22 + i, 0, 22 - i, Hh);
+  // 해 번짐 (화면 위에 부드럽게) + 따뜻한 먼지
+  sc.add.image(SUN[0], SUN[1], "vx_glow").setBlendMode(ADD).setTint(0xfff0c0).setScale(14).setAlpha(0.22).setScrollFactor(0).setDepth(50);
+  sc.add.particles(0, 0, "vx_soft", { x: { min: -40, max: W + 40 }, y: { min: 80, max: gy }, speedX: { min: -8, max: 8 }, speedY: { min: -10, max: -3 }, lifespan: 6000, frequency: 600, alpha: { start: 0, end: 0.18 }, scale: { min: 0.5, max: 1.2 }, tint: [0xfff0c8], blendMode: ADD }).setScrollFactor(1.2, 0).setDepth(55);
   out.refl = refl;
   setDither(!0);
   return out;
@@ -277,6 +284,4 @@ export function hubParallax(sc, H) {
   const sx = sc.cameras.main.scrollX;
   for (const l of H.layers) l.tilePositionX = sx * l.getData("f");
   for (const t of H.floor ?? []) t.tilePositionX = sx * t.getData("f");
-  const vx = sx + sc.cameras.main.width / 2, vy = H.VY ?? 130;
-  for (const e of H.ext ?? []) e.im.setPosition(vx + (e.x - vx) * e.s, vy + (e.y - vy) * e.s).setScale(e.s);
 }

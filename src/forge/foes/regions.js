@@ -11,3 +11,4 @@ import "./rgb.js";
 import "./raf.js";
 import "./rms.js";
 import "./rsc.js";
+import "./rah.js";

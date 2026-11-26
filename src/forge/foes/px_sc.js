@@ -19,7 +19,7 @@ const WOOD = mat(ramp(0x6a4a34), { tex: "wood", amp: 0.9 }), RAY = mat(ramp(0x6a
 const JEL = mat(ramp(0xc89ad8, { hi: 0.5 }), { tex: "glass", amp: 0.8, spec: 0.5 }), MYC = mat(ramp(0xe8e0d0), { tex: "fur", amp: 0.8, dir: 1.57 }), MYCF = mat(rampF(0xc8bcac), { tex: "fur", amp: 0.7, dir: 1.57 });
 const SPID = mat(ramp(0x4a3a40), { tex: "fur", amp: 1, dir: 1.2 }), SPIDF = mat(rampF(0x3a2c32), { tex: "fur", amp: 0.9, dir: 1.2 });
 const fin = (C, p) => (p.hurt ? flash(C) : C);
-const toPx = (W, H, K) => (x, y) => [W * K / 2 + (x - W / 2) * K, H * K + (y - H) * K];
+const toPx = (W, H, K, AX = W / 2) => (x, y) => [Math.round(W * K) / 2 + (x - AX) * K, H * K + (y - H) * K];
 // 버섯 갓 (가운데 c, 반폭 rx, 높이 ry): 둥근 갓 + 아래 주름 띠 + 흰 점
 function cap(S, c, rx, ry, M, o = {}) {
   const yb = c[1] + ry * 0.35;
@@ -171,7 +171,7 @@ function matriarchFrame(p = {}) {
   for (let k = 0; k < 8; k++) S.add(ellR(cc[0] - 32 + k * 9.2, cc[1] + 5, 1.6, 1.6), GLP, { on: 1, lift: 0.5, h: 0.5 });
   if (!p.hurt) for (const x of [cx + 3 + bd * 3, cx + 11 + bd * 3]) S.decal(x, fy + 0.6, 0xf0a0e0).decal(x + 1, fy + 0.6, 0xf0a0e0);
   const C = S.render({ rim: !0 });
-  if (p.puff) { const P = toPx(W, H, MTK); for (let k = 0; k < 12; k++) { const q = P(cc[0] - 30 + k * 6, cc[1] - 26 - (k % 3) * 5); C.px(q[0], q[1], k % 2 ? 0xe0b8e8 : 0xb8f0d8); } }
+  if (p.puff) { const P = toPx(W, H, MTK, 58); for (let k = 0; k < 12; k++) { const q = P(cc[0] - 30 + k * 6, cc[1] - 26 - (k % 3) * 5); C.px(q[0], q[1], k % 2 ? 0xe0b8e8 : 0xb8f0d8); } }
   return fin(C, p);
 }
 export const pxMatriarch = {
@@ -322,7 +322,7 @@ function witchFrame(p = {}) {
   cap(S, pol(s1, sa, 3), 6, 4, CAPT, { z: 11, glow: 1, spots: [[0, -0.5, 0.25]] });
   S.add(ellR(...pol(s1, sa, 2), 3, 1.6), GLT, { z: 11.5, h: 0.6 });
   const C = S.render({ rim: !0 });
-  const P = toPx(W, H, WTK);
+  const P = toPx(W, H, WTK, 52);
   if (p.brew) for (let k = 0; k < 6; k++) { const q = P(cx + 12 + (k % 3) * 2, 60 + b - k * 3); C.px(q[0], q[1], k % 2 ? 0x8af0d0 : 0xb8e8c8); }
   return fin(C, p);
 }

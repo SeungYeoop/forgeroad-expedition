@@ -10,11 +10,15 @@ import * as RH from "./px_rh.js";
 import * as GB from "./px_gb.js";
 import * as AF from "./px_af.js";
 import * as MS from "./px_ms.js";
+import * as SC from "./px_sc.js";
 export const NEW_MODELS = {
   // 모스스파이어 (노랑)
   ms_monk: MS.pxMonk, ms_yak: MS.pxYak, ms_beetle: MS.pxBellBeetle, ms_abbot: MS.pxAbbot,
   ms_crane: MS.pxCrane, ms_flag: MS.pxFlag, ms_mossling: MS.pxMossling, ms_bellguard: MS.pxBellguard,
   ms_eagle: MS.pxEagle, ms_kite: MS.pxKite, ms_scroll: MS.pxScroll, ms_sage: MS.pxSage,
+  sc_puff: SC.pxPuff, sc_slug: SC.pxSporeSlug, sc_capling: SC.pxCapling, sc_matriarch: SC.pxMatriarch,
+  sc_beetle: SC.pxCapBeetle, sc_spore: SC.pxSpore, sc_frog: SC.pxFrog, sc_witch: SC.pxWitch,
+  sc_ray: SC.pxRay, sc_jelly: SC.pxSporeJelly, sc_wisp: SC.pxMycWisp, sc_queen: SC.pxSpiderQueen,
   // 애쉬펠 (노랑)
   af_ashling: AF.pxAshling, af_hound: AF.pxChainHound, af_brazier: AF.pxBrazier, af_jailer: AF.pxJailer,
   af_crow: AF.pxCrow, af_cinder: AF.pxCinder, af_wraith: AF.pxWraith, af_drake: AF.pxDrake,

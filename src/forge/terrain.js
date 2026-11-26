@@ -84,10 +84,12 @@ function onResult(w, ev) {
   j.gen = (function* () {
     finishPut(j.S, img, new Uint8ClampedArray(d.front), new Uint8ClampedArray(d.wall));
     yield;
-    j.scene.textures.get(j.S.key).refresh();
+    // 불러오는 중 장면이 바뀌어 그림이 지워졌으면 건너뛴다
+    const rf = (k) => { const t = j.scene.textures?.exists(k) && j.scene.textures.get(k); t?.refresh?.(); };
+    rf(j.S.key);
     yield;
-    j.scene.textures.get(j.S.keyF).refresh();
-    j.scene.textures.get(j.S.keyW).refresh();
+    rf(j.S.keyF);
+    rf(j.S.keyW);
   })();
   j.wait = !1;
 }

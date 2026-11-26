@@ -4,7 +4,7 @@
 import * as G3 from "./bg3d.js";
 import { mix, sh, hash, vn, fbm, ramp, tone, mass, ranges, fog, glint, isle, crystals, tree, land, setDither } from "./bgart.js";
 import { skyRef, hillsRef, pinesRef, bigTree, deadTree, tent, lanternPost, soilStrip, waterStrip, reedsStrip } from "./hubref.js";
-import { PAL, skyGold, hillsVillage, pineBand, leafTree, birch, houseArt, palisadeGate, groundBank, waterBank, waterPlants, barrelB, crateB, hay, canvasOf as canvasP } from "./hubpaint.js";
+import { PAL, skyGold, hillsVillage, pineBand, leafTree, birch, houseArt, palisadeGate, groundBank, waterBank, waterPlants, groundProps, boulderArt, barrelB, crateB, hay, canvasOf as canvasP } from "./hubpaint.js";
 import { tower as towerB, wall as wallB, banner, chain, glowSpot, tube } from "./bgzones.js";
 import { lamp } from "./hub2.js";
 import { storehouse, smithy, armorer, wizardTower, dojoHall, noticeBoard, waystone } from "./hubbuild.js";
@@ -207,13 +207,19 @@ export function buildHub(sc, R, gy) {
   const ADD = zt.BlendModes.ADD;
   const tex = (key, canvas) => (sc.textures.exists(key) || sc.textures.addCanvas(key, canvas), key);
   const SUN = [130, 118];
-  sc.add.image(W / 2, Hh / 2, tex("h6_sky", skyGold(W, Hh, SUN))).setScrollFactor(0).setDepth(-100);
+  sc.add.image(W / 2, Hh / 2, tex("h7_sky", skyGold(W, Hh, SUN))).setScrollFactor(0).setDepth(-100);
   const layers = [];
   const lay = (key, cv, f, y, d) => { const t = sc.add.tileSprite(W / 2, y, W, cv.height, tex(key, cv)).setOrigin(0.5, 1).setScrollFactor(0).setDepth(d); t.setData("f", f); layers.push(t); return t; };
-  lay("h6_hills", hillsVillage(640, 200).c, 0.08, gy + 6, -98);
-  const haze = sc.add.graphics().setScrollFactor(0).setDepth(-97);
-  for (let i = 0; i < 20; i++) haze.fillStyle(0xf4e8c4, 0.018 * (20 - Math.abs(i - 10) * 2)).fillRect(0, gy - 96 + i * 3, W, 3);
-  lay("h6_pines", pineBand(640, 190, 5), 0.24, gy + 4, -96);
+  lay("h7_hills", hillsVillage(640, 200).c, 0.06, gy + 6, -98);
+  const haze = sc.add.graphics().setScrollFactor(0).setDepth(-97.5);
+  for (let i = 0; i < 20; i++) haze.fillStyle(0xf4e4bc, 0.02 * (20 - Math.abs(i - 10) * 2)).fillRect(0, gy - 100 + i * 3, W, 3);
+  lay("h7_pinesF", pineBand(640, 150, 7, 0.34), 0.14, gy - 4, -97);
+  const haze2 = sc.add.graphics().setScrollFactor(0).setDepth(-96.5);
+  for (let i = 0; i < 16; i++) haze2.fillStyle(0xf0dcb0, 0.016 * (16 - Math.abs(i - 8) * 2)).fillRect(0, gy - 60 + i * 3, W, 3);
+  lay("h7_pinesN", pineBand(640, 190, 5, 0.04, 26), 0.26, gy + 4, -96);
+  // 해에서 퍼지는 빛줄기 (숲 위, 건물 뒤)
+  const rays = sc.add.graphics().setScrollFactor(0).setDepth(-95).setBlendMode(ADD);
+  for (let k = 0; k < 7; k++) { const a = 0.12 + k * 0.17 + Math.sin(k * 3.1) * 0.05, a2 = a + 0.05 + (k % 3) * 0.02, RL = 760; rays.fillStyle(0xffe8b0, 0.026).fillTriangle(SUN[0], SUN[1], SUN[0] + Math.cos(a) * RL, SUN[1] + Math.sin(a) * RL, SUN[0] + Math.cos(a2) * RL, SUN[1] + Math.sin(a2) * RL); }
   for (let i = 0; i < 5; i++) {
     const b = sc.add.text(-20, 50 + i * 10, "v", { fontSize: "8px", color: "#3a3428" }).setScrollFactor(0.1).setDepth(-97);
     sc.tweens.add({ targets: b, x: W + 200, y: b.y - 14, duration: 30000 + i * 2500, delay: i * 2300, repeat: -1 });
@@ -235,13 +241,15 @@ export function buildHub(sc, R, gy) {
   };
   const out = { facilities: [], layers, street: null, floor: [], ext: [], VY: gy - 170 };
   // 큰 나무 (가을 노랑 · 올리브 · 자작) — 한 화면에 한두 그루, 사이로 구릉이 보이게
-  for (const [k, p, x] of [["h6_t1", leafTree(PAL.autumn, 1, 1), 210], ["h6_t2", leafTree(PAL.olive, 4, 1.05), 750], ["h6_t3", birch(PAL.olive, 7, 1), 1010], ["h6_t4", leafTree(PAL.autumn, 9, 0.95), 1560], ["h6_t5", leafTree(PAL.olive, 12, 1.1), 2060], ["h6_t6", birch(PAL.autumn, 15, 0.95), 2320]]) place(k, p, x, 0.7, 0.22);
+  for (const [k, p, x] of [["h7_t1", leafTree(PAL.autumn, 1, 1), 210], ["h7_t2", leafTree(PAL.olive, 4, 1.05), 750], ["h7_t3", birch(PAL.olive, 7, 1), 1010], ["h7_t4", leafTree(PAL.autumn, 9, 0.95), 1560], ["h7_t5", leafTree(PAL.olive, 12, 1.1), 2060], ["h7_t6", birch(PAL.autumn, 15, 0.95), 2320]]) place(k, p, x, 0.7, 0.22);
+  // 큰 바위 무더기 (건물 뒤)
+  for (const [k, w, h, x, sd] of [["h7_rock1", 70, 44, 150, 1], ["h7_rock2", 56, 34, 1450, 2], ["h7_rock3", 80, 50, 2105, 3], ["h7_rock4", 46, 28, 790, 4]]) place(k, boulderArt(w, h, sd), x, 0.65, 0.2);
   // 천막 (붉은 물결 장식) · 제작 작업장 · 짚더미
-  for (const [k, p, x] of [["h6_tent1", tent(80, 70), 228], ["h6_tent2", tent(70, 64, 0x2a5a8a), 1535]]) place(k, p, x, 0.8);
+  for (const [k, p, x] of [["h7_tent1", tent(80, 70), 228], ["h7_tent2", tent(70, 64, 0x2a5a8a), 1535]]) place(k, p, x, 0.8);
   for (const [k, p, x] of [["h4_smelt", smelter(), 462], ["h4_lumber", lumbermill(), 736], ["h4_tan", tannery(), 1010], ["h4_loom", loom(), 1840], ["h4_stone", stonecutter(), 2060], ["h4_cart", cart(), 2330]]) place(k, p, x, 1.4, 0.2);
   for (const f of FAC5()) {
     const p = f.art();
-    const { ox, oy } = place("h6_" + f.id, p, f.x, f.exit ? 1.2 : 1);
+    const { ox, oy } = place("h7_" + f.id, p, f.x, f.exit ? 1.2 : 1);
     if (f.id === "forge") {
       sc.add.particles(ox + p.w / 2 + 52, oy + 30, "hub_smoke", { speedY: { min: -26, max: -12 }, speedX: { min: 4, max: 12 }, lifespan: 3600, frequency: 240, alpha: { start: 0.5, end: 0 }, scale: { start: 0.6, end: 2 } }).setDepth(0);
       sc.add.particles(ox + p.w / 2 - 30, gy - 16, "vx_px", { x: { min: -10, max: 10 }, speedY: { min: -70, max: -30 }, lifespan: 1100, frequency: 70, tint: [0xffd060, 0xff7020], blendMode: ADD }).setDepth(8);
@@ -259,22 +267,37 @@ export function buildHub(sc, R, gy) {
     }
   }
   const lampXs = [460, 1000, 1250, 1820, 2310];
-  for (const x of lampXs) place("h6_lantern", lanternPost(), x, 3, 0.25);
+  for (const x of lampXs) place("h7_lantern", lanternPost(), x, 3, 0.25);
+  // 땅선 소품 (덤불 · 들꽃 · 풀포기 · 돌 · 버섯 · 울타리) — 출구 앞은 비운다
+  sc.add.image(0, gy + 1, tex("h7_props", groundProps(HUB_W, 40, [[30, 170], [835, 905], [1645, 1715], [2550, 2700]]))).setOrigin(0, 1).setDepth(2.4);
   // 전경: 흙 단면(땅선 = 캔버스 8번 줄) → 비치는 물 → 물풀 (물풀은 더 빠르게 흐른다)
   const fl = (key, cv, f, y, d) => { const t = sc.add.tileSprite(W / 2, y, W, cv.height, tex(key, cv)).setOrigin(0.5, 0).setScrollFactor(0).setDepth(d); t.setData("f", f), out.floor.push(t); return t; };
-  fl("h6_water", waterBank(640, Hh - WL + 2), 1, WL, 2.0);
-  fl("h6_bank", groundBank(640, 46), 1, gy - 8, 2.2);
-  fl("h6_plants", waterPlants(640, 110), 1.22, Hh - 110, 3);
+  fl("h7_water", waterBank(640, Hh - WL + 2), 1, WL, 2.0);
+  fl("h7_bank", groundBank(640, 46), 1, gy - 8, 2.2);
+  fl("h7_plants", waterPlants(640, 110), 1.22, Hh - 110, 3);
   // 물 위 오리 두 마리 (생기)
   const duck = canvasP(12, 8, (B) => { for (let i = 0; i < 9; i++) for (let j = 0; j < 4; j++) B.put(1 + i, 4 + j - (i > 6 ? 1 : 0), j === 0 ? 0xa08060 : 0x6a5038); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) B.put(8 + i, 1 + j, j === 0 ? 0x3a7a4a : 0x2a5a3a); B.put(11, 2, 0xe8a030); });
   for (let k = 0; k < 2; k++) {
-    const d = sc.add.image(500 + k * 900, WL + 24 + k * 10, tex("h6_duck", duck)).setDepth(2.25);
+    const d = sc.add.image(500 + k * 900, WL + 24 + k * 10, tex("h7_duck", duck)).setDepth(2.25);
     sc.tweens.add({ targets: d, x: d.x + 260, duration: 26000 + k * 6000, yoyo: !0, repeat: -1, ease: "Sine.easeInOut", onYoyo: () => d.setFlipX(!0), onRepeat: () => d.setFlipX(!1) });
     sc.tweens.add({ targets: d, y: d.y + 1, duration: 900, yoyo: !0, repeat: -1 });
   }
   // 해 번짐 (화면 위에 부드럽게) + 따뜻한 먼지
-  sc.add.image(SUN[0], SUN[1], "vx_glow").setBlendMode(ADD).setTint(0xfff0c0).setScale(14).setAlpha(0.22).setScrollFactor(0).setDepth(50);
+  sc.add.image(SUN[0], SUN[1], "vx_glow").setBlendMode(ADD).setTint(0xfff0c0).setScale(16).setAlpha(0.15).setScrollFactor(0).setDepth(50);
+  sc.add.image(SUN[0], SUN[1], "vx_glow").setBlendMode(ADD).setTint(0xffe0a0).setScale(30).setAlpha(0.05).setScrollFactor(0).setDepth(50);
+  sc.add.image(SUN[0] - 10, SUN[1] + 10, "vx_glow").setBlendMode(ADD).setTint(0xfff8e0).setScale(5).setAlpha(0.28).setScrollFactor(0).setDepth(50);
   sc.add.particles(0, 0, "vx_soft", { x: { min: -40, max: W + 40 }, y: { min: 80, max: gy }, speedX: { min: -8, max: 8 }, speedY: { min: -10, max: -3 }, lifespan: 6000, frequency: 600, alpha: { start: 0, end: 0.18 }, scale: { min: 0.5, max: 1.2 }, tint: [0xfff0c8], blendMode: ADD }).setScrollFactor(1.2, 0).setDepth(55);
+  // 화면 색 보정: 따뜻한 금빛 + 초록 채도 낮춤 + 부드러운 번짐 + 가장자리 어둡게 (ref08의 촉촉한 빛)
+  try {
+    const cam = sc.cameras.main;
+    if (cam.postFX) {
+      cam.postFX.clear();
+      const cm = cam.postFX.addColorMatrix();
+      cm.saturate(-0.05);
+      cm.contrast(0.12, !0);
+      cm.multiply([1.05, 0.03, 0, 0, 0, 0.01, 1, 0.01, 0, 0, 0, 0.03, 0.88, 0, 0, 0, 0, 0, 1, 0], !0);
+    }
+  } catch (e) {}
   out.refl = refl;
   setDither(!0);
   return out;

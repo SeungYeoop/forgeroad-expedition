@@ -201,6 +201,13 @@ function FAC5() {
   ];
 }
 
+// 발밑 접지 그림자 (사람이 땅에 서 있게 보이도록: 넓고 옅은 타원 + 좁고 짙은 심)
+function footShadow(sc, x, y, depth) {
+  const g = sc.add.graphics().setDepth(depth);
+  g.fillStyle(0x140c06, 0.22).fillEllipse(0, 0, 22, 5);
+  g.fillStyle(0x140c06, 0.28).fillEllipse(0, 0, 12, 3);
+  return g.setPosition(x, y);
+}
 export function buildHub(sc, R, gy) {
   // 레퍼런스 ref08 기준: 역광 하늘 · 구릉 마을 · 침엽수 띠 · 잎 뭉치 나무 · 이엉지붕 긴 집 · 흙 단면 · 비치는 물 · 물풀 전경
   setDither(!1);
@@ -260,7 +267,7 @@ export function buildHub(sc, R, gy) {
     if (f.exit === "U") sc.add.particles(f.x + 20, gy - 60, "vx_soft", { x: { min: -14, max: 14 }, speedY: { min: -60, max: -30 }, lifespan: 2200, frequency: 140, scale: { start: 0.25, end: 0 }, tint: [0xfff0d0, 0xffffff], blendMode: ADD }).setDepth(8);
     if (f.npc) {
       const [k, dx, flip] = f.npc;
-      sc.textures.exists(k) && sc.add.sprite(f.x + dx, gy + 1, k, 0).setOrigin(0.5, 1).setDepth(6).setFlipX(flip).play(k + "_idle");
+      sc.textures.exists(k) && (footShadow(sc, f.x + dx, gy + 1, 7.4), sc.add.sprite(f.x + dx, gy + 1, k, 0).setOrigin(0.5, 1).setDepth(7.5).setFlipX(flip).play(k + "_idle"));
     }
     if (f.name) {
       R.ct(sc, f.x, Math.max(oy - 8, f.exit ? 66 : 22), f.name, "small", f.exit ? "#fff4d8" : "#ffe8c0", { stroke: "#2a1a0c", strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(9);
@@ -284,9 +291,9 @@ export function buildHub(sc, R, gy) {
     sc.tweens.add({ targets: d, y: d.y + 1, duration: 900, yoyo: !0, repeat: -1 });
   }
   // 해 번짐 (화면 위에 부드럽게) + 따뜻한 먼지
-  sc.add.image(SUN[0], SUN[1], "vx_glow").setBlendMode(ADD).setTint(0xfff0c0).setScale(16).setAlpha(0.15).setScrollFactor(0).setDepth(50);
+  sc.add.image(SUN[0], SUN[1], "vx_glow").setBlendMode(ADD).setTint(0xfff0c0).setScale(16).setAlpha(0.22).setScrollFactor(0).setDepth(-94.5);
   sc.add.image(SUN[0], SUN[1], "vx_glow").setBlendMode(ADD).setTint(0xffe0a0).setScale(30).setAlpha(0.05).setScrollFactor(0).setDepth(50);
-  sc.add.image(SUN[0] - 10, SUN[1] + 10, "vx_glow").setBlendMode(ADD).setTint(0xfff8e0).setScale(5).setAlpha(0.28).setScrollFactor(0).setDepth(50);
+  sc.add.image(SUN[0] - 10, SUN[1] + 10, "vx_glow").setBlendMode(ADD).setTint(0xfff8e0).setScale(5).setAlpha(0.32).setScrollFactor(0).setDepth(-94.5);
   sc.add.particles(0, 0, "vx_soft", { x: { min: -40, max: W + 40 }, y: { min: 80, max: gy }, speedX: { min: -8, max: 8 }, speedY: { min: -10, max: -3 }, lifespan: 6000, frequency: 600, alpha: { start: 0, end: 0.18 }, scale: { min: 0.5, max: 1.2 }, tint: [0xfff0c8], blendMode: ADD }).setScrollFactor(1.2, 0).setDepth(55);
   // 화면 색 보정: 따뜻한 금빛 + 초록 채도 낮춤 + 부드러운 번짐 + 가장자리 어둡게 (ref08의 촉촉한 빛)
   try {
@@ -299,6 +306,8 @@ export function buildHub(sc, R, gy) {
       cm.multiply([1.05, 0.03, 0, 0, 0, 0.01, 1, 0.01, 0, 0, 0, 0.03, 0.88, 0, 0, 0, 0, 0, 1, 0], !0);
     }
   } catch (e) {}
+  out.pshadow = footShadow(sc, -100, gy + 1, 19.9);
+  out.gy = gy;
   out.refl = refl;
   setDither(!0);
   return out;
@@ -308,4 +317,6 @@ export function hubParallax(sc, H) {
   const sx = sc.cameras.main.scrollX;
   for (const l of H.layers) l.tilePositionX = sx * l.getData("f");
   for (const t of H.floor ?? []) t.tilePositionX = sx * t.getData("f");
+  const ps = sc.player?.sprite;
+  if (H.pshadow && ps) { const air = Math.max(0, (H.gy + 1 - ps.y) / 40); H.pshadow.setPosition(ps.x, H.gy + 1).setScale(1 - Math.min(0.5, air)).setAlpha(1 - Math.min(0.7, air)); }
 }

@@ -629,15 +629,20 @@ export function* pixFine(ch, base, region, S) {
             put(x, y, PL[Math.max(0, Math.min(5, L))]);
           } else if (r.t === 2) {
             // 구름: 위로 볼록한 뭉게 (8px마다 높이가 다른 혹), 아래는 평평
-            const bump = 2 + Math.floor(H(wx >> 3, r.y0, 71) * 5);
+            // 둥근 혹이 이어진 윗선 (혹마다 폭 9~14), 양 끝은 둥글게 깎는다, 아래도 모서리 둥글게
+            const hh2 = r.y1 - r.y0, per = 9 + Math.floor(H(Math.floor((wx - r.x0) / 12), r.y0, 70) * 6), ph = (((wx - r.x0) % per) + per) % per / per;
+            let bump = Math.round(1 + 5 * Math.sin(Math.PI * ph) * (0.6 + H(Math.floor((wx - r.x0) / per), r.y0, 71) * 0.4));
+            bump = Math.min(bump, dx - 1, dr - 1);
             if (dy < -bump) continue;
+            if (dy >= 0 && (dx < 3 || dr < 3) && (dy < 2 - Math.min(dx, dr) || dy > hh2 - 3 + Math.min(dx, dr))) continue;
             // 붓 구름: 혹마다 위가 크림빛, 아래로 갈수록 하늘빛 그늘, 가장자리는 짙은 선 대신 한 단 그늘, 붓 뭉치
             const edge = dy === -bump || dx === 0 || dr === 0 || dy === r.y1 - r.y0 - 1, hb = H(wx >> 1, yw >> 1, 78);
             let L = dy < -bump + 2 ? 0 : dy < 2 ? 1 : dy > 9 ? 3 : 2;
             if (hb > 0.88) L = Math.max(0, L - 1);
             else if (hb < 0.1) L = Math.min(4, L + 1);
             if (edge) L = Math.max(L, dy < 0 ? 2 : 4);
-            put(x, y, CL[L]);
+            // 구름은 입체 겹(짙은 복사본)을 만들지 않는다 — 짙은 판처럼 보이지 않게
+            put(x, y, CL[L]), (HANG[y * PW + x] = 1);
           } else if (r.t === 3 || r.t === 11 || r.t === 12) {
             // 물: 반투명 파랑, 수면은 밝은 줄
             const k = y * PW + x;

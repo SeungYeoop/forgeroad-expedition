@@ -16,8 +16,11 @@ const sh = (c, f) => {
   return (g(16) << 16) | (g(8) << 8) | g(0);
 };
 // 게임 소품과 같은 명암 사다리 (0 가장 밝음 … 4 가장 어두움, 5 외곽선)
-const ramp = (b) => [mix(sh(b, 0.42), 0xfff2d8, 0.18), sh(b, 0.17), b, mix(sh(b, -0.3), 0x3c2848, 0.2), mix(sh(b, -0.52), 0x24183a, 0.32), mix(sh(b, -0.74), 0x140c1e, 0.45)];
-const OUTLINE = 0x1e1018;
+const ramp = (b) => [mix(sh(b, 0.4), 0xfff0d4, 0.18), sh(b, 0.16), b, mix(sh(b, -0.3), 0x2c2a34, 0.14), mix(sh(b, -0.52), 0x1e1c24, 0.24), mix(sh(b, -0.74), 0x120f14, 0.38)];
+// 원색을 흙빛 쪽으로 (레퍼런스 팔레트)
+const mute = (c, k = 0.22) => mix(c, 0x6e5e48, k);
+import { VEG, bufToRGBA, selOutRGBA } from "./proppaint.js";
+import * as G3 from "./bg3d.js";
 function hash(a, b, c) {
   let h = (a * 374761393 + b * 668265263 + c * 1274126177) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
@@ -84,7 +87,7 @@ function render(W, H, parts, mats, o = {}) {
   const pitch = o.pitch ?? 0.36, cp = Math.cos(pitch), sp = Math.sin(pitch), Z0 = 90, SC = o.sc ?? 1;
   // 때·이끼 (땅속): 바탕색을 어둡게, 위를 향한 면 군데군데 이끼
   const MOSS = ramp(0x4a6a34), base5 = new Map();
-  const rampOf = (c) => (base5.has(c) || base5.set(c, ramp(o.grime ? mix(c, 0x241c28, 0.26) : c)), base5.get(c));
+  const rampOf = (c) => (base5.has(c) || base5.set(c, ramp(mute(o.grime ? mix(c, 0x241c28, 0.26) : c))), base5.get(c));
   const fx = 0, fy = -sp, fz = -cp;
   const base = o.base ?? 4;
   const scene = (x, y, z) => {
@@ -153,7 +156,7 @@ function render(W, H, parts, mats, o = {}) {
         const rx = 2 * diff * nx - Lx, ry = 2 * diff * ny - Ly, rz = 2 * diff * nz - Lz, spec = Math.pow(Math.max(0, -(rx * fx + ry * fy + rz * fz)), 12) * M.gloss;
         I += spec;
       }
-      const v = I * 4.4 + bayer[(j & 1) * 2 + (i & 1)] - 0.35;
+      const v = I * 4.4 + (hash(i >> 1, j >> 1, 41) - 0.5) * 0.55 + (vn3(x * 0.3, y * 0.3, z * 0.3, 42) - 0.5) * 0.6 + 0.375 - 0.35;
       lvl[k] = clamp(4 - Math.floor(v), 0, 4);
       const mossy = o.grime && ny > 0.45 && vn3(x * 0.45, y * 0.45, z * 0.45, 33) > 0.6;
       col[k] = (mossy ? MOSS : rampOf(M.c))[lvl[k]];
@@ -175,23 +178,12 @@ function render(W, H, parts, mats, o = {}) {
           const kk = jj * W + ii;
           col[kk] >= 0 && dep[kk] - dep[k] > 5 && (edge = true);
         }
-        edge && (c = rampOf(M.c)[5]);
+        edge && (c = rampOf(M.c)[4]);
       }
       setc(k, c);
     }
-  // 바깥 외곽선 한 겹 (게임 소품과 같은 색)
-  const res = new Uint8ClampedArray(out);
-  for (let j = 0; j < H; j++)
-    for (let i = 0; i < W; i++) {
-      const k = j * W + i;
-      if (out[k * 4 + 3]) continue;
-      let n = false;
-      for (const [di, dj] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
-        const ii = i + di, jj = j + dj;
-        ii >= 0 && jj >= 0 && ii < W && jj < H && out[(jj * W + ii) * 4 + 3] && lvl[jj * W + ii] !== 9 && (n = true);
-      }
-      n && ((res[k * 4] = (OUTLINE >> 16) & 255), (res[k * 4 + 1] = (OUTLINE >> 8) & 255), (res[k * 4 + 2] = OUTLINE & 255), (res[k * 4 + 3] = 255));
-    }
+  // 바깥 외곽선 한 겹: 맞닿은 안쪽 색의 짙은 버전 (스스로 빛나는 점은 테두리 없이)
+  const res = selOutRGBA(out, W, H, lvl.map((v) => (v === 9 ? 1 : 0)));
   // 빛 번짐: 스스로 빛나는 점 둘레에 밝은 점 몇 개 (외곽선 안쪽만)
   if (o.glow)
     for (let j = 0; j < H; j++)
@@ -972,6 +964,7 @@ const KINDS = {
     return { W: 50, H: 36, parts, mats: [{ c: 0x8a5a3a, gloss: 0.7, tex: (x, y) => (Math.abs(((x + 20) % 5) - 2.5) < 0.4 ? -0.25 : 0) }, { c: 0x3e3e48, gloss: 0.6 }, { c: 0x9a9aa8, gloss: 0.9 }, { c: 0xff8040, emit: [0xfff0c0, 0xffa050, 0xc05020] }], glow: 0xffa060 };
   },
 };
+Object.assign(KINDS, VEG);
 export const PROP_KINDS = Object.keys(KINDS);
 // 대략 크기 (자리 고를 때): [폭, 높이]
 export function propSize(kind, s) {
@@ -989,6 +982,15 @@ export function paintProp(kind, s, v, pal, sc = 1, g = 0, e = null) {
   const R = rng((v + 1) * 7919 + s * 131 + kind.length * 17);
   const d = KINDS[kind](s, R, pal, e);
   const W = Math.ceil(d.W * sc) + 8, H = Math.ceil(d.H * sc) + 8;
+  if (d.p2) {
+    // 2D 붓 그림: 크기 배율 sc는 버퍼를 키워 그린 뒤 그대로 쓴다 (작은 배율은 1로)
+    const B = G3.buffer(Math.ceil(d.W) + 8, Math.ceil(d.H) + 8, !1), W2 = B.w, H2 = B.h;
+    const sub = { put: (x, y, c, a) => B.put(x + 4, y + 4, c, a), has: (x, y) => B.has(x + 4, y + 4) };
+    d.p2(sub);
+    const res = crop(bufToRGBA(B, W2, H2), W2, H2, d.hang);
+    CACHE.set(key, res);
+    return res;
+  }
   const res = render(W, H, d.parts, d.mats, { hang: d.hang, glow: d.glow, pitch: d.pitch, sc, grime: g, base: d.hang ? H - Math.ceil((d.top ?? 40) * sc) - 6 : 4 });
   CACHE.set(key, res);
   return res;

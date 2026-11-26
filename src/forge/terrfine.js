@@ -262,24 +262,40 @@ export function* pixFine(ch, base, region, S) {
       }
     return { d: best, lit: -(bu + bv) / 5, h: bh };
   };
+  // 잎 덩어리 (거점 화풍): 11px 격자마다 잎 뭉치 하나 — 아래(앞) 뭉치가 위를 덮고, 뭉치마다 왼쪽 위 밝고 밑면 그늘, 사이 틈은 짙게, 잎 점 질감
   const leafL = (wx, yw) => {
-    const q = leafPat(wx, yw);
-    if (q.d > 1) return 4;
-    let L = q.lit > 0.35 ? 1 : q.lit < -0.45 ? 3 : 2;
-    q.h > 0.86 && L > 1 && L--;
+    const g = 11, gx = Math.floor(wx / g), gy = Math.floor(yw / g);
+    let hit = null;
+    for (let dj = -1; dj <= 1; dj++)
+      for (let di = -1; di <= 1; di++) {
+        const ix = gx + di, iy = gy + dj, cx = (ix + 0.2 + H(ix, iy, 201) * 0.6) * g, cy = (iy + 0.2 + H(ix, iy, 202) * 0.6) * g, r = g * (0.6 + H(ix, iy, 203) * 0.32);
+        const ang = Math.atan2(yw - cy, wx - cx), re = r * (1 + (H(Math.round(((ang + 3.1416) * r) / 3), ix * 31 + iy, 204) - 0.5) * 0.24);
+        const d = Math.hypot(wx - cx, (yw - cy) * 1.1) / re;
+        if (d < 1 && (!hit || cy > hit[1])) hit = [cx, cy, re, d];
+      }
+    if (!hit) return 4;
+    const [cx, cy, r, d] = hit, nx = (wx - cx) / r, ny = (yw - cy) / r, lam = -nx * 0.5 - ny * 0.8 + Math.sqrt(Math.max(0, 1 - d * d)) * 0.35;
+    let L = lam > 0.45 ? 1 : lam > 0.05 ? 2 : 3;
+    if (ny > 0.4 && d > 0.7) L = 4;
+    const hb = H(wx >> 1, yw >> 1, 205);
+    if (hb > 0.93) L = Math.max(0, L - 1);
+    else if (hb < 0.05) L = Math.min(4, L + 1);
     const cl = vn2(wx / 34, yw / 26, 205);
-    cl > 0.66 ? (L = Math.max(0, L - 1)) : cl < 0.3 && (L = Math.min(4, L + 1));
+    if (cl > 0.7) L = Math.max(0, L - 1);
+    else if (cl < 0.25) L = Math.min(4, L + 1);
     return L;
   };
-  // 나무껍질: 굽이치는 세로 골(어둡게)과 판(왼쪽 밝게), 판마다 가끔 가로 금 — rot = 가로 결 (가지)
+  // 나무껍질 (거점 화풍): 크게 굽이치는 골과 폭이 다른 껍질 판, 골 깊이가 길이 따라 달라지고, 판 안에 짧은 가로 금 · 붓 얼룩 — rot = 가로 결 (가지)
   const barkL = (wx, yw, rot) => {
     const a = rot ? yw : wx, b = rot ? wx : yw;
-    const u = a + vn1(b / 23, 41) * 7 + vn1(b / 7, 43) * 1.6, p = ((u % 6) + 6) % 6, id = Math.floor(u / 6);
-    if (p < 1.1) return 4;
-    let L = p < 2.2 ? 1 : p < 4 ? 2 : 3;
-    ((b + Math.floor(H(id, 7, 206) * 40)) % (13 + (id % 5))) === 0 && (L = 4);
-    // 껍질 판마다 밝기 조금씩 (얼룩이 아니라 판 단위)
-    H(id, Math.floor(b / 30), 207) > 0.8 && L > 1 && L < 4 && L--;
+    const u = a + vn1(b / 23, 41) * 9 + vn1(b / 7, 43) * 2 + vn1(b / 90, 44) * 10, id = Math.floor(u / 7), f = u - id * 7;
+    const gw = 1 + H(id, Math.floor(b / 34), 211) * 1.4;
+    if (f < gw) return 4;
+    let L = f < gw + 1.3 ? 1 : f < 4.8 ? 2 : 3;
+    ((b + Math.floor(H(id, 7, 206) * 40)) % (17 + (id % 7))) < 1 && f > gw + 0.5 && f < 6 && (L = 4);
+    H(id, Math.floor(b / 24), 207) > 0.78 && L > 1 && L < 4 && L--;
+    const hb = H(a >> 1, b >> 1, 209);
+    if (hb > 0.92 && L > 0 && L < 4) L += H(a, b, 210) > 0.5 ? 1 : -1;
     return L;
   };
   const inIW = (x, y) => IW !== null && x >= 0 && x < PW && y >= 0 && y < PH && IW[y * PW + x] === 1;
@@ -302,9 +318,18 @@ export function* pixFine(ch, base, region, S) {
       L = leafL(wx, yw);
     } else if (m === 3) {
       R6 = BRICK;
-      const row = Math.floor(yw / 8), off = row & 1 ? 8 : 0;
-      L = yw % 8 === 7 || (wx + off) % 16 === 15 ? 4 : H((wx + off) >> 4, row, 44) > 0.7 ? 2 : 1;
-      if (H(wx >> 1, yw >> 1, 45) > 0.96) L = 3;
+      const row = Math.floor(yw / 8), off = row & 1 ? 8 : 0, bx = (((wx + off) % 16) + 16) % 16, by = ((yw % 8) + 8) % 8, bid = Math.floor((wx + off) / 16);
+      const bv = H(bid, row, 44), chip = H(bid, row, 46) > 0.75 && ((bx < 2 && by < 2) || (bx > 13 && by > 5));
+      if (by === 7 || bx === 15 || chip) L = 4;
+      else {
+        L = bv > 0.75 ? 1 : bv < 0.25 ? 3 : 2;
+        if (by === 0 || bx === 0) L = Math.max(0, L - 1);
+        else if (by === 6 || bx === 14) L = Math.min(4, L + 1);
+        const hb = H(wx >> 1, yw >> 1, 45);
+        if (hb > 0.9) L = Math.min(4, L + 1);
+        else if (hb < 0.06) L = Math.max(0, L - 1);
+        if (vn2(wx / 40, yw / 30, 47) > 0.72) L = Math.min(4, L + 1);
+      }
     } else if (m === 10) {
       R6 = BARK;
       L = barkL(wx, yw, 1);
@@ -437,7 +462,7 @@ export function* pixFine(ch, base, region, S) {
         // 안쪽일수록 어둡게 (띠가 생기지 않게 점점이 섞이며 넘어간다)
         const dpx = dd / 3;
         if (L < 5 && dpx > 10) {
-          const t = (dpx - 10) / 30, hv = H(wx, yw, 97);
+          const t = (dpx - 10) / 30, hv = H(wx >> 1, yw >> 1, 97) * 0.35 + vn2(wx / 7, yw / 7, 98) * 0.65;
           L = Math.min(4, L + (hv < t ? 1 : 0) + (hv < t - 0.55 ? 1 : 0));
         }
         // 테두리 + 바깥 방향에 따른 빛(왼쪽 위)과 그늘
@@ -509,7 +534,7 @@ export function* pixFine(ch, base, region, S) {
   // ── 5b) 특수 블럭: 나무판·구름(한쪽만 막는 발판), 물(반투명) ──
   if (S.spec && S.spec.length) {
     const MX2 = S.ox ?? X0;
-    const PL = rampOf(mix(0xa07040, P.soil, 0.2)), CL = rampOf(0xf4f8ff), WA = mix(0x3a8ad8, P.sky ? P.sky[0] ?? 0x3a8ad8 : 0x3a8ad8, 0.25);
+    const PL = rampOf(mix(0x9a6c40, P.soil, 0.2)), CL = [0xfffaf0, 0xf6efe2, 0xdfe4ea, 0xb8c6d6, 0x8c9cb4, 0x6a7890], WA = mix(mix(0x2e6a78, P.sky ? P.sky[0] ?? 0x3a8ad8 : 0x3a8ad8, 0.3), 0x3a5a4a, 0.25);
     const LAD = rampOf(mix(0x9a6a3a, P.soil, 0.15)), ROPE = rampOf(0xc8a870), VIN = rampOf(mix(P.top ?? 0x4a9a3a, 0x2e7a30, 0.4)), RAIL = rampOf(0x8a8c96);
     const ap = (k, c, al) => (buf[k] = ((al << 24) | ((c & 255) << 16) | (c & 0xff00) | ((c >> 16) & 255)) >>> 0);
     // 매달리는 장치(사다리·밧줄·덩굴·짚라인·바람·승강기·나룻 줄)가 칠한 픽셀: 입체 앞면 그림에서는 뺀다 (지형처럼 여러 겹 복제되지 않게)
@@ -540,9 +565,12 @@ export function* pixFine(ch, base, region, S) {
             const yw = OY + y, dy = yw - r.y0, k = y * PW + x;
             if (r.t === 6) {
               // 사다리: 양옆 기둥 + 8px마다 가로대
-              if (dx <= 1 || dr <= 1) putH(x, y, LAD[dx === 0 || dr === 0 ? 3 : 1]);
-              else if (dy % 8 === 2) putH(x, y, LAD[1]);
+              // 둥근 통나무 기둥(바깥 밝고 안쪽 그늘) + 가로대 + 이음매를 묶은 끈
+              const rail = dx <= 2 || dr <= 2, rr = dx <= 2 ? dx : 2 - dr;
+              if (rail) putH(x, y, LAD[rr === 0 ? 1 : rr === 1 ? 2 : 4]);
+              else if (dy % 8 === 2) putH(x, y, LAD[H(wx >> 1, Math.floor(dy / 8), 81) > 0.8 ? 0 : 1]);
               else if (dy % 8 === 3) putH(x, y, LAD[4]);
+              if ((dx === 3 || dr === 3) && (dy % 8 === 1 || dy % 8 === 3)) putH(x, y, ROPE[2]);
             } else if (r.t === 7) {
               // 밧줄: 꼬인 줄 3px, 24px마다 매듭
               const off = Math.abs(wx - Math.round(cx)), knot = dy % 24 < 3;
@@ -585,31 +613,47 @@ export function* pixFine(ch, base, region, S) {
         for (let y = y0; y < y1; y++) {
           const yw = OY + y, dy = yw - r.y0, dx = wx - r.x0, dr = r.x1 - 1 - wx;
           if (r.t === 1) {
-            // 나무판: 윗줄 밝게, 판 이음매, 아랫줄 그늘
-            const seam = (wx - r.x0) % 24 === 23;
-            const L = dy === 0 ? 0 : dy === r.y1 - r.y0 - 1 || dx === 0 || dr === 0 ? 5 : seam ? 4 : dy % 8 === 4 ? 3 : (wx >> 3) % 2 ? 1 : 2;
-            put(x, y, PL[L]);
+            // 나무판 (거점 화풍): 판마다 길이·밝기 다르고 물결 나뭇결, 이음매 옆 못, 윗면 빛 · 아랫줄 그늘, 끝은 마구리
+            const hh = r.y1 - r.y0, bl = 14 + Math.floor(H(Math.floor((wx - r.x0) / 18), r.y0, 73) * 10), bi = Math.floor((wx - r.x0) / bl), bx2 = (wx - r.x0) % bl;
+            let L = 2 + (H(bi, r.y0, 74) > 0.7 ? -1 : H(bi, r.y0, 74) < 0.2 ? 1 : 0);
+            if ((dy + Math.round(vn1((wx + bi * 37) / 9, 75) * 2)) % 4 === 0 && dy > 1) L = Math.min(4, L + 1);
+            if (H(wx >> 1, yw, 76) > 0.92 && L > 0) L += H(wx, yw, 77) > 0.5 ? 1 : -1;
+            if (bx2 === bl - 1) L = 5;
+            else if (bx2 === 0) L = Math.max(0, L - 1);
+            if ((bx2 === 2 || bx2 === bl - 3) && dy === 2) L = 0;
+            if (dy === 0) L = 0;
+            else if (dy === 1) L = Math.min(L, 1);
+            else if (dy === hh - 1) L = 5;
+            else if (dy === hh - 2) L = Math.min(5, L + 1);
+            if (dx === 0 || dr === 0) L = 5;
+            put(x, y, PL[Math.max(0, Math.min(5, L))]);
           } else if (r.t === 2) {
             // 구름: 위로 볼록한 뭉게 (8px마다 높이가 다른 혹), 아래는 평평
             const bump = 2 + Math.floor(H(wx >> 3, r.y0, 71) * 5);
             if (dy < -bump) continue;
-            const edge = dy === -bump || dx === 0 || dr === 0 || dy === r.y1 - r.y0 - 1;
-            const L = edge ? 3 : dy < -bump + 3 ? 0 : dy > 10 ? 2 : 1;
+            // 붓 구름: 혹마다 위가 크림빛, 아래로 갈수록 하늘빛 그늘, 가장자리는 짙은 선 대신 한 단 그늘, 붓 뭉치
+            const edge = dy === -bump || dx === 0 || dr === 0 || dy === r.y1 - r.y0 - 1, hb = H(wx >> 1, yw >> 1, 78);
+            let L = dy < -bump + 2 ? 0 : dy < 2 ? 1 : dy > 9 ? 3 : 2;
+            if (hb > 0.88) L = Math.max(0, L - 1);
+            else if (hb < 0.1) L = Math.min(4, L + 1);
+            if (edge) L = Math.max(L, dy < 0 ? 2 : 4);
             put(x, y, CL[L]);
           } else if (r.t === 3 || r.t === 11 || r.t === 12) {
             // 물: 반투명 파랑, 수면은 밝은 줄
             const k = y * PW + x;
             if (buf[k] && dy > 0) continue;
             // 깊을수록 짙은 파랑, 수면 밝은 줄(물결 따라 굵기 다름), 물속 빛무늬(겹친 물결), 반짝임
-            const depth = Math.min(1, dy / Math.max(10, r.y1 - r.y0)), base = mix(WA, 0x12305a, depth * 0.6);
+            // 물 (거점 화풍): 짙은 청록 → 깊을수록 어둡게, 수면 밝은 줄 한 겹 + 그 아래 옅은 띠, 물속엔 짧은 가로 물결 빛과 비친 하늘 얼룩
+            const depth = Math.min(1, dy / Math.max(10, r.y1 - r.y0)), base = mix(WA, 0x0e1e24, depth * 0.7);
             const wave = Math.sin(wx * 0.19 + r.y0) * 0.8 + Math.sin(wx * 0.07 + 2.1) * 0.6;
             let c = base;
-            if (dy < 2 + (wave > 0.9 ? 1 : 0)) c = mix(WA, 0xffffff, 0.6);
-            else if (dy < 4 + (wave > 0.3 ? 1 : 0)) c = mix(WA, 0xffffff, 0.26);
+            if (dy < 1 + (wave > 0.9 ? 1 : 0)) c = mix(WA, 0xf4f0e0, 0.62);
+            else if (dy < 3 + (wave > 0.3 ? 1 : 0)) c = mix(WA, 0xe8f0e8, 0.22);
             else {
-              const cs = Math.sin(wx * 0.23 + yw * 0.14) + Math.sin(wx * 0.12 - yw * 0.21 + 1.7) + Math.sin((wx + yw) * 0.05);
-              cs > 1.9 && (c = mix(c, 0xd8f0ff, 0.22 * (1 - depth)));
-              H(wx >> 2, yw >> 1, 72) > 0.975 && (c = mix(c, 0xffffff, 0.3));
+              const rip = H(Math.floor((wx + dy * 3) / 7), yw, 79);
+              if (rip > 0.86 && dy % 3 === 0) c = mix(c, 0xd8e8e0, 0.32 * (1 - depth * 0.7));
+              if (vn2(wx / 26, yw / 9, 80) > 0.72) c = mix(c, 0x5a8a90, 0.25 * (1 - depth));
+              if (H(wx >> 2, yw >> 1, 72) > 0.985) c = mix(c, 0xffffff, 0.28);
             }
             // 물살: 흐르는 쪽으로 기운 밝은 결
             if (r.t !== 3 && dy > 4 && (wx - (r.t === 12 ? 1 : -1) * Math.floor(dy / 3) * 2 + 400) % 22 < 6 && dy % 7 === 3) c = mix(c, 0xe8f8ff, 0.4);
@@ -645,9 +689,13 @@ export function* pixFine(ch, base, region, S) {
         const y0 = a > 0 ? Math.max(a, Math.ceil(wallTop)) : SP ? Math.max(0, Math.ceil(deep)) : OY > 0 && ug.top <= 0 ? 0 : PH;
         if (y0 < b)
           for (let y = y0; y < b && (a <= 0 || y - a < 960 || S.kind === "cave"); y++) {
+            // 뒷벽 (거점 화풍): 돌 면은 2~3단으로 낮은 대비, 틈은 4단(검은 선 대신), 큰 얼룩은 부드럽게, 붓 뭉치
             const L0 = lvq(wx * 0.8 + 3000, (y + OY) * 0.8, 18);
-            let L = Math.min(5, Math.max(2, L0 + 1));
-            vn2(wx / 100, (y + OY) / 80, 143) > 0.7 && L < 5 && (L = Math.min(5, L + 1));
+            let L = L0 === 5 ? 4 : L0 <= 1 ? 2 : 3;
+            const hb = H((wx >> 1) + 9, (y + OY) >> 1, 145);
+            if (hb > 0.9 && L > 2) L--;
+            else if (hb < 0.08 && L < 4) L++;
+            vn2(wx / 100, (y + OY) / 80, 143) > 0.7 && L < 4 && (L = Math.min(4, L + 1));
             // 흘러내린 석회 줄무늬 (가늘고 긴 세로 띠)
             const fl = vn2(wx / 4.5, (y + OY) / 170, 151);
             fl > 0.74 && L > 2 && L < 5 && (L -= 1);
@@ -696,14 +744,18 @@ export function* pixFine(ch, base, region, S) {
           if (r.m === "stem") L = wx % 5 === 0 ? 2 : 1;
           else if (r.m === "wood") {
             // 세로 판자 (폭 10) + 96px마다 가로 들보, 결·이음매·못
-            const pw = 10, px = ((wx % pw) + pw) % pw, pid = Math.floor(wx / pw), bm = ((yw % 96) + 96) % 96;
+            // 좁은 판자 (폭 6~7) + 96px마다 들보(밑에 그늘), 판마다 밝기, 물결 나뭇결, 붓 얼룩, 못
+            const pw = 6, px = ((wx % pw) + pw) % pw, pid = Math.floor(wx / pw), bm = ((yw % 96) + 96) % 96;
             if (bm < 8) L = bm === 0 ? 1 : bm >= 6 ? 4 : 2;
             else if (px === pw - 1) L = 5;
             else {
-              L = H(pid, 5, 3) < 0.3 ? 2 : 3;
-              px === 0 && (L = Math.max(1, L - 1));
-              (yw + Math.floor(vn1(pid * 7.3 + yw / 37, 41) * 9)) % 13 === 0 && (L = Math.min(4, L + 1));
-              (bm === 13 || bm === 90) && (px === 2 || px === 6) && (L = 0);
+              const pv = H(pid, 5, 3);
+              L = pv < 0.3 ? 2 : pv > 0.8 ? 4 : 3;
+              if (px === 0) L = Math.max(1, L - 1);
+              if (bm < 14) L = Math.min(5, L + 1);
+              if ((yw + Math.floor(vn1(pid * 7.3 + yw / 37, 41) * 9)) % 11 === 0 && px > 0 && px < pw - 2) L = Math.min(4, L + 1);
+              if (H(wx >> 1, yw >> 1, 212) > 0.93 && L < 5) L += H(wx, yw, 213) > 0.5 ? 1 : -1;
+              if ((bm === 11 || bm === 90) && px === 2) L = 0;
             }
           } else if (r.m === "brick") {
             // 벽돌 16×8: 줄눈, 위·왼 모서리 빛, 아래·오른 모서리 그늘, 벽돌마다 밝기 다름, 흠집, 큰 얼룩
@@ -739,8 +791,11 @@ export function* pixFine(ch, base, region, S) {
             H(Math.floor(wx / 3), Math.floor(yw / 40), 144) > 0.994 && ((yw % 40) + 40) % 40 < 14 && (L = Math.min(5, L + 1));
           } else {
             const L0 = lvq(wx * 0.8 + 3000, yw * 0.8, 18);
-            L = Math.min(5, Math.max(2, L0 + 1));
-            vn2(wx / 90, yw / 70, 142) > 0.7 && L < 5 && (L = Math.min(4, L + 1));
+            L = L0 === 5 ? 4 : L0 <= 1 ? 2 : 3;
+            const hb = H((wx >> 1) + 9, yw >> 1, 146);
+            if (hb > 0.9 && L > 2) L--;
+            else if (hb < 0.08 && L < 4) L++;
+            vn2(wx / 90, yw / 70, 142) > 0.7 && L < 4 && (L = Math.min(4, L + 1));
           }
           const da = DA[y * EW + ex];
           da <= 9 && (L = Math.min(5, L + 1));
@@ -822,10 +877,19 @@ export function* pixFine(ch, base, region, S) {
       for (let k = 1; k <= 5; k++) empty(x, y - k) && put(x, y - k, 0x5a9a3a);
       empty(x - 1, y - 3) && put(x - 1, y - 3, 0x5a9a3a);
       empty(x + 1, y - 4) && put(x + 1, y - 4, 0x5a9a3a);
-    } else if (cap === "grass" && h > 0.5) {
-      const L = 2 + Math.floor(H(wx, 22) * 4);
-      for (let k = 1; k <= L; k++) empty(x, y - k) && put(x, y - k, k === L ? P.topHi : k > L / 2 ? P.top : sh(P.top, -0.25));
-      h > 0.965 && (empty(x, y - L - 1) && put(x, y - L - 1, P.accent), empty(x - 1, y - L) && put(x - 1, y - L, P.accent), empty(x + 1, y - L) && put(x + 1, y - L, P.accent));
+    } else if (cap === "grass" && h > 0.55) {
+      // 풀포기 (거점 화풍): 두세 가닥이 서로 다르게 기울어 자라고, 끝이 밝고 밑동이 짙다. 군데군데 흙빛으로 누른 들꽃
+      const GR = [mix(P.topHi, P.top, 0.25), P.top, sh(P.top, -0.22), sh(P.top, -0.42)], n = 1 + Math.floor(H(wx, 23) * 3);
+      let tip = 0;
+      for (let b = 0; b < n; b++) {
+        const L = 2 + Math.floor(H(wx + b * 7, r, 22) * 5), lean = (H(wx, b, 24) - 0.5) * 1.1, dx0 = b - (n >> 1);
+        for (let k = 1; k <= L; k++) { const xx = x + dx0 + Math.round(lean * k * 0.6); empty(xx, y - k) && put(xx, y - k, k === L ? GR[0] : k > L * 0.55 ? GR[1] : k > 1 ? GR[2] : GR[3]); }
+        tip = Math.max(tip, L);
+      }
+      if (h > 0.972) {
+        const FL = [0xece4d0, 0xe0b850, 0xc87a90, 0x9a86c8, mix(P.accent, 0x8a7a5a, 0.3)], fc = FL[Math.floor(H(wx, 25) * FL.length)];
+        empty(x, y - tip - 1) && put(x, y - tip - 1, fc), empty(x + 1, y - tip - 1) && put(x + 1, y - tip - 1, sh(fc, -0.25)), empty(x, y - tip - 2) && put(x, y - tip - 2, sh(fc, 0.2));
+      }
     } else if (cap === "snow" && h > 0.9) empty(x, y - 1) && put(x, y - 1, 0xffffff);
   };
   const decoCeil = (x, y, wx, r) => {

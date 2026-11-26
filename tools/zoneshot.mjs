@@ -33,7 +33,9 @@ try {
   for (const p of spec.split(";").filter(Boolean)) {
     const [zid, xc, yc] = p.split(","), n = zid, C0 = ZONES.find((q) => q.id === zid).c0, x = xc * 8, y = yc * 8;
     await ev(`(() => { const sc = window.__run; sc.player.iframes = 1e9; sc.player.hp = sc.player.maxHp; for (const e of sc.enemies) e.remove?.(); sc.travelTo(${C0} * 32 + Math.floor(${x} / 16), 1, null, ${y}); })()`);
-    await sleep(2500);
+    await sleep(1200);
+    // 땅에 닿을 때까지 (최대 7초)
+    for (let i = 0; i < 28 && !(await ev("!!window.__run.player.body?.onGround")); i++) await sleep(250);
     await ev(`(() => { const sc = window.__run; for (const e of sc.enemies) e.remove?.(); })()`);
     // 띠가 다 그려질 때까지
     for (let i = 0; i < 60; i++) {

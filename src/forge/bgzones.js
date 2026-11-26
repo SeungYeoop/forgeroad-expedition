@@ -318,9 +318,36 @@ function stalac(B, col, n, maxL, seed, o = {}) {
 function stalag(B, x, gy, w, h, col, o = {}) { spire(B, x, gy, w, h, col, { ...o, pow: 0.9, strata: 0.35 }); }
 // 동굴 뒷벽: 부드러운 어둠 + 천장·바닥 바위 겹 셋 (먼 겹은 어둠에 묻힌다)
 function caveBack(B, col, seed, o = {}) {
-  const dark = o.dark ?? mix(col, 0x000000, 0.7), mid = mix(col, 0x000000, 0.45);
-  for (let y = 0; y < B.h; y++) for (let x = 0; x < W; x++) B.put(x, y, mix(dark, mid, Math.max(0, 1 - Math.abs(y - 250) / 260) * (0.6 + vn(x, y, 120, seed) * 0.4)));
-  caveRanges(B, { n: o.n ?? 3, col: sh(col, 0.15), col1: col, dark, seed, ceil: o.ceil ?? 140, floor: o.floor ?? 370, amp: o.amp ?? 100 });
+  const dark = o.dark ?? mix(col, 0x000000, 0.72), mid = mix(col, 0x000000, 0.45), n = o.n ?? 3, amp = o.amp ?? 100;
+  // 바탕: 가운데(굴 속 공기)가 조금 밝은 어둠 + 아주 큰 부드러운 얼룩
+  for (let y = 0; y < B.h; y++) for (let x = 0; x < W; x++) B.put(x, y, mix(dark, mid, Math.max(0, 1 - Math.abs(y - 250) / 230) * (0.55 + vn(x, y, 120, seed) * 0.45)));
+  o.warm && glowSpot(B, W * 0.5, 250, 240, o.warm, 22);
+  const wrap = (X) => ((X % W) + W) % W;
+  for (let k = 0; k < n; k++) {
+    const t = k / Math.max(1, n - 1), hz = 0.74 - t * 0.42, c = mix(sh(col, 0.2), col, t), sd = seed + k * 13, thick = 70 + t * 40;
+    // 천장선·바닥선: 큰 굽이 + 작은 요철 (먼 겹은 더 깊이 들어가 보인다)
+    const ceilY = (x) => (o.ceil ?? 140) - (n - 1 - k) * 26 + (fbm(x, k * 31, 200, sd, 3) - 0.5) * amp * 2.2 + (vn(x, k, 31, sd + 2) - 0.5) * 22;
+    const floorY = (x) => (o.floor ?? 370) + (n - 1 - k) * 22 - (fbm(x, k * 37 + 5, 220, sd + 4, 3) - 0.5) * amp * 1.8 - (vn(x, k, 27, sd + 6) - 0.5) * 18;
+    // 바위는 굴 쪽 두께만 칠하고(입술에 빛·그늘), 그 너머는 어둠에 묻는다
+    mass(B, -64, -4, W + 128, B.h + 8, (X, Y) => { const xx = wrap(X), cy = ceilY(xx), fy = floorY(xx); return (Y < cy && Y > cy - thick) || (Y > fy && Y < fy + thick); }, { col: c, round: 26, bump: 0.16, sc: 40, strata: 0.07, haze: hz, skyC: dark, seed: sd, warp: 2.6, clip: 1, rim: false });
+    // 돌기둥 (천장과 바닥을 잇는다, 가운데가 잘록)
+    for (let q = 0; q < 1 + (k % 2); q++) {
+      const px = hash(q, sd, 9) * W, w0 = (14 + hash(q, sd, 8) * 18) * (0.6 + t * 0.5), cy = ceilY(px), fy = floorY(px);
+      mass(B, px - w0 - 6, cy - 4, w0 * 2 + 12, fy - cy + 8, (X, Y) => { const u = (Y - cy) / Math.max(1, fy - cy), half = w0 * (0.55 + 0.45 * Math.abs(u - 0.5) * 2) * (0.9 + 0.2 * vn(Y, q, 9, sd)); return Math.abs(X - px) < half; }, { col: c, round: w0 * 0.6, bump: 0.25, sc: 14, strata: 0.2, haze: hz, skyC: dark, seed: sd + 70 + q });
+    }
+    // 종유석 · 석순 (겹이 가까울수록 크게)
+    const ns = 9 + k * 5;
+    for (let q = 0; q < ns; q++) {
+      const x = hash(q, sd) * W, top = ceilY(x) - 6, L = (18 + hash(q, sd, 1) * 70) * (0.5 + t * 0.6), w = (5 + hash(q, sd, 2) * 12) * (0.6 + t * 0.5);
+      mass(B, x - w - 2, top, w * 2 + 4, L + 6, (X, Y) => Math.abs(X - x) < (w / 2) * Math.pow(Math.max(0, 1 - (Y - top) / L), 0.8) * (0.85 + 0.3 * vn(Y, q, 7, sd)), { col: c, round: w * 0.3, bump: 0.5, sc: 5, strata: 0.4, haze: hz, skyC: dark, seed: sd + q });
+      if (hash(q, sd, 3) < 0.55) {
+        const gx = hash(q, sd, 4) * W, gy = floorY(gx) + 6, h2 = (12 + hash(q, sd, 5) * 46) * (0.5 + t * 0.6), w2 = (5 + hash(q, sd, 6) * 10) * (0.6 + t * 0.5);
+        spire(B, gx, gy, w2, h2, c, { pow: 0.9, strata: 0.35, haze: hz, skyC: dark, seed: sd + 50 + q });
+      }
+    }
+    // 겹 사이 안개 띠
+    k < n - 1 && fog(B, 250 + (k - 1) * 30, 44, mix(dark, o.warm ?? 0xc0c0c8, 0.25), 80 - k * 22, sd + 9, 80);
+  }
 }
 // 빛웅덩이 (색 빛무리)
 export function glowSpot(B, x, y, r, c, a) {

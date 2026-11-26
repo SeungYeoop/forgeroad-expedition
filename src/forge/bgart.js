@@ -104,6 +104,7 @@ export function mass(B, x0, y0, w, h, inside, o = {}) {
     const edge = D[k] <= 1.01;
     if (edge) c = nx * L[0] + ny * L[1] > 0.15 && o.rim !== false ? (o.rimCol ?? R[0]) : R[5];
     if (o.glow && D[k] > rd * 0.6) c = mix(c, o.glow, Math.min(0.6, (D[k] - rd * 0.6) / (rd * 2)));
+    if (o.clip && (X < 0 || X >= W)) continue;
     B.put(X, Y, haze ? mix(c, skyC, haze) : c, o.a ?? 255);
   }
 }

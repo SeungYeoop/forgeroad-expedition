@@ -17,3 +17,4 @@ import "./rbf.js";
 import "./rgl.js";
 import "./rbk.js";
 import "./rsg.js";
+import "./rmr.js";

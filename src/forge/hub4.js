@@ -77,6 +77,23 @@ function streetCanvas(W, H) {
     for (const y of [road + 8, road + 12]) for (let x = 6; x < W; x++) B.put(x, y, 0x7a5a34);
   });
 }
+// 원근 바닥 줄: 위(먼 쪽)는 돌이 작고 옅게, 아래(가까운 쪽)는 크고 짙게 — 줄마다 다른 속도로 흐른다
+function floorRows(Hf) {
+  const rows = [];
+  for (let y = 0, k = 0; y < Hf; k++) { const h = Math.min(Hf - y, Math.max(2, Math.round(2 + (y / Hf) * 9))); rows.push({ k, y, h }); y += h; }
+  return rows;
+}
+function floorRow(row, Hf) {
+  return canvasOf(640, row.h, (B) => {
+    const t = row.y / Hf, bw = Math.round(7 + t * 22), off = (row.k * 11) % bw, R5 = ramp(mix(0x9a9284, 0x6a6458, t));
+    for (let y = 0; y < row.h; y++) for (let x = 0; x < 640; x++) {
+      const b = Math.floor((x + off) / bw), bx = (x + off) % bw;
+      let I = 0.66 - t * 0.25 + (hash(b, row.k, 7) - 0.5) * 0.28 + (y === 0 ? 0.14 : 0) - (bx === 0 || y === row.h - 1 ? 0.32 : 0) - (bx === 1 ? -0.06 : 0);
+      row.k === 0 && (I = 0.85 - (x % 24 === 0 ? 0.3 : 0));
+      B.put(x, y, tone(R5, I, x, y));
+    }
+  });
+}
 // ── 출구 건물 ──
 // 서문·동문: 두 망루 사이 아치 문(내리닫이 창살) · 성벽 · 깃발 · 가는 길 표지
 function gateArt(flip, col, label) {
@@ -178,27 +195,48 @@ export function buildHub(sc, R, gy) {
     const b = sc.add.text(-20, 30 + i * 12, "ᵛ", { fontSize: "10px", color: "#2a3a4a" }).setScrollFactor(0.1).setDepth(-97);
     sc.tweens.add({ targets: b, x: W + 200, y: b.y - 16, duration: 28000 + i * 2500, delay: i * 2100, repeat: -1 });
   }
-  const street = sc.add.image(0, gy - 2, tex("h4_street", streetCanvas(HUB_W, Hh - gy + 4))).setOrigin(0, 0).setDepth(2);
+  // 원근 바닥 (줄마다 흐르는 속도가 달라 앞뒤 깊이가 생긴다)
+  const Hf = Hh - gy + 4, floor = [];
+  for (const row of floorRows(Hf)) {
+    const t = sc.add.tileSprite(W / 2, gy - 2 + row.y + row.h / 2, W, row.h, tex(`h4_floor_${row.k}`, floorRow(row, Hf))).setScrollFactor(0).setDepth(2);
+    t.setData("f", 1 + Math.pow(row.y / Hf, 1.15) * 0.6), floor.push(t);
+  }
+  const street = null;
+  // 입체 두께: 건물마다 어두운 사본을 소실점 쪽으로 줄여 겹친다 (카메라가 움직이면 옆면·지붕 두께가 드러난다)
+  const ext = [], VY = gy - 170, TINTS = [0xb8b8c8, 0x9a9aac, 0x80809a, 0x6a6a84, 0x58586e];
+  const extrude = (key, x, y, ox, oy, depth, n, k = 0.011) => {
+    for (let i = n; i >= 1; i--) {
+      const im = sc.add.image(x, y, key).setOrigin(ox, oy).setDepth(depth - 0.004 * i).setTint(TINTS[Math.min(TINTS.length - 1, i - 1)]);
+      ext.push({ im, x, y, s: 1 - k * i });
+    }
+  };
   const glow = (x, y, s, col = 0xffb050, a = 0.5) => {
     const g = sc.add.image(x, y, "vx_glow").setBlendMode(ADD).setTint(col).setAlpha(a).setScale(s / 24).setDepth(7);
     sc.tweens.add({ targets: g, alpha: a * 0.6, duration: 900 + Math.random() * 900, yoyo: !0, repeat: -1, ease: "Sine.easeInOut" });
   };
-  const place = (key, p, x, depth = 1) => {
+  const shadows = sc.add.graphics().setDepth(2.3);
+  const place = (key, p, x, depth = 1, n = 4) => {
     sc.add.image(x, gy + 1, tex(key, p.c)).setOrigin(0.5, 1).setDepth(depth);
+    n && extrude(key, x, gy + 1, 0.5, 1, depth, n);
+    // 접지 그림자 (발치에 짙게 · 해 반대쪽으로 길게)
+    const w = p.w * 0.8, x0 = x - w / 2;
+    for (let i = 0; i < 6; i++) shadows.fillStyle(0x0a0814, 0.07).fillRect(x0 + i * 2, gy - 1, w - i * 4, 2 + i);
+    shadows.fillStyle(0x0a0814, 0.14).fillPoints([{ x: x0, y: gy - 1 }, { x: x0 + w, y: gy - 1 }, { x: x0 + w - 18, y: gy + 12 }, { x: x0 - 30, y: gy + 12 }], !0);
     const ox = x - p.w / 2, oy = gy + 1 - p.h;
     for (const [lx, ly, s, col] of p.lights ?? []) glow(ox + lx, oy + ly, s * 1.6, col ?? 0xffb050, 0.45);
     return { ox, oy, w: p.w, h: p.h };
   };
-  const out = { facilities: [], layers, street };
+  const out = { facilities: [], layers, street, floor, ext };
   // 길 뒤 연립 주택 줄 (시설 건물 뒤, 길 전체)
   const row = townRow(HUB_W, SKYC);
   sc.add.image(0, gy + 1, tex("h4_row", row.c)).setOrigin(0, 1).setDepth(0.6);
+  extrude("h4_row", 0, gy + 1, 0, 1, 0.6, 3, 0.012);
   for (const [lx, ly, s2, col] of row.lights) glow(lx, gy + 1 - row.h + ly, s2 * 1.4, col ?? 0xffb050, 0.3);
   // 가로수 (화분 돌 받침 + 둥근 나무) — 거리에 땅의 느낌
   const tr = canvasOf(70, 110, (B) => { mass(B, 18, 96, 34, 14, () => true, { col: 0xa8a090, round: 3, warp: 0.5 }); for (let x = 20; x < 50; x++) B.put(x, 96, 0x4a3a2a); tree(B, 35, 98, 1.5, 0x4a8a3a, 0x6a4a2a, {}); });
-  for (const x of [190, 690, 1290, 1780, 2290]) sc.add.image(x, gy + 1, tex("h4_tree", tr)).setOrigin(0.5, 1).setDepth(0.8);
+  for (const x of [190, 690, 1290, 1780, 2290]) (sc.add.image(x, gy + 1, tex("h4_tree", tr)).setOrigin(0.5, 1).setDepth(0.8), extrude("h4_tree", x, gy + 1, 0.5, 1, 0.8, 2));
   // 제작 작업장 · 시장 노점 · 수레 (시설 사이 빈 곳)
-  for (const [k, p, x] of [["h4_smelt", smelter(), 462], ["h4_lumber", lumbermill(), 736], ["h4_tan", tannery(), 1010], ["h4_st1", marketStall(0xc03040, 0xf0e8d8, "fruit"), 1240], ["h4_st2", marketStall(0x2a6ad8, 0xf0e8d8, "cloth"), 1560], ["h4_loom", loom(), 1840], ["h4_stone", stonecutter(), 2060], ["h4_cart", cart(), 2330], ["h4_st3", marketStall(0x3aa85a, 0xf0e0b0, "pots"), 225]]) place(k, p, x, 1.4);
+  for (const [k, p, x] of [["h4_smelt", smelter(), 462], ["h4_lumber", lumbermill(), 736], ["h4_tan", tannery(), 1010], ["h4_st1", marketStall(0xc03040, 0xf0e8d8, "fruit"), 1240], ["h4_st2", marketStall(0x2a6ad8, 0xf0e8d8, "cloth"), 1560], ["h4_loom", loom(), 1840], ["h4_stone", stonecutter(), 2060], ["h4_cart", cart(), 2330], ["h4_st3", marketStall(0x3aa85a, 0xf0e0b0, "pots"), 225]]) place(k, p, x, 1.4, 2);
   // 집과 집 사이 깃발 줄
   const lg = sc.add.graphics().setDepth(0.9);
   for (let a = 0; a < 11; a++) {
@@ -236,11 +274,26 @@ export function buildHub(sc, R, gy) {
       out.facilities.push({ id: f.id, name: f.name, x: f.x, labelY: oy, dummyX: f.dummy ? f.x + f.dummy : null, exit: f.exit });
     }
   }
-  for (const x of [210, 460, 730, 1000, 1250, 1560, 1820, 2060, 2310, 2530]) place("h4_lamp", lamp(), x, 3);
+  const lampXs = [210, 460, 730, 1000, 1250, 1560, 1820, 2060, 2310, 2530];
+  for (const x of lampXs) place("h4_lamp", lamp(), x, 3, 0);
+  // 가로등 빛 웅덩이 (바닥에 납작한 빛)
+  for (const x of lampXs) { const pl = sc.add.image(x, gy + 10, "vx_glow").setBlendMode(ADD).setTint(0xffc070).setScale(2.2, 0.45).setAlpha(0.45).setDepth(2.5); sc.tweens.add({ targets: pl, alpha: 0.3, duration: 1200 + (x % 7) * 120, yoyo: !0, repeat: -1, ease: "Sine.easeInOut" }); }
+  // 바닥 그늘: 먼 쪽 옅은 안개 · 가까운 쪽 어둠
+  const fs = sc.add.graphics().setScrollFactor(0).setDepth(2.4);
+  for (let i = 0; i < Hf; i++) { const t = i / Hf; t < 0.2 && fs.fillStyle(0xe8f0ff, 0.12 * (1 - t / 0.2)).fillRect(0, gy - 2 + i, W, 1); t > 0.55 && fs.fillStyle(0x05030a, 0.3 * ((t - 0.55) / 0.45)).fillRect(0, gy - 2 + i, W, 1); }
+  // 깊이별 먼지 (먼 곳 작고 흐림 · 가까운 곳 크고 번짐) + 화면 가장자리 어둠
+  sc.add.particles(0, 0, "vx_px", { x: { min: 0, max: W }, y: { min: 60, max: gy - 10 }, speedX: { min: -6, max: 6 }, speedY: { min: -8, max: -2 }, lifespan: 7000, frequency: 180, alpha: { start: 0, end: 0.6, ease: "Sine.easeInOut" }, scale: 0.6, tint: [0xfff0d0, 0xffd8a0], blendMode: ADD }).setScrollFactor(0.5, 0).setDepth(-93);
+  sc.add.particles(0, 0, "vx_soft", { x: { min: -40, max: W + 40 }, y: { min: 120, max: Hh }, speedX: { min: -10, max: 10 }, speedY: { min: -14, max: -4 }, lifespan: 6000, frequency: 600, alpha: { start: 0, end: 0.18 }, scale: { min: 0.5, max: 1.4 }, tint: [0xffe8c0], blendMode: ADD }).setScrollFactor(1.4, 0).setDepth(55);
+  const vg = sc.add.graphics().setScrollFactor(0).setDepth(57);
+  for (let i = 0; i < 22; i++) vg.fillStyle(0x05030a, 0.028).fillRect(0, 0, 22 - i, Hh).fillRect(W - 22 + i, 0, 22 - i, Hh);
+  out.VY = VY;
   return out;
 }
 export function hubParallax(sc, H) {
   if (!H) return;
   const sx = sc.cameras.main.scrollX;
   for (const l of H.layers) l.tilePositionX = sx * l.getData("f");
+  for (const t of H.floor ?? []) t.tilePositionX = sx * t.getData("f");
+  const vx = sx + sc.cameras.main.width / 2, vy = H.VY ?? 130;
+  for (const e of H.ext ?? []) e.im.setPosition(vx + (e.x - vx) * e.s, vy + (e.y - vy) * e.s).setScale(e.s);
 }

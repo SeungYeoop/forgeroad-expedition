@@ -386,7 +386,8 @@ function placeProps(P) {
   // ── 나무: 옛 그림(natdeco) 대신 3D 픽셀 나무 ──
   for (const T of P.trees ?? []) {
     const [, kind, sS, vS] = T.key.split(":");
-    const k = kind === "pine" ? "p_pine" : kind === "dead" ? (["grassmere", "mossbark", "greenstep", "leafcrown"].includes(P.z?.reg?.look) ? "p_oak" : "p_dead") : ["oak", "willow", "pale"].includes(kind) ? "p_oak" : null;
+    const k = kind === "pine" ? "p_pine" : kind === "dead" ? (["grassmere", "mossbark", "greenstep", "leafcrown"].includes(P.z?.reg?.look) ? "p_oak" : "p_dead") : ["oak", "willow", "pale"].includes(kind) ? "p_oak"
+      : kind === "cactus" ? "p_cactus" : kind === "shroom" ? "p_shroom" : kind === "crystal" ? "p_crystal" : kind === "pillar" || kind === "arch" ? "p_brokencol" : null;
     if (!k) continue;
     out.push({ x: T.x, y: T.y + 2, k, s: Math.min(2, +sS), v: +vS % 2, acc: null, hang: 0, sc: 1, g: 0 });
     T.conv = 1;

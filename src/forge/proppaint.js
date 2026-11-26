@@ -238,6 +238,36 @@ Object.assign(VEG, {
       },
     };
   },
+  // 선인장 (사와로): 굵은 몸통 + 위로 꺾인 팔, 세로 골(밝은 등 · 짙은 골), 가시 점, 꼭대기 꽃 — 흙빛 세이지 초록
+  p_cactus(s, R, c) {
+    const H = [50, 80, 110][s], W = [30, 40, 50][s], seed = Math.floor(R() * 9999), P = R5(0x6a8a50), r0 = 4 + s * 1.5;
+    return {
+      W: W + 16, H: H + 6,
+      p2: (B) => {
+        const cx = (W + 16) / 2, g = H + 5;
+        const stalk = (x, y0, y1, r) => {
+          for (let y = y1; y <= y0; y++) {
+            const tip = y - y1 < r ? Math.sqrt(Math.max(0, 1 - ((r - (y - y1)) / r) ** 2)) : 1, hw = r * tip;
+            for (let i = -Math.ceil(hw); i <= hw; i++) {
+              const u = i / Math.max(1, r), rib = Math.round(i + r) % 3;
+              let v = 0.35 - u * 0.9 + (rib === 0 ? -0.45 : rib === 1 ? 0.15 : 0) + tx(Math.round(x + i), y, 0.25, seed);
+              Math.abs(i) >= hw - 0.5 && u > 0 && (v = -0.9);
+              B.put(x + i, y, T5(P, v));
+              rib === 1 && (y + i * 3) % 5 === 0 && B.put(x + i, y, 0xe8dcb8);
+            }
+          }
+        };
+        stalk(cx, g, g - H + 4, r0);
+        // 팔: 몸통 옆에서 가로로 나왔다가 위로 꺾여 자란다 (몸통과 틈을 두어 실루엣이 갈라지게)
+        for (const [d, at, len] of [[-1, 0.42, 0.3], [1, 0.58, 0.24]]) {
+          const ay = Math.round(g - H * at), ra = Math.max(2.5, r0 * 0.68), ax = Math.round(cx + d * (r0 + ra + 4));
+          for (let x = Math.round(cx + d * (r0 - 1)); d > 0 ? x <= ax : x >= ax; x += d) for (let j = -Math.round(ra); j <= Math.round(ra); j++) B.put(x, ay + j, T5(P, 0.25 - (j / ra) * 0.6 + tx(x, ay + j, 0.25, seed)));
+          stalk(ax, ay, ay - H * len, ra);
+        }
+        for (let i = -1; i <= 1; i++) B.put(cx + i, g - H + 3, i ? 0xd88a70 : 0xf0c090);
+      },
+    };
+  },
   // 짚더미: 둥근 짚단 둘·셋, 짚 결(가는 줄) · 끈 · 흘린 짚
   p_hay(s, R, c) {
     const W = 34 + s * 10, H = 22 + s * 6, seed = Math.floor(R() * 9999);

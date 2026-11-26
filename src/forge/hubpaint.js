@@ -424,3 +424,6 @@ export function palisadeGate(col) {
     L.push([ax, g - 20, 20, 0xffb050]);
   });
 }
+
+// 시설 그림(hubpaint2.js)에서 함께 쓰는 붓
+export { T5, tx, TT, thatch, planks, smallWindow, canopy };

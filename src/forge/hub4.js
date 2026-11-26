@@ -10,6 +10,7 @@ import { lamp } from "./hub2.js";
 import { storehouse, smithy, armorer, wizardTower, dojoHall, noticeBoard, waystone } from "./hubbuild.js";
 import { townRow, roofsea, smelter, lumbermill, tannery, loom, stonecutter, marketStall, cart } from "./hubtown.js";
 import * as ZN from "./zones.js";
+import { CLOTH, seerTower, skyLift, boardArt, runeStone, signpost2, mineHead, smelter2, lumber2, tannery2, loom2, stonecut2, cart2, tent2, lamp2 } from "./hubpaint2.js";
 
 export const HUB_W = 2720;
 // 돌아온 방향별로 설 자리 (문 바로 안쪽)
@@ -188,14 +189,14 @@ function FAC5() {
     { id: "exitL", name: `◀ 서문 · ${dirName(-1, 0)}`, x: 100, art: () => palisadeGate(0x3a7a44), exit: "L" },
     { id: "wardrobe", name: "창고", x: 330, art: () => houseArt({ w: 150, wallH: 30, roofH: 54, beams: !0, windows: [-46], seed: 2, extra: (B, L, cx, g) => { barrelB(B, cx + 62, g), barrelB(B, cx + 76, g), crateB(B, cx - 84, g), crateB(B, cx - 72, g, 10), crateB(B, cx - 80, g - 12, 9); } }), npc: ["npc_quarter", 46, !0] },
     { id: "forge", name: "대장간 · 무기", x: 590, art: () => houseArt({ w: 160, wallH: 32, roofH: 50, seed: 4, lit: 0xff7a20, doorDX: -30, windows: [40], extra: (B, L, cx, g) => { anvil(B, cx + 10, g); for (let y = g - 110; y < g - 30; y++) for (let i = 0; i < 12; i++) B.put(cx + 46 + i, y, (y + (i > 5 ? 3 : 0)) % 6 === 0 || i === 0 ? 0x5e5850 : i < 6 ? 0xa8a090 : 0x847c70); L.push([cx - 30, g - 14, 30, 0xff8030]); } }), npc: ["npc_smith", 24, !0] },
-    { id: "exitD", name: `▼ 갱도 승강기 · ${dirName(0, 1)}`, x: 870, art: mineLiftArt, exit: "D" },
+    { id: "exitD", name: `▼ 갱도 승강기 · ${dirName(0, 1)}`, x: 870, art: mineHead, exit: "D" },
     { id: "armory", name: "갑옷 공방", x: 1130, art: () => houseArt({ w: 160, wallH: 30, roofH: 52, seed: 6, beams: !0, windows: [-40, 40], extra: (B, L, cx, g) => { armorStand(B, cx + 74, g), armorStand(B, cx + 90, g); } }), npc: ["npc_armorer", -36, !0] },
-    { id: "destiny", name: "운명의 비석", x: 1370, art: waystone },
-    { id: "plaza", x: 1470, art: signpost },
-    { id: "exitU", name: `▲ 하늘 승강장 · ${dirName(0, -1)}`, x: 1680, art: skyLiftArt, exit: "U" },
-    { id: "lab", name: "마법사 탑", x: 1950, art: wizardTower, npc: ["npc_mage", 44, !0] },
+    { id: "destiny", name: "운명의 비석", x: 1370, art: runeStone },
+    { id: "plaza", x: 1470, art: signpost2 },
+    { id: "exitU", name: `▲ 하늘 승강장 · ${dirName(0, -1)}`, x: 1680, art: skyLift, exit: "U" },
+    { id: "lab", name: "마법사 탑", x: 1950, art: seerTower, npc: ["npc_mage", 44, !0] },
     { id: "dojo", name: "무술 도장", x: 2190, art: () => houseArt({ w: 190, wallH: 32, roofH: 58, seed: 8, beams: !0, windows: [-56, 56], extra: (B, L, cx, g) => { dummyPost(B, cx - 104, g), dummyPost(B, cx - 120, g); } }), npc: ["npc_trainer", 40, !0], dummy: -150 },
-    { id: "board", name: "기록 게시판", x: 2430, art: noticeBoard, npc: ["npc_scribe", -66, !1] },
+    { id: "board", name: "기록 게시판", x: 2430, art: boardArt, npc: ["npc_scribe", -66, !1] },
     { id: "exitR", name: `▶ 동문 · ${dirName(1, 0)}`, x: 2620, art: () => palisadeGate(0xb87a30), exit: "R" },
   ];
 }
@@ -245,11 +246,11 @@ export function buildHub(sc, R, gy) {
   // 큰 바위 무더기 (건물 뒤)
   for (const [k, w, h, x, sd] of [["h7_rock1", 70, 44, 150, 1], ["h7_rock2", 56, 34, 1450, 2], ["h7_rock3", 80, 50, 2105, 3], ["h7_rock4", 46, 28, 790, 4]]) place(k, boulderArt(w, h, sd), x, 0.65, 0.2);
   // 천막 (붉은 물결 장식) · 제작 작업장 · 짚더미
-  for (const [k, p, x] of [["h7_tent1", tent(80, 70), 228], ["h7_tent2", tent(70, 64, 0x2a5a8a), 1535]]) place(k, p, x, 0.8);
-  for (const [k, p, x] of [["h4_smelt", smelter(), 462], ["h4_lumber", lumbermill(), 736], ["h4_tan", tannery(), 1010], ["h4_loom", loom(), 1840], ["h4_stone", stonecutter(), 2060], ["h4_cart", cart(), 2330]]) place(k, p, x, 1.4, 0.2);
+  for (const [k, p, x] of [["h8_tent1", tent2(80, 70, CLOTH.red), 228], ["h8_tent2", tent2(70, 64, CLOTH.blue), 1535]]) place(k, p, x, 0.8);
+  for (const [k, p, x] of [["h8_smelt", smelter2(), 462], ["h8_lumber", lumber2(), 736], ["h8_tan", tannery2(), 1010], ["h8_loom", loom2(), 1840], ["h8_stone", stonecut2(), 2060], ["h8_cart", cart2(), 2330]]) place(k, p, x, 1.4, 0.2);
   for (const f of FAC5()) {
     const p = f.art();
-    const { ox, oy } = place("h7_" + f.id, p, f.x, f.exit ? 1.2 : 1);
+    const { ox, oy } = place("h8_" + f.id, p, f.x, f.exit ? 1.2 : 1);
     if (f.id === "forge") {
       sc.add.particles(ox + p.w / 2 + 52, oy + 30, "hub_smoke", { speedY: { min: -26, max: -12 }, speedX: { min: 4, max: 12 }, lifespan: 3600, frequency: 240, alpha: { start: 0.5, end: 0 }, scale: { start: 0.6, end: 2 } }).setDepth(0);
       sc.add.particles(ox + p.w / 2 - 30, gy - 16, "vx_px", { x: { min: -10, max: 10 }, speedY: { min: -70, max: -30 }, lifespan: 1100, frequency: 70, tint: [0xffd060, 0xff7020], blendMode: ADD }).setDepth(8);
@@ -267,7 +268,7 @@ export function buildHub(sc, R, gy) {
     }
   }
   const lampXs = [460, 1000, 1250, 1820, 2310];
-  for (const x of lampXs) place("h7_lantern", lanternPost(), x, 3, 0.25);
+  for (const x of lampXs) place("h8_lantern", lamp2(), x, 3, 0.25);
   // 땅선 소품 (덤불 · 들꽃 · 풀포기 · 돌 · 버섯 · 울타리) — 출구 앞은 비운다
   sc.add.image(0, gy + 1, tex("h7_props", groundProps(HUB_W, 40, [[30, 170], [835, 905], [1645, 1715], [2550, 2700]]))).setOrigin(0, 1).setDepth(2.4);
   // 전경: 흙 단면(땅선 = 캔버스 8번 줄) → 비치는 물 → 물풀 (물풀은 더 빠르게 흐른다)

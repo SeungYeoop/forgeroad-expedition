@@ -37,6 +37,7 @@ try {
   await sleep(6000);
   for (const fid of list) {
     await ev(`(() => { const sc = window.__run; for (const e of sc.enemies) e.remove?.(); sc.player.hp = sc.player.maxHp; sc.player.iframes = 1e9; const z = sc.spawnEnemy("${fid}", sc.player.cx + 70, sc.player.body.y - 6, {}); z && (z.aggro = !0); window.__tf = z; })()`);
+    if (!(await ev("!!window.__tf"))) { await sleep(1500); await ev(`(() => { const sc = window.__run; const z = sc.spawnEnemy("${fid}", sc.player.cx + 70, sc.player.body.y - 6, {}); z && (z.aggro = !0); window.__tf = z; })()`); }
     await sleep(Number(secs) * 1000);
     const st = await ev(`(() => { const z = window.__tf; return z ? JSON.stringify({ hp: Math.round(z.hp), dead: !!z.dead, x: Math.round(z.cx - window.__run.player.cx), y: Math.round(z.body.y - window.__run.player.body.y), tex: z.sprite?.texture?.key, fr: z.sprite?.frame?.name }) : "spawn fail"; })()`);
     const s = await send("Page.captureScreenshot", { format: "png" });

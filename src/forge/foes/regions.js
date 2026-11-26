@@ -9,3 +9,4 @@ import "./rlc.js";
 import "./rrh.js";
 import "./rgb.js";
 import "./raf.js";
+import "./rms.js";

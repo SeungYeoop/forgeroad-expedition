@@ -4039,6 +4039,7 @@ export const foeHurt = (e) => FOES.hurtFrame(e);
 export const foeFrame = (id, nm, k) => FOES.frameOf(id, nm, k);
 export const foeEnsure = (scene, id) => FOES.ensure(scene, id);
 // 지역 몬스터 그림 미리 만들기: 그 구역(엔진 지역 ri)이 쓰는 층 띠 몬스터 전부
+export const foePreloadIds = (scene, ids) => FOES.preloadRegion(scene, -1, ids);
 export const foePreload = (scene, ri) => {
   const L = R.Ht[ri]?.layers;
   L && FOES.preloadRegion(scene, -1, Object.values(L).flatMap((b) => [...b.enemies.map((e) => e.id), ...b.elites]));

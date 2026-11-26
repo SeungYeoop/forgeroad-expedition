@@ -21,6 +21,12 @@ try {
   await send("Runtime.enable");
   for (let i = 0; i < 160 && !(await ev("!!window.__game")); i++) await sleep(500);
   await sleep(3000);
+  // 몬스터: e_<id> 요청이면 미리 만들고 잠깐 기다린다
+  const foeIds = spec.split(",").filter((k) => /^e_|^b_/.test(k)).map((k) => k.slice(2));
+  if (foeIds.length) {
+    await ev(`(() => { const sc = window.__game.scene.getScenes(true)[0] ?? window.__game.scene.scenes[0]; window.__FG?.foePreloadIds?.(sc, ${JSON.stringify(foeIds)}); return 1; })()`);
+    for (let i = 0; i < 80; i++) { await sleep(500); const ok = await ev(`${JSON.stringify(spec.split(",").filter((k) => /^e_|^b_/.test(k)))}.every((k) => window.__game.textures.exists(k))`); if (ok) break; }
+  }
   for (const key of spec.split(",").filter(Boolean)) {
     const url2 = await ev(`(() => { const t = window.__game.textures; if (!t.exists(${JSON.stringify(key)})) return null; const src = t.get(${JSON.stringify(key)}).getSourceImage(); const c = document.createElement("canvas"), s = ${Number(scale)}; c.width = src.width * s; c.height = src.height * s; const g = c.getContext("2d"); g.imageSmoothingEnabled = false; g.fillStyle = "#8a9a7a"; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height); return c.toDataURL("image/png"); })()`);
     if (!url2) { console.log("없음", key); continue; }

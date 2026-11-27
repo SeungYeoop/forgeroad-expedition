@@ -12,25 +12,29 @@ const fadeD = (C, a) => { if (a <= 0) return; for (let i = 0; i < C.d.length; i+
 // ════ 실 타는 애벌레 ════ 통통한 연두 애벌레(마디·발·노란 점). 가지에 건 실을 타고 내려와 물고 다시 올라간다
 //   p: thread 실 길이(위로) · curl 몸 말기 · bite · wave · hurt
 const CAT = ramp(0x8ad040), CATB = ramp(0xe8e070);
+const done3 = (C, p) => (p.hurt ? flash(C) : C);
+function glint3(C, P, x, y, r = 2, c = 0xffffff) { const q = P(x, y); C.px(q[0], q[1], c); for (let k = 1; k <= r; k++) { C.px(q[0] + k, q[1], k < r ? c : 0xb8e0ff); C.px(q[0] - k, q[1], k < r ? c : 0xb8e0ff); C.px(q[0], q[1] + k, 0xb8e0ff); C.px(q[0], q[1] - k, 0xb8e0ff); } }
+const C_LEAF = mat(ramp(0x58b038), { tex: "leaf", amp: 1.2 }), C_LEAFD = mat(ramp(0x3e8a2a), { tex: "leaf", amp: 1.2 }), C_BARK = mat(ramp(0x7a5434), { tex: "wood", amp: 1.1, dir: 1.57 });
+const C_VD = mat(ramp(0x100c08));
+const C_toPx = (W, H, K, AX = W / 2) => (x, y) => [Math.round(W * K) / 2 + (x - AX) * K, H * K + (y - H) * K];
 function larvaFrame(p = {}) {
-  const W = 30, H = 44, C = board(W, H);
-  const th = p.thread ?? 14, cu = p.curl ?? 0, wv = p.wave ?? 0;
-  const top = 30 - th;
-  strokes(C, [[15, 0, 15, top + 2]], 0); // (빈 줄 자리)
-  for (let y = Math.max(0, top - 30); y <= top + 2; y++) C.px(15, y, 0xe8eef0);
-  // 마디 (위에서 아래로 매달림, 아래가 머리)
+  const W = 42, H = 62, S = sculpt(W, H, { k: 0.72, ax: 21 });
+  const th = p.thread ?? 14, cu = p.curl ?? 0, wv = p.wave ?? 0, cx = 21, top = (30 - th) * 1.4;
+  const CT = mat(ramp(0x8ad040), { tex: "skin", amp: 0.8, spec: 0.5 }), CTF = mat(rampF(0x6aa830), { tex: "skin" }), CTY = mat(ramp(0xe8e070), { spec: 0.4 });
   const pts = [];
-  for (let k = 0; k <= 5; k++) { const a = Math.PI / 2 + Math.sin(wv + k) * 0.25 + cu * k * 0.35; pts.push(k ? pol(pts[k - 1], a, 3.6) : [15, top + 3]); }
-  for (let k = 0; k <= 5; k++) C.part(ellR(pts[k][0], pts[k][1], 4 - (k === 5 ? 0.4 : 0), 3.2), CAT, { shine: 1 });
-  for (let k = 0; k < 5; k++) (C.over(pts[k][0] + 2, pts[k][1], CATB[4]), C.over(pts[k][0] - 2.5, pts[k][1] + 1, CAT[2]));
-  const hd = pts[5];
-  C.part(ellR(hd[0], hd[1] + 2.4, 3.4, 3), ramp(0x6a9a30), { shine: 1 });
-  !p.hurt && (C.over(hd[0] - 1, hd[1] + 2, 0x101008), C.over(hd[0] + 1.4, hd[1] + 2, 0x101008));
-  (p.bite ?? 0) > 0 && C.part(ellR(hd[0], hd[1] + 5, 1.6, 1 + p.bite), ramp(0x4a1a10), { sep: !1 });
-  strokes(C, [[hd[0] - 1, hd[1] + 4, hd[0] - 3, hd[1] + 6], [hd[0] + 1, hd[1] + 4, hd[0] + 3, hd[1] + 6]], 0x2a3010);
-  return done(C, p);
+  for (let k = 0; k <= 6; k++) { const a = Math.PI / 2 + Math.sin(wv + k) * 0.25 + cu * k * 0.35; pts.push(k ? pol(pts[k - 1], a, 4.6) : [cx, top + 4]); }
+  for (let k = 0; k <= 6; k++) { const w = 5.4 - (k === 6 ? 0.6 : 0) - (k === 0 ? 0.8 : 0); S.add(ellR(pts[k][0], pts[k][1], w, 4.4), k % 2 ? CT : CTF, { z: 1 + k * 0.1, h: 3.6 }); k < 6 && S.add(ellR(pts[k][0] + 2.6, pts[k][1], 1.2, 1.2), CTY, { z: 1.2 + k * 0.1, h: 0.6 }); k < 6 && S.add(capF([pts[k][0] - 4.4, pts[k][1] + 1], [pts[k][0] - 6, pts[k][1] + 2.4], 0.8, 0.5), CTF, { z: 0.8, h: 0.4 }); }
+  const hd = pts[6];
+  S.add(ellR(hd[0], hd[1] + 3.4, 4.6, 4), mat(ramp(0x6a9a30), { tex: "skin", spec: 0.5 }), { z: 2, h: 3 });
+  (p.bite ?? 0) > 0 && S.add(ellR(hd[0], hd[1] + 7, 2.2, 1.4 + p.bite), mat(ramp(0x4a1a10)), { z: 2.2, h: 0.3 });
+  S.add(U(capF([hd[0] - 1.4, hd[1] + 5.6], [hd[0] - 4, hd[1] + 8.6], 0.6, 0.3), capF([hd[0] + 1.4, hd[1] + 5.6], [hd[0] + 4, hd[1] + 8.6], 0.6, 0.3)), mat(ramp(0x2a3010)), { z: 2.3, h: 0.3 });
+  !p.hurt && S.decal(hd[0] - 1.4, hd[1] + 2.8, 0x101008).decal(hd[0] + 1.8, hd[1] + 2.8, 0x101008);
+  const C = S.render({ rim: !0 });
+  const Q = C_toPx(W, H, 0.72, 21);
+  for (let y = 0; y <= top + 3; y += 0.8) { const q = Q(cx, y); C.px(q[0], q[1], 0xe8eef0); }
+  return done3(C, p);
 }
-export const pxLarva = spec(30, 44, 12, 20,
+export const pxLarva = spec(30, 45, 12, 20,
   { idle: [4, 6], move: [4, 8], wind: [3, 10, !1], atk: [3, 16, !1], rec: [3, 10, !1], hurt: [2, 10, !1], drop: [3, 12, !1], climb: [4, 10] },
   (nm, f, n, t) => {
     const ph = (f / n) * T2;
@@ -47,30 +51,32 @@ export const pxLarva = spec(30, 44, 12, 20,
 //   p: legs · hide 투명(0~1) · tongue · eye 눈 돌림 · hurt
 const CHA = ramp(0x6ac048), CHAB = ramp(0xd8e890);
 function chameleonFrame(p = {}) {
-  const W = 66, H = 30, G = H - 1, C = board(W, H);
-  const lg = { fn: [0, 0], ff: [0, 0], bn: [0, 0], bf: [0, 0], ...(p.legs ?? {}) }, tg = p.tongue ?? 0;
-  const leg = (sh, o, far) => { const ft = [sh[0] + o[0], G - o[1]], kn = [sh[0] + 1, sh[1] + 3]; C.part(U(capF(sh, kn, 1.6, 1.3), capF(kn, ft, 1.3, 1)), far ? rampF(0x6ac048) : CHA, { sep: !1, shine: !far }); C.part(ellR(ft[0], ft[1], 1.8, 1), far ? rampF(0x6ac048) : CHA, { sep: !1 }); };
-  leg([24, 20], lg.ff, !0), leg([12, 20], lg.bf, !0);
+  const W = 92, H = 42, G = H - 1, S = sculpt(W, H, { k: 0.72, ax: 46 });
+  const lg = { fn: [0, 0], ff: [0, 0], bn: [0, 0], bf: [0, 0], ...(p.legs ?? {}) }, tg = p.tongue ?? 0, ey = p.eye ?? 0, cx = 36;
+  const CH = mat(ramp(0x6ac048), { tex: "scale", amp: 1, spec: 0.4 }), CHF = mat(rampF(0x52a038), { tex: "scale" }), CHB = mat(ramp(0xd8e890), { tex: "scale", amp: 0.6 });
+  const leg = (sh, o, far, front) => { const kn = [sh[0] + (front ? 2 : -2), sh[1] + 4], ft = [sh[0] + o[0] + (front ? 3 : -3), G - 1 - o[1]]; S.add(U(capF(sh, kn, 2, 1.6), capF(kn, ft, 1.6, 1.2)), far ? CHF : CH, { z: far ? -3 : 5, h: 1.2 }); S.add(U(capF(ft, [ft[0] + 2, ft[1]], 0.8), capF(ft, [ft[0] - 2, ft[1]], 0.8)), far ? CHF : CH, { z: far ? -2.9 : 5.1, h: 0.4 }); };
+  leg([cx + 10, 26], lg.ff, 1, 1), leg([cx - 10, 26], lg.bf, 1, 0);
   // 말린 꼬리
-  const t0 = [7, 17], pts = [t0];
-  for (let k = 1; k <= 7; k++) pts.push(pol(pts[k - 1], Math.PI * 0.9 + k * 0.62, 3.4 - k * 0.25));
-  C.part(U(...pts.slice(1).map((q, k) => capF(pts[k], q, 2 - k * 0.2, 1.8 - k * 0.2))), CHA, { shine: 1 });
-  // 몸 (옆으로 납작, 등 볏)
-  const body = ellR(18, 15, 11, 6.4, -0.05);
-  C.part(body, CHA, { shine: 1 });
-  C.part((x, y) => body(x, y) && y > 17.5, CHAB, { sep: !1 });
-  for (let k = 0; k < 6; k++) C.part(polyF([[10 + k * 3.4, 9.5], [12.5 + k * 3.4, 9.5], [11.2 + k * 3.4, 7]]), LEAFD, { sep: !1 });
-  strokes(C, [[12, 13, 26, 13], [11, 16, 27, 16]], CHA[3]);
-  // 머리 + 투구 볏 + 돌출 눈
-  C.part(polyF([[27, 11], [33, 8], [36, 13], [34, 18], [27, 19]]), CHA, { shine: 1, lv: 0.05 });
-  C.part(ellR(31, 12.5, 2.6, 2.6), CHA, { shine: 1, sep: !1 });
-  !p.hurt && (C.over(31 + (p.eye ?? 0), 12.5, 0x101008), C.over(30.5, 11.6, 0xffffff));
-  strokes(C, [[30, 17, 35.5, 15]], 0x1a3010);
-  tg > 0 && (C.part(capF([35, 15], [35 + tg * 28, 14], 1, 0.8), ramp(0xe86a8a), { sep: !1 }), C.part(ellR(35 + tg * 28 + 1, 14, 2, 1.8), ramp(0xe86a8a), { sep: !1, shine: 1 }));
-  leg([22, 21], lg.fn, !1), leg([10, 21], lg.bn, !1);
-  C.selout();
+  const tl = []; let q = [cx - 15, 24], a = Math.PI + 0.3;
+  for (let k = 0; k < 10; k++) { const n2 = pol(q, a, 3), w = 3.4 - k * 0.28; tl.push(capF(q, n2, w, w - 0.25)); q = n2; a += k < 3 ? 0.1 : 0.62; }
+  S.add(U(...tl), CH, { z: 0.5, h: 2 });
+  // 몸 (옆으로 납작 · 등 볏)
+  S.add(U(ellR(cx, 20, 16, 8.4)), CH, { z: 1, h: 7 });
+  S.add(capF([cx - 12, 25], [cx + 12, 25], 2.4), CHB, { on: 1, lift: 0.3, h: 0.4 });
+  for (let k = 0; k < 8; k++) S.add(polyF([[cx - 13 + k * 3.6, 13 - Math.sin((k / 7) * Math.PI) * 1.4], [cx - 12 + k * 3.6, 9.6 - Math.sin((k / 7) * Math.PI) * 2], [cx - 11 + k * 3.6, 13 - Math.sin((k / 7) * Math.PI) * 1.4]]), CHF, { lift: 0.6, h: 0.8, prof: "sharp" });
+  for (const [x, y] of [[-8, 18], [0, 16], [7, 20]]) S.add(ellR(cx + x, y, 2.4, 1.4), mat(ramp(0xb8d860), { tex: "scale" }), { on: 1, lift: 0.3, h: 0.3 });
+  // 머리 (투구 볏 · 돌출 눈)
+  const hx = cx + 20, hy = 19;
+  S.add(U(ellR(hx, hy, 7, 6), polyF([[hx - 6, hy - 3], [hx - 2, hy - 11], [hx + 3, hy - 5]]), capF([hx + 2, hy + 1], [hx + 9, hy + 2], 3.6, 2)), CH, { z: 2, h: 5 });
+  S.add(capF([hx + 1, hy + 3.4], [hx + 9, hy + 3], 0.4), mat(ramp(0x2a5020)), { on: 1, lift: 0.3, h: 0.2 });
+  S.add(ellR(hx + 2, hy - 1.4, 3.4, 3.4), CHF, { z: 2.6, h: 2.4 });
+  !p.hurt && S.decal(hx + 2.4 + Math.cos(ey * 2) * 1.2, hy - 1.4 + Math.sin(ey * 2) * 1.2, 0x101010);
+  // 혀
+  if (tg > 0) { const t0 = [hx + 9, hy + 2], t1 = [hx + 9 + tg * 26, hy + 2 - tg * 2]; S.add(capF(t0, t1, 0.9, 0.9), mat(ramp(0xe86a8a), { tex: "skin", spec: 0.6 }), { z: 2.4, h: 0.6 }); S.add(ellR(t1[0], t1[1], 2.4, 2.4), mat(ramp(0xe86a8a), { tex: "skin", spec: 0.7 }), { z: 2.5, h: 1.6 }); }
+  leg([cx + 12, 27], lg.fn, 0, 1), leg([cx - 8, 27], lg.bn, 0, 0);
+  const C = S.render({ rim: !0 });
   fadeD(C, (p.hide ?? 0) * 0.85);
-  return p.hurt ? flash(C) : C;
+  return done3(C, p);
 }
 export const pxChameleon = spec(66, 30, 22, 12,
   { hide: [2, 4], idle: [4, 4], move: [6, 8], wind: [3, 10, !1], atk: [4, 16, !1], rec: [3, 10, !1], hurt: [2, 10, !1] },
@@ -89,23 +95,25 @@ export const pxChameleon = spec(66, 30, 22, 12,
 //   p: curl(0~1) · roll · bristle 가시 세움 · legs · hurt
 const HOG = ramp(0x8a6a4a), QUILL = ramp(0x5a4030), HOGF = ramp(0xd8b890);
 function hedgehogFrame(p = {}) {
-  const W = 40, H = 28, G = H - 1, C = board(W, H);
-  const cu = p.curl ?? 0, br = p.bristle ?? 0, lp = p.legs ?? 0;
-  const cx = 19, cy = G - 8 - cu * 2;
-  // 가시 (뒤부터 방사형)
-  const n = 14;
-  for (let k = 0; k < n; k++) { const a = Math.PI + (k / (n - 1)) * Math.PI * (1 + cu) - cu * 0.5, r0 = 6 + cu, r1 = 11 + br * 3 + cu * 2; C.part(capF(pol([cx, cy], a, r0), pol([cx, cy], a, r1), 1.3, 0.3), QUILL, { sep: !1, shine: 1 }); C.over(...pol([cx, cy], a, r1 - 1), 0xf0e0c0); }
-  C.part(ellR(cx, cy, 10 + cu, 7 + cu * 2), HOG, { shine: 1 });
-  if (cu < 0.6) {
-    C.part(ellR(cx + 2, cy + 3, 6, 3), HOGF, { sep: !1 });
-    C.part(polyF([[cx + 6, cy - 2], [cx + 15, cy + 2], [cx + 7, cy + 5]]), HOGF, { shine: 1 });
-    C.over(cx + 15, cy + 2, 0x201010);
-    !p.hurt && (C.over(cx + 8, cy, 0x101008), C.over(cx + 8.5, cy - 0.5, 0xffffff));
-    for (const [x, far] of [[cx - 4, 1], [cx + 4, 0]]) C.part(capF([x, cy + 5], [x + Math.sin(lp + far * 3) * 2, G], 1.2, 1), far ? rampF(0xd8b890) : HOGF, { sep: !1 });
-  } else strokes(C, [[cx - 3, cy + 1, cx + 3, cy + 1]], HOG[2]);
-  return done(C, p);
+  const W = 58, H = 40, G = H - 1, S = sculpt(W, H, { k: 0.72, ax: 29 });
+  const cu = p.curl ?? 0, rl = p.roll ?? 0, br = p.bristle ?? 0, lp = p.legs ?? 0, cx = 28;
+  const QL = mat(ramp(0x5a4030), { tex: "fur", amp: 1.4, dir: 0.6 }), QLT = mat(ramp(0xd8c8a8), { spec: 0.4 }), HG = mat(ramp(0xd8b890), { tex: "fur", amp: 0.9 }), HGD = mat(ramp(0x8a6a4a), { tex: "fur", amp: 1 });
+  const c = cu > 0.5 ? [cx, G - 12] : [cx - 3, G - 10], r = cu > 0.5 ? 12 : 13;
+  if (cu <= 0.5) for (let k = 0; k < 4; k++) { const x = cx - 8 + k * 6, s = Math.sin(lp + k * 1.7); S.add(capF([x, G - 5], [x + s * 2, G - 0.6], 1.4, 1), HGD, { z: k % 2 ? -1 : 3, h: 0.8 }); }
+  // 가시 (뒤)
+  const sp = (front) => { for (let k = 0; k < 20; k++) { const a = (cu > 0.5 ? -Math.PI : -Math.PI * 0.98) + (k / 19) * (cu > 0.5 ? T2 : Math.PI * 1.05) + rl, s = Math.sin(a * 2.3 + k); if (front ? s < 0 : s >= 0) continue; if (cu <= 0.5 && Math.sin(a) > 0.3) continue; const r0 = pol(c, a, r - 3), tip = pol(c, a + 0.25, r + 4 + br * 4 + (k % 3)); S.add(capF(r0, tip, 1.2, 0.3), QL, { z: front ? 3 : -0.5, h: 0.8 }); front && S.add(ellR(tip[0], tip[1], 0.6, 0.6), QLT, { z: 3.1, h: 0.3 }); } };
+  sp(0);
+  S.add(cu > 0.5 ? ellR(c[0], c[1], r, r) : minus(ellR(c[0], c[1], r, r * 0.8), (x, y) => y > G - 3), QL, { z: 1, h: 9 });
+  if (cu <= 0.5) {
+    S.add(U(ellR(cx + 10, G - 7, 6, 5), polyF([[cx + 13, G - 9], [cx + 20, G - 6], [cx + 14, G - 4]])), HG, { z: 2, h: 4 });
+    S.add(ellR(cx + 20, G - 6, 1.2, 1), C_VD, { z: 2.4, h: 0.4 });
+    S.add(ellR(cx + 9, G - 11, 1.8, 1.6), HGD, { z: 2.2, h: 1 });
+    !p.hurt && S.decal(cx + 14, G - 9, 0x101010);
+  } else S.add(ellR(c[0] + Math.cos(rl) * 3, c[1] + Math.sin(rl) * 3, 4, 3.4), HG, { z: 1.4, h: 2 });
+  sp(1);
+  return done3(S.render({ rim: !0 }), p);
 }
-export const pxHedgehog = spec(40, 28, 18, 14,
+export const pxHedgehog = spec(42, 29, 18, 14,
   { idle: [4, 6], move: [6, 14], wind: [3, 10, !1], atk: [3, 14, !1], rec: [3, 10, !1], hurt: [2, 10, !1], roll: [4, 20] },
   (nm, f, n, t) => {
     const ph = (f / n) * T2;
@@ -122,21 +130,26 @@ export const pxHedgehog = spec(40, 28, 18, 14,
 //   p: flap · loot 부리에 문 반짝이 · tilt · hurt
 const MAG = ramp(0x202430), MAGW = ramp(0xf0f0ec), MAGB = ramp(0x3a5aa8);
 function magpieFrame(p = {}) {
-  const W = 50, H = 34, C = board(W, H);
-  const fl = p.flap ?? 0, R = rot([24, 16], p.tilt ?? 0), P = (x, y) => R([x, y]);
-  const wing = (far) => { const root = P(24, 14), a = -2.1 - fl * 0.8 + (far ? -0.3 : 0), tip = pol(root, a, 17), m = pol(root, a + 0.6, 12); C.part(polyF([root, tip, m, P(28, 18)]), far ? rampF(0x202430) : MAG, { shine: !far }); !far && C.part(capF(lerp(root, m, 0.3), lerp(root, m, 0.8), 1.4, 1), MAGW, { sep: !1 }); };
-  wing(!0);
-  C.part(U(capF(P(14, 17), P(1, 14), 2.4, 1.4)), MAGB, { shine: 1 }); // 긴 꼬리
-  C.part(ellR(...P(21, 17), 8, 4.6), MAG, { shine: 1 });
-  C.part(ellR(...P(23, 19), 5, 2.6), MAGW, { sep: !1 });
-  C.part(ellR(...P(30, 12), 4, 3.6), MAG, { shine: 1 });
-  C.part(polyF([P(33, 11), P(38, 12.5), P(33, 14)]), ramp(0x2a2a30), { shine: 1 });
-  !p.hurt && (C.over(...P(31.5, 11), 0x9a6a20), C.over(...P(32, 10.5), 0xffffff));
-  p.loot && (C.part(ellR(...P(38, 13.4), 1.8, 1.6), ramp(0xffd040), { sep: !1, shine: 1 }), C.over(...P(38.4, 12.6), 0xffffff));
-  wing(!1);
-  return done(C, p);
+  const W = 72, H = 50, S = sculpt(W, H, { k: 0.72, ax: 36 });
+  const fl = p.flap ?? 0, tl = p.tilt ?? 0, piv = [36, 24];
+  const P = (x, y) => { const dx = x - piv[0], dy = y - piv[1], c = Math.cos(tl), s = Math.sin(tl); return [piv[0] + dx * c - dy * s, piv[1] + dx * s + dy * c]; };
+  const BK = mat(ramp(0x202430), { tex: "feather", amp: 0.9, dir: 0.2, spec: 0.6 }), BKF = mat(rampF(0x181a24), { tex: "feather", dir: 0.2 }), WH = mat(ramp(0xf0f0ec), { tex: "feather", amp: 0.6 }), BL = mat(ramp(0x3a5aa8), { tex: "feather", amp: 0.8, spec: 0.8 });
+  const wing = (far) => { const r = P(34, 20), a = -2.1 - fl * 0.8 + (far ? -0.25 : 0), tip = pol(r, a, 25), m = pol(r, a + 0.5, 17); S.add(polyF([r, m, lerp(m, tip, 0.5), tip, pol(r, a - 0.2, 13), P(30, 26)]), far ? BKF : BK, { z: far ? -2 : 6, h: 1.6 }); !far && S.add(capF(lerp(r, m, 0.3), lerp(r, tip, 0.55), 1.6, 1), WH, { on: 1, lift: 0.3, h: 0.3 }); !far && S.add(capF(lerp(r, tip, 0.6), tip, 1.2, 0.4), BL, { on: 1, lift: 0.3, h: 0.3 }); };
+  wing(1);
+  S.add(polyF([P(24, 23), P(4, 20), P(3, 25), P(24, 27)]), BL, { z: 0, h: 1.4 });
+  S.carve(capF(P(22, 25), P(5, 22.6), 0.3), 0.5);
+  S.add(ellR(...P(34, 24), 12, 6.4, tl), BK, { z: 1, h: 5 });
+  S.add(ellR(...P(36, 27), 8, 3.4, tl), WH, { on: 1, lift: 0.3, h: 0.6 });
+  S.add(ellR(...P(46, 19), 5.6, 5), BK, { z: 2, h: 4 });
+  S.add(polyF([P(50, 17.6), P(57, 19), P(50, 21)]), mat(ramp(0x1a1a20), { spec: 0.8 }), { z: 2.4, h: 1, prof: "sharp" });
+  !p.hurt && S.decal(...P(48, 17.6), 0xe8e8e8);
+  if (p.loot) S.add(ellR(...P(57, 20.4), 2.2, 2.2), mat(ramp(0xf0c040), { spec: 1 }), { z: 2.6, h: 1.4 });
+  wing(0);
+  const C = S.render({ rim: !0 });
+  p.loot && glint3(C, C_toPx(W, H, 0.72, 36), ...P(57, 19), 2, 0xfff0a0);
+  return done3(C, p);
 }
-export const pxMagpie = spec(50, 34, 18, 12,
+export const pxMagpie = spec(52, 36, 18, 12,
   { idle: [4, 14], move: [4, 16], wind: [3, 10, !1], atk: [3, 16, !1], rec: [3, 10, !1], hurt: [2, 10, !1], flee: [4, 18] },
   (nm, f, n, t) => {
     const fl = [1, 0.3, -1, 0.3][f % 4];
@@ -152,34 +165,23 @@ export const pxMagpie = spec(50, 34, 18, 12,
 //   p: flap(0 접음 ~ 1 활짝) · dust · hurt
 const BWG = ramp(0x8a5ad8), BWG2 = ramp(0x40c8c0);
 function butterflyFrame(p = {}) {
-  const W = 46, H = 40, C = board(W, H);
-  const fl = p.flap ?? 1, sx = 0.25 + 0.75 * fl;
-  // 앞에서 본 나비: 몸통이 가운데, 날개 넷이 양옆으로 (날갯짓 = 가로 폭)
-  const wing = (side, up, far) => {
-    const cx = 23 + side * (up ? 9 : 7) * sx, cy = up ? 14 : 25, rx = (up ? 9.5 : 7) * sx + 1, ry = up ? 9 : 6.5;
-    const f = ellR(cx, cy, rx, ry, side * (up ? -0.35 : 0.4));
-    C.part(f, far ? rampF(up ? 0x8a5ad8 : 0x40c8c0) : up ? BWG : BWG2, { shine: !far, flat: 0.5 });
-    if (up && sx > 0.45) {
-      const ex = cx + side * rx * 0.15;
-      C.part(ellR(ex, cy - 1, 3.4 * sx + 0.6, 3.4), ramp(0xf8e070), { sep: !1 });
-      C.part(ellR(ex, cy - 1, 1.8 * sx + 0.3, 1.8), ramp(0x202030), { sep: !1 });
-      C.over(ex - 0.5, cy - 1.8, 0xffffff);
-    }
-    strokes(C, [[23 + side * 2, cy, cx + side * rx * 0.7, cy + (up ? -3 : 3)]], (up ? BWG : BWG2)[2]);
-    up && C.over(cx + side * rx * 0.75, cy - ry * 0.5, 0xffffff);
-  };
-  wing(-1, !1, !0), wing(1, !1, !0);
-  wing(-1, !0, !1), wing(1, !0, !1);
-  C.part(capF([23, 11], [23, 30], 2.2, 1.6), ramp(0x3a2a4a), { shine: 1 });
-  for (let k = 0; k < 4; k++) C.over(23, 18 + k * 3, 0x5a4a6a);
-  C.part(ellR(23, 9, 2.6, 2.4), ramp(0x3a2a4a), { shine: 1 });
-  strokes(C, [[24, 7, 28, 1], [22, 7, 18, 1]], ramp(0x3a2a4a)[3]);
-  C.over(28, 1, 0xf0e0ff).over(18, 1, 0xf0e0ff);
-  !p.hurt && (C.over(22, 9, 0xf0e0ff), C.over(24, 9, 0xf0e0ff));
-  (p.dust ?? 0) > 0 && dots(C, [[14, 34], [20, 37], [30, 36], [36, 32], [10, 30], [26, 38]], 0xf0d8ff);
-  return done(C, p);
+  const W = 66, H = 58, S = sculpt(W, H, { k: 0.72, ax: 33 });
+  const fl = p.flap ?? 0, cx = 33, cy = 29, sq = 0.3 + fl * 0.7;
+  const W1 = mat(ramp(0x8a5ad8, { hi: 0.5 }), { tex: "feather", amp: 0.5, spec: 0.4 }), W2 = mat(ramp(0x40c8c0), { tex: "feather", amp: 0.5, spec: 0.4 }), BD = mat(ramp(0x2a2234), { tex: "fur", amp: 1.2, dir: 1.57 });
+  for (const d of [-1, 1]) {
+    const X = (x) => cx + (x - cx) * sq;
+    S.add(U(ellR(X(cx + d * 15), cy - 9, 14 * sq + 1, 11, d * 0.3)), d < 0 ? mat(rampF(0x6a44b0), { tex: "feather" }) : W1, { z: d < 0 ? -1 : 2, h: 1.4 });
+    S.add(U(ellR(X(cx + d * 11), cy + 8, 9 * sq + 1, 8.6, -d * 0.4)), d < 0 ? mat(rampF(0x30a8a0), { tex: "feather" }) : W2, { z: d < 0 ? -1.2 : 1.8, h: 1.2 });
+    if (sq > 0.5) { const ec = [X(cx + d * 16), cy - 9]; S.add(ellR(ec[0], ec[1], 5 * sq, 4.4), mat(ramp(0xf8d860), { spec: 0.4 }), { on: 1, lift: 0.3, h: 0.3 }); S.add(ellR(ec[0], ec[1], 3 * sq, 2.8), mat(ramp(0x1a1030)), { on: 1, lift: 0.4, h: 0.2 }); S.add(ellR(ec[0] - sq, ec[1] - 1, 0.9 * sq, 0.8), mat(ramp(0xffffff)), { on: 1, lift: 0.5, h: 0.2 }); }
+  }
+  S.add(U(ellR(cx, cy, 2.6, 11), ellR(cx, cy - 12, 2.8, 2.6)), BD, { z: 3, h: 2.4 });
+  for (let k = 0; k < 4; k++) S.carve(capF([cx - 2, cy + k * 2.6], [cx + 2, cy + k * 2.6], 0.3), 0.5);
+  for (const d of [-1, 1]) S.add(U(capF([cx + d, cy - 14], [cx + d * 6, cy - 22], 0.5, 0.3), ellR(cx + d * 6.4, cy - 22.6, 1, 1)), BD, { z: 3.2, h: 0.3 });
+  const C = S.render({ rim: !0 });
+  if (p.dust) { const Q = C_toPx(W, H, 0.72, 33); for (let k = 0; k < 14; k++) { const q = Q(cx + Math.cos(k * 1.3) * (14 + (k % 4) * 5), cy + 10 + Math.sin(k * 2.1) * 8 + k); C.px(q[0], q[1], k % 2 ? 0xe0c8ff : 0xa8f0e8); } }
+  return done3(C, p);
 }
-export const pxButterfly = spec(46, 40, 20, 18,
+export const pxButterfly = spec(48, 42, 20, 18,
   { idle: [4, 10], move: [4, 12], wind: [3, 10, !1], atk: [4, 12, !1], rec: [3, 10, !1], hurt: [2, 10, !1] },
   (nm, f, n, t) => {
     const fl = [1, 0.5, 0, 0.5][f % 4];
@@ -194,22 +196,23 @@ export const pxButterfly = spec(46, 40, 20, 18,
 //   p: hop 위상 · peck · hurt
 const CHK = ramp(0xf8d050), CHKD = ramp(0xe8a038);
 function chicksFrame(p = {}) {
-  const W = 46, H = 24, G = H - 1, C = board(W, H);
+  const W = 66, H = 34, G = H - 1, S = sculpt(W, H, { k: 0.72, ax: 33 });
   const hp = p.hop ?? 0, pk = p.peck ?? 0;
-  const chick = (x, k, far) => {
-    const y = G - 5 - Math.abs(Math.sin(hp + k * 2)) * 3;
-    C.part(ellR(x, y, 5, 4.6), far ? rampF(0xf8d050) : CHK, { shine: !far });
-    C.part(ellR(x - 3, y - 1, 2.4, 1.8, 0.6), far ? rampF(0xe8a038) : CHKD, { sep: !1 });
-    C.part(ellR(x + 2, y - 5, 3.4, 3), far ? rampF(0xf8d050) : CHK, { shine: !far });
-    C.part(polyF([[x + 4.5, y - 5.5], [x + 7.5 + pk * 1.5, y - 4.6 + pk], [x + 4.5, y - 3.6]]), ramp(0xf08030), { sep: !1 });
-    !p.hurt && C.over(x + 3, y - 6, 0x101008);
-    C.over(x + 1, y - 8, CHK[5]).over(x + 2, y - 8.5, CHK[5]);
-    C.part(U(capF([x - 1, y + 3], [x - 1, G], 0.6), capF([x + 1, y + 3], [x + 1.5, G], 0.6)), ramp(0xf08030), { sep: !1 });
-  };
-  chick(11, 0, 1), chick(33, 2, 1), chick(22, 1, 0);
-  return done(C, p);
+  const CK = mat(ramp(0xd8b050), { tex: "fur", amp: 1.3, dir: 1.2 }), CKD = mat(ramp(0xa87a38), { tex: "fur", amp: 1.2 }), BK = mat(ramp(0xe8a038), { spec: 0.5 });
+  [[-16, 1], [14, 1], [0, 0]].forEach(([dx, far], k) => {
+    const c = [33 + dx, G - 8 - Math.max(0, Math.sin(hp + k * 2)) * 4 - far * 2], z = far ? -1 + k : 3, pkk = k === 2 ? pk : 0;
+    for (const d of [-1.6, 1.6]) S.add(capF([c[0] + d, c[1] + 5], [c[0] + d + 1, G - 0.6 - far * 2], 0.6, 0.4), BK, { z: z - 0.2, h: 0.3 });
+    S.add(ellR(c[0], c[1], 7, 6.4), CK, { z, h: 5 });
+    S.add(polyF([[c[0] - 5, c[1] - 1], [c[0] - 10, c[1] - 4], [c[0] - 7, c[1] + 2]]), CKD, { z: z + 0.1, h: 1 });
+    S.add(ellR(c[0] - 1, c[1] + 1, 3.6, 3), CKD, { z: z + 0.2, h: 1.4 });
+    for (let k2 = 0; k2 < 3; k2++) S.add(capF([c[0] - 1 + k2 * 1.6, c[1] - 6], [c[0] - 2 + k2 * 2, c[1] - 9], 0.5, 0.2), CK, { z: z + 0.1, h: 0.3 });
+    const bk = [c[0] + 6 + pkk * 2, c[1] - 1 + pkk * 3];
+    S.add(U(polyF([[bk[0] - 1, bk[1] - 2], [bk[0] + 4, bk[1]], [bk[0] - 1, bk[1] + 1.6]])), BK, { z: z + 0.3, h: 0.6, prof: "sharp" });
+    !p.hurt && S.decal(c[0] + 3, c[1] - 2, 0x101010);
+  });
+  return done3(S.render({ rim: !0 }), p);
 }
-export const pxChicks = spec(46, 24, 26, 12,
+export const pxChicks = spec(48, 24, 26, 12,
   { idle: [4, 8], move: [4, 12], wind: [3, 10, !1], atk: [3, 16, !1], rec: [3, 10, !1], hurt: [2, 10, !1] },
   (nm, f, n, t) => {
     const ph = (f / n) * T2;
@@ -224,23 +227,25 @@ export const pxChicks = spec(46, 24, 26, 12,
 //   p: wob · drip · throw 팔 · hurt
 const AMB = rampGlow(0xf0a028), AMBD = ramp(0xc87818);
 function amberFrame(p = {}) {
-  const W = 36, H = 42, C = board(W, H);
-  const wb = p.wob ?? 0, th = p.throw ?? 0;
-  const body = U(ellR(18, 22 + wb, 10, 12 - wb), polyF([[13, 12], [18, 4 - wb * 2], [23, 12]]));
-  C.part(body, AMB, { shine: 1 });
-  C.part((x, y) => body(x, y) && (x - 13) ** 2 + (y - 15) ** 2 < 14, ramp(0xfff0c0), { sep: !1 });
-  // 갇힌 잎과 벌레
-  C.part(ellR(20, 26, 3, 1.6, 0.6), ramp(0x6a7a30), { sep: !1 });
-  C.part(ellR(15, 30, 1.6, 1), ramp(0x3a2a1a), { sep: !1 });
-  !p.hurt && (C.over(15, 19, 0x4a2a08), C.over(21, 19, 0x4a2a08), C.over(15, 18, 0xffffff));
-  // 팔 (수액 덩이)
-  const s = [26, 22], h = th > 0.5 ? pol(s, -2.2 + (th - 0.5) * 3.6, 7) : pol(s, 1 - th * 2, 6);
-  C.part(capF(s, h, 2.4, 2), AMB, { shine: 1 });
-  th > 0 && th < 0.9 && C.part(ellR(h[0], h[1], 3.4, 3), AMBD, { sep: !1, shine: 1 });
-  dots(C, [[12, 35 + (p.drip ?? 0) * 3], [24, 36]], 0xf0a028);
-  return done(C, p);
+  const W = 52, H = 60, S = sculpt(W, H, { k: 0.72, ax: 26 });
+  const wb = p.wob ?? 0, dr = p.drip ?? 0, tw = p.throw ?? 0, cx = 26;
+  const AM = mat(ramp(0xf0a028, { hi: 0.7 }), { tex: "glass", amp: 1.1, spec: 1 }), AMD = mat(ramp(0xc87818), { tex: "glass", amp: 1 });
+  S.add(U(ellR(cx, 30, 13 + wb, 15 - wb), ellR(cx - 2, 16, 8, 7)), AM, { z: 1, h: 11 });
+  for (let k = 0; k < 3; k++) S.add(capF([cx - 8 + k * 7, 42 - k], [cx - 8 + k * 7 + Math.sin(k + wb) * 1, 48 + dr * 4 + k * 2], 1.6 - k * 0.2, 0.8), AMD, { z: 0.8, h: 1 });
+  // 갇힌 잎 · 벌레
+  S.add(polyF([[cx - 6, 30], [cx + 2, 26], [cx + 4, 33], [cx - 3, 36]]), mat(ramp(0x6a8a30), { tex: "leaf" }), { on: 1, lift: -1.2, h: 0.3 });
+  S.add(U(ellR(cx + 5, 37, 2.4, 1.4), ellR(cx + 7.6, 37, 1.4, 1.2)), mat(ramp(0x3a2010)), { on: 1, lift: -1.2, h: 0.3 });
+  S.add(ellR(cx - 6, 22, 3, 5), mat(ramp(0xfff0c0), { spec: 1 }), { on: 1, lift: 0.4, h: 0.3 });
+  for (const x of [cx + 1, cx + 6]) S.add(ellR(x, 16, 1.4, 1.8), mat(ramp(0x4a2008)), { z: 1.6, lift: 0.1, h: 0.2 });
+  // 팔 (던지기)
+  const sh = [cx + 10, 26], hd = tw > 0 ? pol(sh, -2 + tw * 1.8, 12) : [cx + 16, 36];
+  S.add(capF(sh, hd, 3, 2.6), AM, { z: 4, h: 2 });
+  tw > 0 && tw < 1.3 && S.add(ellR(hd[0], hd[1], 3.6, 3.4), AMD, { z: 4.4, h: 2.4 });
+  const C = S.render({ rim: !0 });
+  glint3(C, C_toPx(W, H, 0.72, 26), cx - 6, 20, 1, 0xfff8d8);
+  return done3(C, p);
 }
-export const pxAmber = spec(36, 42, 16, 22,
+export const pxAmber = spec(37, 43, 16, 22,
   { idle: [6, 8], move: [6, 10], wind: [3, 10, !1], atk: [3, 14, !1], rec: [3, 10, !1], hurt: [2, 10, !1] },
   (nm, f, n, t) => {
     const ph = (f / n) * T2;
@@ -255,29 +260,36 @@ export const pxAmber = spec(36, 42, 16, 22,
 //   p: bob · legs · draw 시위 당김(0~1) · hurt
 const FSK = ramp(0xf0d0b0), CLOAK = ramp(0x4a9a3a), BOWW = ramp(0x8a5a30);
 function archerFrame(p = {}) {
-  const W = 40, H = 40, G = H - 1, C = board(W, H);
-  const b = p.bob ?? 0, g = p.legs ?? { n: [0, 0], f: [0, 0] }, dr = p.draw ?? 0;
-  glass(C, ellR(10, 16 + b, 7, 3, -0.6), 0.1, !0, 0xe8ffe0); // 투명 날개
-  for (const [o, far] of [[g.f, 1], [g.n, 0]]) C.part(capF([17 + (far ? -1.5 : 1.5), 28 + b], [17 + (far ? -1.5 : 1.5) + o[0], G - o[1]], 1.3, 1.1), far ? rampF(0x6a4a30) : ramp(0x6a4a30), { sep: !1 });
-  // 잎 망토 몸
-  C.part(polyF([[12, 16 + b], [22, 16 + b], [24, 30 + b], [20, 28 + b], [17, 31 + b], [14, 28 + b], [10, 30 + b]]), CLOAK, { shine: 1 });
-  strokes(C, [[17, 17 + b, 17, 29 + b], [14, 20 + b, 12, 27 + b], [20, 20 + b, 22, 27 + b]], CLOAK[2]);
-  // 머리 + 잎 두건 + 뾰족 귀
-  C.part(ellR(19, 11 + b, 4.2, 4), FSK, { shine: 1 });
-  C.part(minus(ellR(18, 9 + b, 5, 4.4), (x, y) => x > 19.5 && y > 8.5 + b), CLOAK, { shine: 1 });
-  C.part(polyF([[15, 11 + b], [11, 8 + b], [15.5, 9.5 + b]]), FSK, { sep: !1 });
-  !p.hurt && (C.over(21, 11 + b, 0x2a5a20), C.over(21.5, 10.4 + b, 0xffffff));
-  // 덩굴 활 + 화살 (앞)
-  const bx = 27, by = 18 + b;
-  C.part(U(capF([bx - 1, by - 10], [bx + 2, by], 0.9, 0.9), capF([bx + 2, by], [bx - 1, by + 10], 0.9, 0.9)), BOWW, { shine: 1 });
-  const nx = bx - 2 - dr * 5;
-  strokes(C, [[bx - 1, by - 10, nx, by], [nx, by, bx - 1, by + 10]], 0xe8e8e0);
-  dr > 0.2 && (strokes(C, [[nx, by, bx + 7, by]], 0x8a5a30), C.part(polyF([[bx + 7, by - 1.4], [bx + 10, by], [bx + 7, by + 1.4]]), ramp(0x9ab0b8), { sep: !1 }));
-  C.part(capF([20, 20 + b], [bx, by], 1.2, 1), CLOAK, { sep: !1 }); // 활 쥔 팔
-  C.part(capF([19, 21 + b], [nx, by], 1.1, 0.9), FSK, { sep: !1 }); // 시위 당긴 팔
-  return done(C, p);
+  const W = 58, H = 58, G = H - 1, S = sculpt(W, H, { k: 0.72, ax: 26 });
+  const b = p.bob ?? 0, g = p.legs ?? { n: [0, 0], f: [0, 0] }, dw = p.draw ?? 0, cx = 24;
+  const SKN = mat(ramp(0xf0d0b0), { tex: "skin", amp: 0.6 }), CLK = mat(ramp(0x4a9a3a), { tex: "leaf", amp: 1.1 }), CLKF = mat(rampF(0x3a7a2e), { tex: "leaf" }), BOW = mat(ramp(0x8a5a30), { tex: "wood", amp: 1 });
+  for (const [o, far, d] of [[g.f, 1, -2], [g.n, 0, 3]]) { const hp = [cx + d, 40 + b], ft = [cx + d + o[0], G - 1 - o[1]]; S.add(capF(hp, ft, 2, 1.6), far ? mat(rampF(0x5a4030), { tex: "leather" }) : mat(ramp(0x6a4a30), { tex: "leather" }), { z: far ? -2 : 3, h: 1.4 }); S.add(ellR(ft[0] + 1.4, ft[1] - 0.6, 2.6, 1.2), mat(ramp(0x4a3020), { tex: "leather" }), { z: far ? -1.9 : 3.1, h: 0.8 }); }
+  // 잎 망토 (등)
+  S.add(polyF([[cx - 6, 24 + b], [cx + 4, 24 + b], [cx - 2, 44 + b], [cx - 12, 46 + b], [cx - 10, 36 + b]]), CLKF, { z: -1, h: 3 });
+  for (let k = 0; k < 4; k++) S.carve(capF([cx - 5 + k * 2, 26 + b], [cx - 10 + k * 2.4, 44 + b], 0.4), 0.6);
+  S.add(U(ellR(cx, 33 + b, 6, 8)), CLK, { z: 1, h: 5 });
+  S.add(capF([cx - 5, 37 + b], [cx + 5, 37 + b], 1), mat(ramp(0x6a4a30), { tex: "leather" }), { z: 1.4, h: 0.6 });
+  // 머리 + 잎 두건 · 뾰족 귀
+  const hx = cx + 2, hy = 21 + b;
+  S.add(ellR(hx, hy, 4.6, 5), SKN, { z: 3, h: 3.6 });
+  S.add(polyF([[hx - 3, hy - 1], [hx - 9, hy - 4], [hx - 3, hy + 2]]), SKN, { z: 2.8, h: 1 });
+  S.add(U(minus(ellR(hx - 1, hy - 2, 6, 5.4), (x, y) => x > hx + 2 && y > hy - 2), polyF([[hx - 4, hy - 6], [hx - 10, hy - 12], [hx - 2, hy - 7]])), CLK, { z: 3.4, h: 3 });
+  !p.hurt && S.decal(hx + 2.6, hy, 0x205020);
+  // 활 (덩굴) + 팔
+  const bc = [cx + 12, 30 + b];
+  S.add(U(capF([bc[0] - 2, bc[1] - 13], [bc[0] + 2, bc[1]], 1, 0.9), capF([bc[0] + 2, bc[1]], [bc[0] - 2, bc[1] + 13], 0.9, 1)), BOW, { z: 5, h: 0.8 });
+  for (const y of [-8, 7]) S.add(ellR(bc[0] + 0.6, bc[1] + y, 1.6, 1), C_LEAF, { z: 5.1, h: 0.4 });
+  const str = [bc[0] - 4 - dw * 9, bc[1]];
+  S.add(capF(sh0(cx), [bc[0] + 1, bc[1]], 1.4), SKN, { z: 5.2, h: 1 });
+  S.add(capF([cx + 3, 28 + b], str, 1.4), SKN, { z: 5.4, h: 1 });
+  dw > 0.2 && S.add(capF(str, [str[0] + 18, str[1]], 0.5), mat(ramp(0xc8b080), { tex: "wood" }), { z: 5.6, h: 0.3 }).add(polyF([[str[0] + 18, str[1] - 1.4], [str[0] + 22, str[1]], [str[0] + 18, str[1] + 1.4]]), mat(ramp(0xc8c8c0), { spec: 0.6 }), { z: 5.7, h: 0.3, prof: "sharp" });
+  const C = S.render({ rim: !0 });
+  const Q = C_toPx(W, H, 0.72, 26);
+  for (const [a, b2] of [[[bc[0] - 2, bc[1] - 13], str], [str, [bc[0] - 2, bc[1] + 13]]]) for (let t = 0; t <= 1; t += 0.08) { const q = Q(L(a[0], b2[0], t), L(a[1], b2[1], t) + b); C.px(q[0], q[1], 0xe8e0c8); }
+  return done3(C, p);
+  function sh0(x) { return [x + 4, 27 + b]; }
 }
-export const pxArcher = spec(40, 40, 12, 20,
+export const pxArcher = spec(42, 42, 12, 20,
   { idle: [4, 6], move: [6, 12], wind: [4, 10, !1], atk: [2, 14, !1], rec: [3, 10, !1], hurt: [2, 10, !1] },
   (nm, f, n, t) => {
     const ph = (f / n) * T2;
@@ -292,27 +304,35 @@ export const pxArcher = spec(40, 40, 12, 20,
 //   p: bob · legs · peck 쪼기(0~1) · lean · hurt
 const WPK = ramp(0x2a2a34), WPKW = ramp(0xf0f0e8), CREST2 = ramp(0xd83a2a);
 function woodpeckerFrame(p = {}) {
-  const W = 46, H = 46, G = H - 1, C = board(W, H);
-  const b = p.bob ?? 0, g = p.legs ?? { n: [0, 0], f: [0, 0] }, pk = p.peck ?? 0, ln = p.lean ?? 0;
-  // 꼬리 깃 (지지대)
-  C.part(polyF([[12, 26 + b], [6, 38 + b], [10, 39 + b], [15, 30 + b]]), WPK, { shine: 1 });
-  for (const [o, far] of [[g.f, 1], [g.n, 0]]) { const s = [17 + (far ? -1 : 1), 32 + b], ft = [s[0] + o[0] + 1, G - o[1]]; C.part(capF(s, ft, 1.3, 1), ramp(0x8a8a90), { sep: !1 }); C.part(U(capF(ft, [ft[0] + 3, ft[1]], 0.6), capF(ft, [ft[0] - 2, ft[1]], 0.6)), ramp(0x8a8a90), { sep: !1 }); }
+  const W = 66, H = 66, G = H - 1, S = sculpt(W, H, { k: 0.72, ax: 28 });
+  const b = p.bob ?? 0, g = p.legs ?? { n: [0, 0], f: [0, 0] }, pk = p.peck ?? 0, ln = p.lean ?? 0, cx = 26;
+  const BK = mat(ramp(0x2a2a34), { tex: "feather", amp: 0.9, dir: 0.4, spec: 0.5 }), WH = mat(ramp(0xf0f0e8), { tex: "feather", amp: 0.6 }), CR = mat(ramp(0xd83a2a), { tex: "feather", amp: 0.8 }), BRK = mat(ramp(0x8a6a44), { tex: "wood", amp: 1.2, dir: 1.57 }), BKF = mat(rampF(0x6a5034), { tex: "wood", dir: 1.57 });
+  // 다리 (새 다리 · 갈고리 발)
+  for (const [o, far, d] of [[g.f, 1, -3], [g.n, 0, 3]]) { const hp = [cx + d, 44 + b], kn = [cx + d - 3, 50 + b], ft = [cx + d + o[0], G - 1 - o[1]]; S.add(U(capF(hp, kn, 2.6, 2), capF(kn, ft, 1.4, 1.2)), far ? mat(rampF(0x5a5a64)) : mat(ramp(0x6a6a74), { tex: "skin" }), { z: far ? -2 : 3, h: 1.2 }); for (const e of [-0.2, 0.3, Math.PI - 0.2]) S.add(capF(ft, pol(ft, e, 3.4), 0.6, 0.3), mat(ramp(0x3a3a40)), { z: far ? -1.9 : 3.1, h: 0.3 }); }
+  // 꼬리 깃 (지탱)
+  S.add(polyF([[cx - 6, 38 + b], [cx - 14, G - 4], [cx - 9, G - 2], [cx - 2, 40 + b]]), BK, { z: -1, h: 1.4 });
   // 몸 + 나무껍질 흉갑
-  const sx = 19 + ln * 4;
-  C.part(ellR(sx, 26 + b, 7, 9, 0.2 + ln * 0.3), WPK, { shine: 1 });
-  C.part(polyF([[sx - 4, 19 + b], [sx + 5, 21 + b], [sx + 4, 33 + b], [sx - 3, 31 + b]]), BARK, { shine: 1, flat: 0.6 });
-  strokes(C, [[sx, 21 + b, sx + 1, 32 + b]], BARK[2]);
-  C.part(ellR(sx - 4, 24 + b, 3, 6, 0.3), WPKW, { sep: !1, shine: 1 }); // 날개 흰 무늬
-  // 머리 (붉은 볏 투구) + 긴 부리
-  const hx = sx + 6 + pk * 3, hy = 14 + b + pk * 2;
-  C.part(ellR(hx, hy, 5, 4.6), WPK, { shine: 1, lv: 0.05 });
-  C.part(ellR(hx + 1, hy + 1.5, 3, 2), WPKW, { sep: !1 });
-  C.part(polyF([[hx - 5, hy - 2], [hx - 2, hy - 8], [hx + 3, hy - 6], [hx + 3, hy - 3]]), CREST2, { shine: 1 });
-  C.part(polyF([[hx + 3, hy - 1], [hx + 14 + pk * 2, hy + 1], [hx + 3, hy + 2]]), ramp(0x9aa0a8), { shine: 1 });
-  !p.hurt && (C.over(hx + 1.6, hy - 1, 0x101010), C.over(hx + 2, hy - 1.6, 0xffffff));
-  return done(C, p);
+  const lx = ln * 6;
+  S.add(U(ellR(cx + lx * 0.5, 34 + b, 9, 12)), BK, { z: 1, h: 7 });
+  S.add(polyF([[cx - 5 + lx * 0.5, 26 + b], [cx + 8 + lx * 0.5, 26 + b], [cx + 9 + lx * 0.5, 42 + b], [cx - 4 + lx * 0.5, 44 + b]]), BRK, { z: 2, h: 3, prof: "flat" });
+  for (let k = 0; k < 3; k++) S.carve(capF([cx - 4 + lx * 0.5, 30 + k * 5 + b], [cx + 8 + lx * 0.5, 30 + k * 5 + b], 0.4), 0.7);
+  S.add(polyF([[cx - 6 + lx * 0.3, 26 + b], [cx - 12, 36 + b], [cx - 6, 40 + b]]), mat(ramp(0x202028), { tex: "feather", dir: 1 }), { z: 2.4, h: 1.4 });
+  for (let k = 0; k < 3; k++) S.add(capF([cx - 9 + k * 1.2, 30 + k * 3 + b], [cx - 6 + k * 1.2, 30 + k * 3 + b], 0.5), WH, { z: 2.6, h: 0.3 });
+  // 머리 (볏 투구) + 송곳 부리
+  const hx = cx + 6 + lx, hy = 18 + b;
+  S.add(ellR(hx, hy, 6.4, 6), BK, { z: 3, h: 5 });
+  S.add(capF([hx - 4, hy + 2.4], [hx + 4, hy + 3], 1.6), WH, { on: 1, lift: 0.3, h: 0.4 });
+  S.add(U(minus(ellR(hx - 1, hy - 2, 7, 6), (x, y) => y > hy - 1), polyF([[hx - 6, hy - 6], [hx - 12, hy - 4], [hx - 6, hy - 2]])), CR, { z: 3.4, h: 3 });
+  S.add(capF([hx - 7, hy - 1.2], [hx + 7, hy - 1.2], 0.8), mat(ramp(0xa89060), { tex: "metal", spec: 0.6 }), { z: 3.6, h: 0.5 });
+  const ba = -0.05 + pk * 0.25;
+  S.add(polyF([pol([hx + 5, hy], ba - 1.57, 1.6), pol([hx + 5, hy], ba, 14 + pk * 2), pol([hx + 5, hy], ba + 1.57, 1.6)]), mat(ramp(0x3a3a40), { tex: "metal", spec: 0.9 }), { z: 3.8, h: 1, prof: "sharp" });
+  !p.hurt && S.decal(hx + 2.4, hy - 0.4, 0xffffff).decal(hx + 2.8, hy - 0.4, 0x101010);
+  // 날개 팔 (방패처럼 접힘)
+  S.add(U(ellR(cx + 3 + lx * 0.5, 34 + b, 5, 9, 0.2)), mat(ramp(0x24242c), { tex: "feather", amp: 1, dir: 1.3 }), { z: 4, h: 3 });
+  for (let k = 0; k < 3; k++) S.add(capF([cx + 1 + lx * 0.5, 30 + k * 4 + b], [cx + 6 + lx * 0.5, 32 + k * 4 + b], 0.5), WH, { z: 4.2, h: 0.3 });
+  return done3(S.render({ rim: !0 }), p);
 }
-export const pxWoodpecker = spec(46, 46, 14, 26,
+export const pxWoodpecker = spec(48, 48, 14, 26,
   { idle: [4, 6], move: [6, 12], wind: [3, 10, !1], atk: [4, 22], rec: [3, 10, !1], hurt: [2, 10, !1] },
   (nm, f, n, t) => {
     const ph = (f / n) * T2;

@@ -20,3 +20,4 @@ import "./rsg.js";
 import "./rmr.js";
 import "./rsw.js";
 import "./rbd.js";
+import "./rwc.js";

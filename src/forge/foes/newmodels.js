@@ -20,6 +20,7 @@ import * as SG from "./px_sg.js";
 import * as MR from "./px_mr.js";
 import * as SW from "./px_sw.js";
 import * as BD from "./px_bd.js";
+import * as WC from "./px_wc.js";
 export const NEW_MODELS = {
   // 모스스파이어 (노랑)
   ms_monk: MS.pxMonk, ms_yak: MS.pxYak, ms_beetle: MS.pxBellBeetle, ms_abbot: MS.pxAbbot,
@@ -55,6 +56,9 @@ export const NEW_MODELS = {
   bd_stork: BD.pxStork, bd_hunter: BD.pxHunter, bd_molerat: BD.pxMoleRat, bd_mammoth: BD.pxMammoth,
   bd_marrow: BD.pxMarrow, bd_spine: BD.pxSpine, bd_seer: BD.pxSeer, bd_colossus: BD.pxColossus,
   bd_maggot: BD.pxMaggot, bd_ghoul: BD.pxGhoul, bd_bloatfly: BD.pxBloatfly, bd_keeper: BD.pxKeeper,
+  wc_jumper: WC.pxJumper, wc_husk: WC.pxHusk, wc_pupa: WC.pxPupa, wc_drider: WC.pxDrider,
+  wc_harvester: WC.pxHarvester, wc_harvestman: WC.pxHarvestman, wc_eggsac: WC.pxEggsac, wc_bound: WC.pxBound,
+  wc_silverfish: WC.pxSilverfish, wc_trapdoor: WC.pxTrapdoor, wc_priestess: WC.pxPriestess, wc_tarantula: WC.pxTarantula,
   // 애쉬펠 (노랑)
   af_ashling: AF.pxAshling, af_hound: AF.pxChainHound, af_brazier: AF.pxBrazier, af_jailer: AF.pxJailer,
   af_crow: AF.pxCrow, af_cinder: AF.pxCinder, af_wraith: AF.pxWraith, af_drake: AF.pxDrake,

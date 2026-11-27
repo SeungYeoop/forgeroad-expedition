@@ -22,3 +22,4 @@ import "./rsw.js";
 import "./rbd.js";
 import "./rwc.js";
 import "./rmd.js";
+import "./rmh.js";

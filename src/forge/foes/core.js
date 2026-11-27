@@ -496,6 +496,8 @@ export function think(e, dt) {
   }
   if (fz.wait > 0) fz.wait -= dt * ts;
   else {
+    // 엔진의 옛 "burrower" 틀은 처음에 그림을 숨긴다 — 손으로 짠 행동은 숨김을 그림(hide 동작)으로 하므로 다시 보이게 한다
+    !fz.shown && ((fz.shown = 1), e.sprite?.setVisible(!0));
     fz.gen = fz.gen ?? s.brain(e, e.fA);
     const r = fz.gen.next(dt);
     if (r.done) fz.gen = null;

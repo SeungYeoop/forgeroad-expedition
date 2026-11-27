@@ -18,3 +18,4 @@ import "./rgl.js";
 import "./rbk.js";
 import "./rsg.js";
 import "./rmr.js";
+import "./rsw.js";

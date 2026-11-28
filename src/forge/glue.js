@@ -5506,7 +5506,7 @@ function buildDestiny(scene) {
   const ui = (x, y, s, size, col, o = {}) => add(ct(scene, x, y, s, size, col, { stroke: "#05060c", strokeThickness: 3, ...o }), 6);
   add(scene.add.rectangle(0, 0, W, 34, 0x05060c, 0.88).setOrigin(0), 5);
   ui(14, 8, "운명 보드", "big", "#ffe6a0");
-  ui(W - 14, 13, "끌어서 이동 · 휠 확대/축소 · B·Esc 닫기", "tiny", "#9a96b8").setOrigin(1, 0);
+  ui(W - 14, 13, "끌어서 이동 · 휠 확대/축소 · V·Esc 닫기", "tiny", "#9a96b8").setOrigin(1, 0);
   add(scene.add.rectangle(0, H - 52, W, 52, 0x05060c, 0.9).setOrigin(0), 5);
   add(scene.add.rectangle(0, H - 52, W, 1, 0xd8a840, 0.7).setOrigin(0), 5);
   D.t1 = ui(14, H - 46, "", "body", "#ffffff");

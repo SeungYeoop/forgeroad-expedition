@@ -211,12 +211,20 @@ export function makeScreens(R, D) {
       const by = Y1 - 34;
       this.img(cx0 + 18, by + 12, "icon_gold").setScale(1.3).setDepth(206);
       this.t(cx0 + 30, by + 2, `+${yt(r.price)}`, "big", "#ffe08a", { stroke: "#2a1408", strokeThickness: 3 }).setDepth(206);
-      this.btn(X1 - 108, by + 2, 98, 26, "판매하기", () => this.sellNow(r), { style: "green", enabled: r.price > 0, small: !1 });
+      this.btn(X1 - 108, by + 2, 98, 26, this.sellArm === r.k ? "한 번 더: 판매" : "판매하기", () => this.sellNow(r), { style: this.sellArm === r.k ? "red" : "green", enabled: r.price > 0, small: this.sellArm === r.k });
       this.hintText?.setText("");
     }
     sellNow(r) {
       const d = sd();
       if (d.bag?.[r.i] !== r.k) return;
+      // 희귀 이상은 한 번 더 눌러야 판다 (실수 방지 · 2026-11-28)
+      if (["rare", "epic", "legendary"].includes(IT.RARITY_OF(r.it)) && this.sellArm !== r.k) {
+        this.sellArm = r.k;
+        this.say = `${IT.RARITY_KO[IT.RARITY_OF(r.it)]} 물건이로군. 정말 팔 건가? 한 번 더 누르게.`;
+        j.play("error");
+        return void this.render();
+      }
+      this.sellArm = null;
       d.bag.splice(r.i, 1);
       SAVE.data.gold += r.price;
       SAVE.write();

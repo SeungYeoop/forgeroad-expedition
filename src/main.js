@@ -15126,27 +15126,20 @@ class pr extends zt.Scene {
       (window.__hub = this));
   }
   tutorial() {
+    // 안내판: 글자에 맞춘 크기 · 시설 이름표 아래 (2026-11-28 · 글자가 판 밖으로 넘치던 문제)
     const T = [
-        "상점에서 장비를 맞추고 네 갈래 출구(서문·동문·하늘 승강장·갱도 승강기) 중 하나로 탐험을 떠나라.",
-        "살아 돌아오면 전리품은 내 것, 쓰러지면 들고 간 것은 모두 잃는다.",
-        "탐험 중 [M]으로 구역 지도를 볼 수 있다.",
+        "네 갈래 출구 중 하나로 탐험을 떠나라.",
+        "살아 돌아오면 전리품은 내 것, 쓰러지면 들고 간 것을 모두 잃는다.",
+        "[Tab] 가방   [M] 지도   [V] 운명 보드   [B] 귀환",
       ],
-      C = Ce(this, ot / 2 - 170, 52, 340, 54)
-        .setScrollFactor(0)
-        .setDepth(150),
-      E = ct(
-        this,
-        ot / 2,
-        58,
-        T.join(`
-`),
-        "small",
-        q.text,
-        { align: "center" },
-      )
+      E = ct(this, ot / 2, 92, T.join(`
+`), "small", q.text, { align: "center", lineSpacing: 2 })
         .setOrigin(0.5, 0)
         .setScrollFactor(0)
-        .setDepth(151);
+        .setDepth(151),
+      C = Ce(this, Math.round(ot / 2 - E.width / 2 - 14), 86, Math.round(E.width + 28), Math.round(E.height + 12))
+        .setScrollFactor(0)
+        .setDepth(150);
     (this.time.delayedCall(9e3, () => {
       this.tweens.add({
         targets: [C, E],
@@ -19467,8 +19460,15 @@ class wr extends zt.Scene {
   addModalBtn(T, C) {
     this.modalBtns.push({ b: T, fn: C });
   }
-  // 오른쪽 위 글자 알림은 쓰지 않는다 (2026-11-28 사용자 요청). 중요한 알림은 화면 가운데 큰 알림으로 옮긴다
-  toast(T, C = q.text) {}
+  // 오른쪽 위 글자 알림은 쓰지 않는다 (2026-11-28 사용자 요청) — 대신 플레이어 머리 위에 짧게 떴다 사라진다 (획득·가방 가득·레벨 포인트 같은 피드백)
+  toast(T, C = q.text) {
+    const sc = this.run, p = sc?.player;
+    if (!p || !sc.fx) return;
+    const now = this.time.now;
+    this._toastN = now - (this._toastAt ?? -1e9) < 700 ? (this._toastN ?? 0) + 1 : 0;
+    this._toastAt = now;
+    sc.fx.text(p.cx, p.body.y - 44 - (this._toastN % 4) * 11, T, C);
+  }
   goldPulse() {
     this.goldScale = 1.35;
   }

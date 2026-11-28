@@ -2517,7 +2517,7 @@ function pullWaiting(sc) {
 export function gainStone(sc, n = 1) {
   sc.fr.stones += n;
   const h = sc.hud?.();
-  h?.toast(`융합석 +${n} (보유 ${sc.fr.stones})`, "#ffb060");
+  h?.toast(`융합석 +${n}`, "#ffb060");
   R.j.play("coinBig");
 }
 export function gain(sc, item) {
@@ -2530,20 +2530,20 @@ export function gain(sc, item) {
   if (slot) {
     fr.equip[slot] = item;
     applyLoadout(sc);
-    h?.toast(`장착: ${item.name}`, rarCss(item));
+    h?.toast(`장착 ${item.name}`, rarCss(item));
     R.j.play("buff");
     return;
   }
   if (fr.bag.length < fr.bagMax) {
     fr.bag.push(item);
-    h?.toast(`획득: ${item.name}  ·  가방 ${fr.bag.length}/${fr.bagMax} [Tab]`, rarCss(item));
+    h?.toast(`+ ${item.name}`, rarCss(item));
     R.j.play("buy");
   } else {
     // 가방이 가득 참: 팔지 않고 바닥에 떨어뜨린다
     fr.found--;
     const p = sc.player;
     dropItem(sc, p.cx + p.facing * 18, p.body.y - 20, item);
-    h?.toast("가방이 가득 찼습니다 · 아이템을 바닥에 두었습니다", "#ffb0a0");
+    h?.toast("가방이 가득 찼다 (바닥에 둠)", "#ffb0a0");
   }
 }
 const rarCss = (it) => IT.RARITY_CSS[IT.RARITY_OF(it)];
@@ -3596,6 +3596,7 @@ function renderBag(h) {
   add(h.add.image(AX, AY, PAPER.woodKey(h, AW, AH, { base: 0x5a3820, dark: 0x24140a, hi: 0x8a5a32, vertical: 1, plank: 22 })).setOrigin(0).setDepth(91));
   add(h.add.rectangle(AX + 10, AY + 26, AW - 20, AH - 36, 0x120a06, 0.75).setOrigin(0).setDepth(91));
   add(h.add.rectangle(AX, AY, AW, AH).setStrokeStyle(2, 0x1a0e06).setOrigin(0).setDepth(92));
+  add(UK.frame(h, AX, AY, AW, AH, { fill: !1, depth: 92.5 }));
   lt(AX + 12, AY + 6, "장 비", "small");
   // 능력치 종이 켜고 끄기
   const sb = Be(h, AX + AW - 58, AY + 5, 50, 16, B.showStats ? "능력치 ▲" : "능력치", () => ((B.showStats = !B.showStats), R.j.play("click"), renderBag(h)), { small: !0, depth: 97, style: B.showStats ? "green" : void 0 });
@@ -3629,6 +3630,7 @@ function renderBag(h) {
   const RX = W - 208, RY = 8, RW = 200, RH = Hh - 16;
   add(h.add.image(RX, RY, PAPER.woodKey(h, RW, RH, { base: 0x5a3820, dark: 0x24140a, hi: 0x8a5a32, vertical: 1, plank: 22 })).setOrigin(0).setDepth(91));
   add(h.add.rectangle(RX, RY, RW, RH).setStrokeStyle(2, 0x1a0e06).setOrigin(0).setDepth(92));
+  add(UK.frame(h, RX, RY, RW, RH, { fill: !1, depth: 92.5 }));
   lt(RX + 12, RY + 6, `가 방  ${fr.bag.length}/${fr.bagMax}`, "small").setDepth(96);
   const COLS = 5, VR = 5, CW = 37, CH = 37, GX = RX + 23, GY = RY + 44;
   const rows = Math.ceil(fr.bagMax / COLS);
@@ -3656,6 +3658,11 @@ function renderBag(h) {
   add(h.add.image(FX, FY, PAPER.stoneKey(h, FW, FH)).setOrigin(0).setDepth(91).setTint(0x9a90a8));
   add(h.add.rectangle(FX, FY, FW, FH, 0x0a0614, 0.45).setOrigin(0).setDepth(91));
   add(h.add.rectangle(FX, FY, FW, FH).setStrokeStyle(2, 0x1a1420).setOrigin(0).setDepth(92));
+  // 거점에서는 융합을 할 수 없다 (융합석은 탐험 중에만) → 제단 대신 안내 (2026-11-28 · 점진적 공개)
+  if (fr.hub) {
+    lt(FX + FW / 2, FY + FH / 2 - 12, "융합 제단", "small").setOrigin(0.5, 0);
+    lt(FX + FW / 2, FY + FH / 2 + 6, "탐험 중에만 쓸 수 있다", "tiny", LIGHT2).setOrigin(0.5, 0);
+  } else {
   lt(FX + 8, FY + 4, B.opts.legend ? "융합로 · 전설" : "융합 제단", "tiny");
   const ok = res && !res.err;
   const nS = B.opts.legend ? 3 : 2;
@@ -3689,6 +3696,7 @@ function renderBag(h) {
     fr.stones >= cost || b.setEnabled(!1);
     B.objs.push(...b.container);
   }
+  }
   // 판매 궤짝 + 자원 (맨 아래 줄)
   const cy0 = FY + FH + 4, sOver = B.hl === "sell:0", sOk = D ? canDrop(B, D.it, D.ent, { type: "sell" }) : !1;
   const crate = add(h.add.image(FX + 34, cy0 + 16, "inv_crate").setDepth(92).setScale(0.5));
@@ -3697,8 +3705,7 @@ function renderBag(h) {
   B.hits.push({ x: FX + 2, y: cy0, w: 64, h: 28, type: "sell", key: 0 });
   add(h.add.image(FX + 72, cy0 + 22, "icon_gold").setDepth(95).setScale(0.8));
   lt(FX + 80, cy0 + 15, `${bagGoldNow(sc)}`, "tiny", "#ffd84a");
-  add(h.add.image(FX + 132, cy0 + 22, "fr_stone").setDepth(95).setScale(0.8));
-  lt(FX + 140, cy0 + 15, `${fr.stones}`, "tiny", "#a8e0ff");
+  fr.hub || (add(h.add.image(FX + 126, cy0 + 22, "fr_stone").setDepth(95).setScale(0.8)), lt(FX + 134, cy0 + 15, `융합석 ${fr.stones}`, "tiny", "#a8e0ff"));
   B.msg && lt(W / 2, Hh - 26, B.msg, "small", "#ffb090").setOrigin(0.5, 0);
 }
 // 창고 패널 (왼쪽): 종류 탭 · 5열 스크롤 칸 · 전부 넣기 · 같은 종류 넣기 · 정렬 · 창고 가치
@@ -3709,6 +3716,7 @@ function drawStash(h, B, add, lt, slotBox) {
   const AX = 8, AY = 8, AW = 200, AH = R.xt - 16;
   add(h.add.image(AX, AY, PAPER.woodKey(h, AW, AH, { base: 0x4a3018, dark: 0x1e1208, hi: 0x7a4e2a, vertical: 0, plank: 18 })).setOrigin(0).setDepth(91));
   add(h.add.rectangle(AX, AY, AW, AH).setStrokeStyle(2, 0x1a0e06).setOrigin(0).setDepth(92));
+  add(UK.frame(h, AX, AY, AW, AH, { fill: !1, depth: 92.5 }));
   lt(AX + 12, AY + 6, `창 고  ${fr.stash.length}개`, "small");
   const tab = (B.stTab ??= "all");
   STASH_TABS.forEach(([k, ko], i) => {
@@ -3822,8 +3830,13 @@ function renderDetail(h, PX, PY, PW, PH) {
   it.kind === "armor" && line(`방어 ${armorDefense(it)}`, "tiny", "#183f88");
   it.kind === "rune" && line("장착 불가 · 융합 재료 전용", "tiny", INK_R);
   const e = B.hover.e;
-  const hint = B.hover.res ? "융합 결과물" : e?.where === "eq" ? "우클릭: 해제" : `우클릭: 장착 · 판매 ${sellPrice(sc, it)}G`;
-  t(PX + PW / 2, PY + PH - 14, hint, "tiny", INK2).setOrigin(0.5, 0);
+  const hint = B.hover.res ? "융합 결과물" : fr.stash && e?.where === "stash" ? "우클릭: 가방으로" : fr.stash && e?.where === "bag" ? "우클릭: 창고로" : e?.where === "eq" ? "우클릭: 해제" : `우클릭: 장착 · 판매 ${sellPrice(sc, it)}G`;
+  t(PX + PW / 2, y + 4, hint, "tiny", INK2).setOrigin(0.5, 0);
+  // 종이를 내용 높이에 맞추고 아래쪽에 붙인다 (게임 화면을 덜 가리게 · 2026-11-28)
+  const nh = Math.max(70, Math.min(PH, y + 22 - PY)), dy = PH - nh;
+  B.det[0].destroy();
+  B.det[0] = h.add.image(PX + PW / 2, PY + nh / 2, PAPER.noteKey(h, PW, nh, 17)).setDepth(92);
+  for (const o of B.det) o.y += dy;
 }
 const ink2 = (css) => SCR.ink(css);
 function renderInfo() {}
@@ -4427,7 +4440,7 @@ export function levelPoints(sc, n) {
   const p = sc.player;
   sc.fx.burst("rise", p.cx, p.cy, 24, 0xffd84a);
   sc.fx.text(p.cx, p.body.y - 44, `레벨 업! 스탯 +${SP_PER_LV * n}`, "#ffd84a");
-  sc.hud?.()?.toast(`레벨 ${sc.build.level} · 스탯 포인트 ${fr.sp} [Tab]에서 분배`, "#ffd84a");
+  sc.hud?.()?.toast(`레벨 ${sc.build.level}! 능력치 포인트 [Tab]`, "#ffd84a");
   R.j.play("levelup");
 }
 function addAttr(h, k, n) {
@@ -5016,7 +5029,7 @@ export function travel(sc, to, back) {
   if (sc.zoneBusy || sc.dying) return;
   const z = ZN.BY_ID[to];
   if (!z) return;
-  if (ZN.isLocked(to)) return void sc.hud?.()?.toast(ZN.isSealed(to) ? `${z.name}: 붉은 봉인이 막고 있어 들어갈 수 없다` : `${z.name}: 공사 중인 지역이라 아직 갈 수 없다`, "#c8c8d0");
+  if (ZN.isLocked(to)) return void sc.hud?.()?.toast(ZN.isSealed(to) ? "붉은 봉인에 막혔다" : "아직 갈 수 없는 지역", "#c8c8d0");
   sc.zoneBusy = 1;
   R.j.play("portal");
   ensurePlan(sc, z);

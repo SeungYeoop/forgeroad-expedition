@@ -569,8 +569,14 @@ export function startRun(scene) {
   const mk = (id) => (id ? mkItem(id) : null);
   scene.fr = {
     equip: { weapon: mk(d.equip.weapon) ?? IT.makeBase("W01"), s1: mk(d.equip.s1), s2: mk(d.equip.s2), magic: mk(d.equip.magic), armor: mk(d.equip.armor) ?? IT.makeBase("A01") },
-    bag: (consumeLoadout(d), []),
-    bagMax: 8,
+    // 저장된 가방을 들고 나간다 (쓰러지면 잃는다 · 살아 돌아오면 그대로)
+    bag: (consumeLoadout(d), (() => {
+      const b = (d.bag ?? []).map((k) => mkItem(k)).filter(Boolean);
+      d.bag = [];
+      R.it.write();
+      return b;
+    })()),
+    bagMax: 48, // 알비온식 큰 가방 (5열 · 스크롤, 2026-11-28)
     stones: 1,
     mana: 100,
     maxMana: 100,
@@ -600,6 +606,7 @@ export function startRun(scene) {
   R.it.data.skillSlots = 3;
 }
 export function applyLoadout(scene) {
+  if (scene.fr?.hub) return hubSync(scene);
   const p = scene.player;
   if (!p) return;
   const keep = p.skills.cds.slice();
@@ -3123,15 +3130,99 @@ function toggleBag(sc) {
 }
 const SLOT_KEYS = ["weapon", "s1", "s2", "magic", "armor"];
 const SLOT_KO = { weapon: "무기", s1: "Q", s2: "E", magic: "R", armor: "방어구" };
+// ── 거점 가방 · 저장되는 가방 (2026-11-28) ──
+//   가방(d.bag, 저장 키 목록)은 거점과 탐험에 같이 들고 다닌다. 살아 돌아오면 그대로, 쓰러지면 잃는다
+//   거점에서는 거점 장면(sc)에 가방을 그리고, 저장 데이터를 탐험 모양(fr)으로 바꿔 넘긴다. 바뀔 때마다 저장에 다시 쓴다
+export const BAG_MAX = 48;
+function hubFrOf() {
+  const d = sd();
+  d.bag ??= [];
+  const mk = (k) => (k ? mkItem(k) : null), eq = {};
+  for (const k of SLOT_KEYS) eq[k] = mk(d.equip[k]);
+  return { hub: 1, equip: eq, bag: d.bag.map(mk).filter(Boolean), bagMax: BAG_MAX, stones: 0, mats: d.mats ?? {}, pickups: [], chain: {}, sp: 0, attr: { str: 0, vit: 0, int: 0, agi: 0, luk: 0 }, ents: [], zones: [] };
+}
+// 거점 카메라는 움직이므로, 가방은 카메라가 고정된 작은 UI 장면에 그린다
+function bagUI(sc) {
+  const SM = sc.scene;
+  if (!SM.get("FrBagUI")) {
+    class FrBagUI extends R.zt.Scene {
+      constructor() {
+        super("FrBagUI");
+      }
+    }
+    SM.add("FrBagUI", FrBagUI, !0);
+  } else SM.isActive("FrBagUI") || SM.launch("FrBagUI");
+  SM.bringToTop("FrBagUI");
+  return SM.get("FrBagUI");
+}
+export const hubBagOpen = (sc) => !!sc?.scene?.get?.("FrBagUI")?.frBag;
+export function toggleBagHub(sc) {
+  const cur = sc.scene.get("FrBagUI");
+  if (cur?.frBag) return void closeBag(cur);
+  if (sc.panelOpen || sc.leaving) return;
+  const ui = bagUI(sc);
+  sc.fr = hubFrOf();
+  sc.frHubEq = { ...sd().equip };
+  // 새로 만든 장면은 다음 틱에 준비된다
+  const go = () => (ui.sys.settings.status >= 5 ? openBagOn(ui, sc, { free: !1, legend: !1, hub: !0 }) : sc.time.delayedCall(16, go));
+  go();
+  sc.events.once("shutdown", () => ui.frBag && closeBag(ui));
+}
+export function closeBagHub(sc) {
+  const ui = sc?.scene?.get?.("FrBagUI");
+  ui?.frBag && closeBag(ui);
+}
+const bagKeyOf = (d, it) => {
+  const k = itemKey(it);
+  it.tier !== 0 && ((d.items ??= {}), (d.items[k] = snapItem(it)));
+  return k;
+};
+function hubSync(sc) {
+  const fr = sc.fr, d = sd();
+  if (!fr?.hub) return;
+  // 장착 칸: 바뀐 칸만 창고(owned) 수를 맞춘다 (장착한 물건은 창고 수에 들어 있다)
+  for (const k of SLOT_KEYS) {
+    const nk = fr.equip[k] ? bagKeyOf(d, fr.equip[k]) : null, ok = sc.frHubEq?.[k] ?? null;
+    if (nk === ok) continue;
+    if (ok && !FREE_KEYS.has(ok)) {
+      const i = d.owned.indexOf(ok);
+      i >= 0 && d.owned.splice(i, 1);
+    }
+    nk && !FREE_KEYS.has(nk) && d.owned.push(nk);
+    d.equip[k] = nk;
+    sc.frHubEq[k] = nk;
+  }
+  d.bag = fr.bag.map((it) => bagKeyOf(d, it));
+  R.it.write();
+  sc.player?.applyStats?.(hubStats(sc));
+}
+// 가방 판매 골드: 탐험 중이면 이번 탐험 골드, 거점이면 모아 둔 골드
+const bagGold = (sc, g) => (sc.run ? (sc.run.gold += g) : ((R.it.data.gold = (R.it.data.gold ?? 0) + g), R.it.write()));
+const bagGoldNow = (sc) => (sc.run ? Math.floor((sc.run.gold ?? 0) + (sc.run.milestoneGold ?? 0)) : Math.floor(R.it.data.gold ?? 0));
+// 가방은 게임을 멈추지 않는다 (알비온식, 2026-11-28): 걸어 다닐 수 있고, 공격·스킬만 막힌다 (Run.readInput → bagBlocks)
+export const bagBlocks = (sc) => !!sc?.hud?.()?.frBag;
+export function closeBagOf(sc) {
+  const h = sc?.hud?.();
+  h?.frBag && closeBag(h);
+}
 export function openBag(sc, opts) {
-  const h = sc.hud();
+  openBagOn(sc.hud(), sc, opts);
+}
+function openBagOn(h, sc, opts) {
   if (!h) return;
-  h.openModal();
-  const B = (h.frBag = { sc, opts, sel: [], objs: [], info: [], forge: [null, null, null], msg: "", hover: null, pin: null, drag: null, hits: [] });
+  const B = (h.frBag = { sc, opts, sel: [], objs: [], info: [], forge: [null, null, null], msg: "", hover: null, pin: null, drag: null, hits: [], scroll: 0 });
   B.onMove = (p) => dragMove(h, p);
   B.onUp = (p) => dragEnd(h, p);
+  // 휠: 가방 칸 위에서 굴리면 줄을 넘긴다
+  B.onWheel = (p, objs, dx, dy) => {
+    const G = B.gridBox;
+    if (!G || !dy || p.x < G.x || p.x > G.x + G.w || p.y < G.y || p.y > G.y + G.h) return;
+    const s = Math.max(0, Math.min(G.rows - G.VR, B.scroll + (dy > 0 ? 1 : -1)));
+    s !== B.scroll && ((B.scroll = s), renderBag(h));
+  };
   h.input.on("pointermove", B.onMove);
   h.input.on("pointerup", B.onUp);
+  h.input.on("wheel", B.onWheel);
   R.j.play("open");
   renderBag(h);
 }
@@ -3140,13 +3231,16 @@ function closeBag(h) {
   if (!B) return;
   h.input.off("pointermove", B.onMove);
   h.input.off("pointerup", B.onUp);
+  h.input.off("wheel", B.onWheel);
   B.drag?.ghost?.destroy();
   B.hlImg?.destroy();
   B.hlBox?.destroy();
   B.tip?.objs.forEach((o) => o.destroy());
   for (const o of [...B.objs, ...B.info, ...(B.det ?? [])]) (h.tweens.killTweensOf(o), o.destroy());
   h.frBag = null;
-  h.closeModal(!0);
+  R.j.play("close");
+  // 거점 가방: 저장하고 거점 능력치로
+  B.opts.hub && (hubSync(B.sc), (B.sc.fr = null));
   B.opts.onClose && B.sc.time.delayedCall(50, B.opts.onClose);
 }
 function allEntries(fr) {
@@ -3313,8 +3407,8 @@ function dropOn(h, src, tgt) {
   if (tgt.type === "sell") {
     if (src.where === "eq" && (src.key === "weapon" || src.key === "armor")) return fail("장착 중인 무기·방어구는 팔 수 없습니다");
     takeOut(fr, src);
-    const g = Math.round((10 + sc.dist / 150) * (1 + it.tier));
-    sc.run.gold += g;
+    const g = sellPrice(sc, it);
+    bagGold(sc, g);
     B.msg = `${it.name} 판매 +${g}G`;
     B.forge = [null, null, null];
     B.pin = null;
@@ -3322,7 +3416,7 @@ function dropOn(h, src, tgt) {
     R.j.play("coin");
   }
 }
-const sellPrice = (sc, it) => Math.round((10 + ZN.diffDist(sc.dist) / 150) * (1 + it.tier) * IT.GRADE_PRICE[IT.gradeOf(it)] ** 0.6);
+const sellPrice = (sc, it) => Math.round((10 + (sc.run ? ZN.diffDist(sc.dist) : 0) / 150) * (1 + it.tier) * IT.GRADE_PRICE[IT.gradeOf(it)] ** 0.6);
 const cut = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 // 우클릭: 바로 장착·해제 / Shift+클릭: 융합대
 function quickAction(h, e, toForge) {
@@ -3386,9 +3480,7 @@ function renderBag(h) {
   INV.makeInvArt(h);
   h.input.mouse?.disableContextMenu();
   const W = R.ot, Hh = R.xt;
-  add(h.add.rectangle(0, 0, W, Hh, 0x05040a, 0.8).setOrigin(0).setDepth(90).setInteractive());
-  // 바탕: 어두운 목재 벽
-  add(h.add.image(0, 0, PAPER.woodKey(h, W, Hh, { base: 0x3a2414, dark: 0x1a0e06, hi: 0x5a3820, vertical: 1, plank: 26 })).setOrigin(0).setDepth(90).setAlpha(0.92));
+  // 화면 전체를 덮지 않는다: 왼쪽 장비 · 오른쪽 가방, 가운데는 게임 (알비온식, 2026-11-28)
   const close = Be(h, W - 30, 6, 24, 18, "✕", () => closeBag(h), { small: !0, depth: 97 });
   B.objs.push(...close.container);
   const res = forgeResult(B);
@@ -3432,7 +3524,10 @@ function renderBag(h) {
   add(h.add.image(AX, AY, PAPER.woodKey(h, AW, AH, { base: 0x5a3820, dark: 0x24140a, hi: 0x8a5a32, vertical: 1, plank: 22 })).setOrigin(0).setDepth(91));
   add(h.add.rectangle(AX + 10, AY + 26, AW - 20, AH - 36, 0x120a06, 0.75).setOrigin(0).setDepth(91));
   add(h.add.rectangle(AX, AY, AW, AH).setStrokeStyle(2, 0x1a0e06).setOrigin(0).setDepth(92));
-  lt(AX + AW / 2, AY + 6, "장 비", "small").setOrigin(0.5, 0);
+  lt(AX + 12, AY + 6, "장 비", "small");
+  // 능력치 종이 켜고 끄기
+  const sb = Be(h, AX + AW - 58, AY + 5, 50, 16, B.showStats ? "능력치 ▲" : "능력치", () => ((B.showStats = !B.showStats), R.j.play("click"), renderBag(h)), { small: !0, depth: 97, style: B.showStats ? "green" : void 0 });
+  B.objs.push(...sb.container);
   const cx = AX + AW / 2, footY = AY + 236;
   add(h.add.image(cx, footY - 60, "vx_glow").setTint(0xffc070).setBlendMode(ADD).setScale(3.2).setAlpha(0.3).setDepth(91));
   add(h.add.image(cx, footY + 4, PAPER.woodKey(h, 96, 10, { base: 0x9a6a3a, dark: 0x4a2c16, hi: 0xd09a5a, plank: 10 })).setDepth(92));
@@ -3456,58 +3551,62 @@ function renderBag(h) {
     slotBox(x, y, { where: "eq", key: k }, { type: "eq", key: k }, "socket");
     lt(x, y + 18, ko, "small", "#ffe08a").setOrigin(0.5, 0);
   });
-  // ── 가운데: 가죽 배낭 ──
-  const PX = 216, PY = 8;
-  add(h.add.image(PX + 100, PY + 95, "inv_pack").setDepth(91));
-  lt(PX + 100, PY + 4, `가 방  ${fr.bag.length}/${fr.bagMax}`, "small").setOrigin(0.5, 0).setDepth(96);
-  for (let i = 0; i < fr.bagMax; i++) slotBox(PX + 47 + (i % 4) * 36, PY + 62 + Math.floor(i / 4) * 40, { where: "bag", key: i }, { type: "bag", key: i }, "pocket");
-  // 설명 종이 (가운데 아래)
-  B.detArgs = [PX - 2, PY + 198, 206, Hh - PY - 206];
-  renderDetail(h, ...B.detArgs);
-  // ── 오른쪽: 융합 제단 ──
-  const FX = 430, FY = 8, FW = W - FX - 8;
-  add(h.add.image(FX, FY, PAPER.stoneKey(h, FW, 230)).setOrigin(0).setDepth(91).setTint(0x9a90a8));
-  add(h.add.rectangle(FX, FY, FW, 230, 0x0a0614, 0.45).setOrigin(0).setDepth(91));
-  add(h.add.rectangle(FX, FY, FW, 230).setStrokeStyle(2, 0x1a1420).setOrigin(0).setDepth(92));
-  lt(FX + FW / 2, FY + 6, B.opts.legend ? "융 합 로 · 전설" : "융 합 제 단", "small").setOrigin(0.5, 0);
-  const acx = FX + FW / 2, aty = FY + 142;
-  add(h.add.image(acx, aty + 30, "inv_altar").setDepth(92));
-  // 화로 불꽃
-  for (const bx of [acx - 88, acx + 88]) {
-    add(h.add.image(bx, aty - 6, "vx_glow").setTint(0xff7a20).setBlendMode(ADD).setScale(1.2).setAlpha(0.6).setDepth(93));
-    const pe = add(h.add.particles(bx, aty - 8, "vx_soft", { x: { min: -5, max: 5 }, speedY: { min: -50, max: -24 }, lifespan: 600, frequency: 40, scale: { start: 0.35, end: 0 }, tint: [0xffd060, 0xff6a20], blendMode: ADD }).setDepth(94));
-    void pe;
+  // ── 가운데: 비워 둔다 (게임 화면이 보인다 · 알비온식 좌우 분할, 2026-11-28) ──
+  // ── 오른쪽: 가방 (5열 · 스크롤) ──
+  const RX = W - 208, RY = 8, RW = 200, RH = Hh - 16;
+  add(h.add.image(RX, RY, PAPER.woodKey(h, RW, RH, { base: 0x5a3820, dark: 0x24140a, hi: 0x8a5a32, vertical: 1, plank: 22 })).setOrigin(0).setDepth(91));
+  add(h.add.rectangle(RX, RY, RW, RH).setStrokeStyle(2, 0x1a0e06).setOrigin(0).setDepth(92));
+  lt(RX + 12, RY + 6, `가 방  ${fr.bag.length}/${fr.bagMax}`, "small").setDepth(96);
+  const COLS = 5, VR = 5, CW = 37, CH = 37, GX = RX + 23, GY = RY + 44;
+  const rows = Math.ceil(fr.bagMax / COLS);
+  B.scroll = Math.max(0, Math.min(rows - VR, B.scroll ?? 0));
+  add(h.add.rectangle(RX + 6, GY - 22, RW - 12, VR * CH + 6, 0x120a06, 0.7).setOrigin(0).setDepth(91));
+  for (let r = 0; r < VR; r++)
+    for (let c = 0; c < COLS; c++) {
+      const i = (B.scroll + r) * COLS + c;
+      if (i >= fr.bagMax) continue;
+      slotBox(GX + c * CW, GY + r * CH, { where: "bag", key: i }, { type: "bag", key: i }, "pocket");
+    }
+  // 스크롤 막대 (휠로도 움직인다)
+  if (rows > VR) {
+    const bx = RX + RW - 7, by = GY - 18, bh = VR * CH - 2;
+    add(h.add.rectangle(bx, by, 3, bh, 0x2a1a0e, 1).setOrigin(0).setDepth(93));
+    add(h.add.rectangle(bx, by + (bh * B.scroll) / rows, 3, Math.max(10, (bh * VR) / rows), 0xd0a060, 1).setOrigin(0).setDepth(94));
   }
+  B.gridBox = { x: RX + 4, y: GY - 22, w: RW - 8, h: VR * CH + 6, rows, VR };
+  // 설명 종이: 가운데 위에 (아이템에 마우스를 올렸거나 · 남은 능력치 포인트가 있거나 · 능력치 단추를 눌렀을 때만)
+  B.detArgs = [W / 2 - 110, 26, 220, 196];
+  renderDetail(h, ...B.detArgs);
+  // ── 오른쪽 아래: 융합 제단 (작게) ──
+  const FX = RX + 6, FY = GY + VR * CH - 12, FW = RW - 12, FH = 88;
+  add(h.add.image(FX, FY, PAPER.stoneKey(h, FW, FH)).setOrigin(0).setDepth(91).setTint(0x9a90a8));
+  add(h.add.rectangle(FX, FY, FW, FH, 0x0a0614, 0.45).setOrigin(0).setDepth(91));
+  add(h.add.rectangle(FX, FY, FW, FH).setStrokeStyle(2, 0x1a1420).setOrigin(0).setDepth(92));
+  lt(FX + 8, FY + 4, B.opts.legend ? "융합로 · 전설" : "융합 제단", "tiny");
   const ok = res && !res.err;
   const nS = B.opts.legend ? 3 : 2;
-  // 마법진
-  const ring = add(h.add.image(acx, aty - 6, "inv_ring").setDepth(92).setAlpha(ok ? 0.95 : 0.35).setBlendMode(ADD));
+  const aty = FY + 32;
+  const sx = nS === 3 ? [FX + 26, FX + 66, FX + 106] : [FX + 30, FX + 76];
+  // 재료 칸 → 화살표 → 결과
+  const ring = add(h.add.image((sx[0] + sx[nS - 1]) / 2, aty + 2, "inv_ring").setDepth(92).setScale(0.8).setAlpha(ok ? 0.95 : 0.35).setBlendMode(ADD));
   h.tweens.add({ targets: ring, alpha: ok ? 0.6 : 0.2, duration: 800, yoyo: !0, repeat: -1 });
-  const sx = nS === 3 ? [acx - 56, acx, acx + 56] : [acx - 46, acx + 46];
-  for (let j = 0; j < nS; j++) slotBox(sx[j], aty - 8, { where: "forge", key: j }, { type: "forge", key: j }, "stone");
-  // 결과물: 제단 위에 떠 있다
-  const ry = FY + 60;
+  for (let j = 0; j < nS; j++) slotBox(sx[j], aty, { where: "forge", key: j }, { type: "forge", key: j }, "stone");
+  const rx = FX + FW - 28;
+  lt(rx - 26, aty - 7, "▶", "small", ok ? "#ffd070" : "#8a7a6a").setOrigin(0.5, 0);
   if (ok) {
-    for (const xx of sx) {
-      const bm = add(h.add.line(0, 0, xx, aty - 14, acx, ry, res.item.el ? elColor(res.item.el) : 0xffb050, 0.6).setOrigin(0).setDepth(93).setBlendMode(ADD));
-      void bm;
-    }
-    const g = add(h.add.image(acx, ry, "vx_glow").setTint(res.item.el ? elColor(res.item.el) : 0xffa040).setBlendMode(ADD).setDepth(93).setScale(1.6));
-    h.tweens.add({ targets: g, alpha: 0.4, scale: 2, duration: 700, yoyo: !0, repeat: -1 });
+    const g = add(h.add.image(rx, aty, "vx_glow").setTint(res.item.el ? elColor(res.item.el) : 0xffa040).setBlendMode(ADD).setDepth(93).setScale(1.2));
+    h.tweens.add({ targets: g, alpha: 0.4, scale: 1.5, duration: 700, yoyo: !0, repeat: -1 });
   }
-  const rb = add(h.add.image(acx, ry, ok ? "inv_socket_big_hi" : "inv_socket_big").setDepth(93).setInteractive().setAlpha(ok ? 1 : 0.5));
+  const rb = add(h.add.image(rx, aty, ok ? "inv_stone_hi" : "inv_stone").setDepth(93).setInteractive().setAlpha(ok ? 1 : 0.5));
   rb.on("pointerover", () => ok && !B.hover?.res && setHover(h, { res: 1, it: res.item }));
   rb.on("pointerout", () => B.hover?.res && setHover(h, null));
-  if (ok) {
-    const ic = add(h.add.image(acx, ry, itemIcon(sc, res.item)).setDepth(94).setScale(1.6));
-    h.tweens.add({ targets: ic, y: ry - 4, duration: 900, yoyo: !0, repeat: -1, ease: "Sine.easeInOut" });
-  }
+  ok && add(h.add.image(rx, aty, itemIcon(sc, res.item)).setDepth(94).setScale(1.15));
   const cost = B.opts.free ? 0 : 1;
-  const fmsg = !res ? (B.forge.some(Boolean) ? "재료를 하나 더 올리세요" : "재료 두 개를 제단에 올리세요") : res.err ? res.err : res.item.name;
-  lt(acx, FY + 84, fmsg, "tiny", res?.err ? "#ff8a7a" : ok ? rarCss(res.item) : LIGHT2).setOrigin(0.5, 0);
-  B.altar = { x: acx, y: ry };
+  const fmsg = !res ? (B.forge.some(Boolean) ? "재료를 하나 더" : "재료 둘을 올리세요") : res.err ? res.err : res.item.name;
+  lt(FX + FW / 2, aty + 19, fmsg, "tiny", res?.err ? "#ff8a7a" : ok ? rarCss(res.item) : LIGHT2, { wordWrap: { width: FW - 8, useAdvancedWrap: !0 } }).setOrigin(0.5, 0);
+  B.altar = { x: rx, y: aty };
   if (ok) {
-    const b = Be(h, acx - 50, FY + 204, 100, 20, cost ? `망치질 · 융합석 ${cost}` : "망치질!", () => {
+    const b = Be(h, FX + FW / 2 - 50, FY + FH - 20, 100, 17, cost ? `망치질 · 융합석 ${cost}` : "망치질!", () => {
       B.sel = B.forge.filter(Boolean).map((e) => ({ ...e, item: entItem(fr, e) }));
       B.forge = [null, null, null];
       B.hover = null;
@@ -3516,19 +3615,17 @@ function renderBag(h) {
     fr.stones >= cost || b.setEnabled(!1);
     B.objs.push(...b.container);
   }
-  // 판매 궤짝
-  const cy0 = FY + 240, sOver = B.hl === "sell:0", sOk = D ? canDrop(B, D.it, D.ent, { type: "sell" }) : !1;
-  const crate = add(h.add.image(FX + FW / 2, cy0 + 26, "inv_crate").setDepth(92));
+  // 판매 궤짝 + 자원 (맨 아래 줄)
+  const cy0 = FY + FH + 4, sOver = B.hl === "sell:0", sOk = D ? canDrop(B, D.it, D.ent, { type: "sell" }) : !1;
+  const crate = add(h.add.image(FX + 34, cy0 + 16, "inv_crate").setDepth(92).setScale(0.5));
   sOver && sOk && crate.setTint(0xffd0a0);
-  lt(FX + FW / 2, cy0 + 18, D && sOk ? `판매 +${sellPrice(sc, D.it)}G` : "고물 궤짝 · 끌어 놓아 판매", "tiny", "#ffe0a0").setOrigin(0.5, 0);
-  B.hits.push({ x: FX + FW / 2 - 60, y: cy0 + 3, w: 120, h: 46, type: "sell", key: 0 });
-  // 자원
-  add(h.add.image(FX + 14, cy0 + 66, "icon_gold").setDepth(95));
-  lt(FX + 24, cy0 + 59, `${Math.floor((sc.run?.gold ?? 0) + (sc.run?.milestoneGold ?? 0))}`, "small", "#ffd84a");
-  add(h.add.image(FX + 100, cy0 + 66, "fr_stone").setDepth(95));
-  lt(FX + 110, cy0 + 59, `융합석 ${fr.stones}`, "small", "#a8e0ff");
-  B.msg && lt(FX + FW / 2, cy0 + 80, B.msg, "tiny", "#ffb090").setOrigin(0.5, 0);
-  
+  lt(FX + 66, cy0 + 2, D && sOk ? `판매 +${sellPrice(sc, D.it)}G` : "끌어 놓아 판매", "tiny", "#ffe0a0");
+  B.hits.push({ x: FX + 2, y: cy0, w: 64, h: 28, type: "sell", key: 0 });
+  add(h.add.image(FX + 72, cy0 + 22, "icon_gold").setDepth(95).setScale(0.8));
+  lt(FX + 80, cy0 + 15, `${bagGoldNow(sc)}`, "tiny", "#ffd84a");
+  add(h.add.image(FX + 132, cy0 + 22, "fr_stone").setDepth(95).setScale(0.8));
+  lt(FX + 140, cy0 + 15, `${fr.stones}`, "tiny", "#a8e0ff");
+  B.msg && lt(W / 2, Hh - 26, B.msg, "small", "#ffb090").setOrigin(0.5, 0);
 }
 // 칸 바탕 그림 (hi: 강조)
 function slotKey(style, big, hi, it) {
@@ -3551,9 +3648,10 @@ function renderDetail(h, PX, PY, PW, PH) {
   const B = h.frBag, sc = B.sc, fr = sc.fr;
   const { ct, Be } = R;
   const add = (o) => (B.det.push(o), o);
+  const it = B.hover?.it;
+  if (!it && !(fr.sp > 0) && !B.showStats) return;
   add(h.add.image(PX + PW / 2, PY + PH / 2, PAPER.noteKey(h, PW, PH, 17)).setDepth(92));
   add(h.add.circle(PX + PW / 2, PY + 6, 3, 0xc83a2a).setDepth(95));
-  const it = B.hover?.it;
   const t = (x, y, s, st, col, o = {}) => add(ct(h, x, y, s, st, col, o).setDepth(95));
   if (!it) {
     const p = sc.player;
@@ -3688,8 +3786,8 @@ function sell(h, s) {
   const B = h.frBag;
   const sc = B.sc, fr = sc.fr;
   const it = takeOut(fr, s);
-  const g = Math.round((10 + sc.dist / 150) * (1 + it.tier));
-  sc.run.gold += g;
+  const g = sellPrice(sc, it);
+  bagGold(sc, g);
   B.sel = [];
   B.msg = `${it.name} 판매 +${g}G`;
   R.j.play("coin");
@@ -3711,7 +3809,7 @@ export function panelFrame(P, S, title) {
   return SCR.panelFrame(P, S, title, R);
 }
 export function makeHubPanels() {
-  if (R) return SCR.makeScreens(R, { mkItem, kindOf, itemIcon, IT, sd, STARTER, elCss, shopPrice, matCost, hubSellPrice, rarityDeco, refresh: (sc) => sc.player?.applyStats?.(hubStats(sc)) });
+  if (R) return SCR.makeScreens(R, { mkItem, kindOf, itemIcon, IT, sd, STARTER, elCss, shopPrice, matCost, hubSellPrice, rarityDeco, BAG_MAX, refresh: (sc) => sc.player?.applyStats?.(hubStats(sc)) });
   return makeHubPanelsOld();
 }
 function makeHubPanelsOld() {
@@ -3985,11 +4083,17 @@ export function settleLoot(sc, safe) {
   const out = { safe: !!safe, items: [], mats: { ...(fr.mats ?? {}) }, runeGold: 0, newShop: [] };
   if (safe) {
     for (const k of SLOT_KEYS) d.equip[k] = null;
+    d.bag = [];
     for (const [slot, it] of items) {
-      // 각인은 거점에서 쓸 곳이 없으니 팔아서 골드로
-      if (it.kind === "rune") {
-        out.runeGold += 40 * IT.gradeOf(it) * (1 + it.tier);
-        out.items.push({ key: itemKey(it), item: snapItem(it), sold: 1 });
+      // 가방 물건은 가방에 그대로 (알비온식, 2026-11-28) — 장착한 물건만 창고·장착으로
+      if (!slot) {
+        const key = bagKeyOf(d, it);
+        d.bag.length < BAG_MAX ? d.bag.push(key) : stash(d, it);
+        out.items.push({ key, item: snapItem(it) });
+        if (it.tier === 0 && !it.relic && !FREE_KEYS.has(it.id) && !Object.values(STARTER).flat().some((x) => x[0] === it.id) && !(d.shop ?? []).some((x) => x.key === it.id)) {
+          (d.shop = d.shop ?? []).push({ key: it.id, price: UNLOCK_PRICE(it) });
+          out.newShop.push(it.id);
+        }
         continue;
       }
       const key = stash(d, it);
@@ -4874,6 +4978,8 @@ export const _ZG = ZG;
 export const _exitPos = (world, z, at) => exitPos(world, z, at);
 // 시험 도구용: 지금 쓰는 설계 캐시 (페이지에서 natgen을 따로 import하면 다른 모듈이 된다)
 export const _plans = () => ZG.planCache;
+export const _save = () => sd();
+export const _giveGold = (n) => ((R.it.data.gold = (R.it.data.gold ?? 0) + n), R.it.write());
 // 카메라가 지금 구역 밖(옆 구역)을 비추지 않게: 구역 왼쪽 끝 ~ 오른쪽 끝 - 화면 폭
 // 자연 지형 나무·폐허 그림: 처음 쓸 때 한 번 그려 텍스처로 둔다
 // 움직이는 장식 층에 넘길 지금 구역의 설계 (설계가 준비된 자연 지형 구역만)

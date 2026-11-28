@@ -15100,15 +15100,19 @@ class pr extends zt.Scene {
       };
     this.facilities = H2.facilities.map((f) => ({ ...f, open: OPEN[f.id] }));
     this.input.keyboard.on("keydown-V", () => this.panelOpen || FG.toggleDestiny(this));
+    // 거점에서도 가방 (2026-11-28)
+    this.input.keyboard.addCapture("TAB");
+    this.input.keyboard.on("keydown-TAB", () => FG.toggleBagHub(this));
     const t = (i, e, r) => null;
     const a = FG.hubStats(this);
     ((this.player = new Ws(this, a, FG.hubArrivalX(1420), bt)),
       (this.player.facing = -1),
-      Ce(this, 4, 4, 150, 34, "ui_hud_gold").setScrollFactor(0).setDepth(100),
-      this.add.image(16, 15, "icon_gold").setScrollFactor(0).setDepth(101),
-      (this.goldText = ct(this, 26, 8, "", "body", "#ffd84a").setScrollFactor(0).setDepth(101)),
-      this.add.image(16, 29, "icon_flag").setScrollFactor(0).setDepth(101),
-      (this.bestText = ct(this, 26, 23, "", "tiny", "#f2e6c4").setScrollFactor(0).setDepth(101)),
+      // 왼쪽 위 돈·기록 라벨은 쓰지 않는다 (2026-11-28 · 돈은 가방[Tab]에서)
+      Ce(this, 4, 4, 150, 34, "ui_hud_gold").setScrollFactor(0).setDepth(100).setVisible(!1),
+      this.add.image(16, 15, "icon_gold").setScrollFactor(0).setDepth(101).setVisible(!1),
+      (this.goldText = ct(this, 26, 8, "", "body", "#ffd84a").setScrollFactor(0).setDepth(101).setVisible(!1)),
+      this.add.image(16, 29, "icon_flag").setScrollFactor(0).setDepth(101).setVisible(!1),
+      (this.bestText = ct(this, 26, 23, "", "tiny", "#f2e6c4").setScrollFactor(0).setDepth(101).setVisible(!1)),
       (this.dpsText = ct(this, this.dummy.body.x ?? 760, bt - 52, "", "tiny", q.orange, { stroke: "#140e18", strokeThickness: 3 })
         .setOrigin(0.5)
         .setDepth(9)),
@@ -15277,7 +15281,8 @@ class pr extends zt.Scene {
       h = this.input.activePointer,
       m = zt.Input.Keyboard.JustDown,
       t = this.inp,
-      a = !!this.panelOpen || this.leaving;
+      a = !!this.panelOpen || this.leaving,
+      bg = FG.hubBagOpen(this);
     ((t.left = !a && (R.A.isDown || R.LEFT.isDown)),
       (t.right = !a && (R.D.isDown || R.RIGHT.isDown)),
       (t.jump = !a && (m(R.SPACE) || m(R.W))),
@@ -15286,13 +15291,15 @@ class pr extends zt.Scene {
     const v = h.positionToCamera(this.cameras.main);
     ((t.aimX = v.x),
       (t.aimY = v.y),
-      (t.attackHeld = !a && ((h.leftButtonDown() && h.y > 40) || TOUCH.attack)),
-      (t.special = !a && h.rightButtonDown() && !this.rmbHeld),
+      (t.attackHeld = !a && !bg && ((h.leftButtonDown() && h.y > 40) || TOUCH.attack)),
+      (t.special = !a && !bg && h.rightButtonDown() && !this.rmbHeld),
       (this.rmbHeld = h.rightButtonDown()),
       (t.swap = m(R.ONE) ? 0 : m(R.TWO) ? 1 : -1),
-      (t.skills = [!a && m(R.Q), !1, !a && m(R.R), !a && m(R.F)]));
-    let o = m(R.E);
-    const n = m(R.ESC),
+      (t.skills = [!a && !bg && m(R.Q), !1, !a && !bg && m(R.R), !a && !bg && m(R.F)]));
+    let o = !bg && m(R.E);
+    let n = m(R.ESC);
+    bg && n && (FG.closeBagHub(this), (n = !1));
+    const
       i = this.pad;
     if ((i.poll(), i.connected)) {
       const l = this.panelOpen;
@@ -18125,7 +18132,8 @@ class Er extends zt.Scene {
     })),
       (a = this.input.mouse) == null || a.disableContextMenu(),
       this.input.keyboard.on("keydown-ESC", () => {
-        this.pauseReq = !0;
+        // 가방이 열려 있으면 ESC는 가방만 닫는다
+        FG.bagBlocks(this) ? FG.closeBagOf(this) : (this.pauseReq = !0);
       }),
       FG.zoneBegin(this),
       this.world.update(this.player.x),
@@ -19022,6 +19030,8 @@ class Er extends zt.Scene {
     G && ((h.attackHeld = !1), (h.special = !1), (h.dash = !1));
     let v = R(T.E);
     ((h.interact = !1), (h.skills = [R(T.Q), !1, R(T.R), R(T.F)]));
+    // 가방이 열려 있으면 걷기·점프만 (알비온식: 게임은 멈추지 않는다)
+    FG.bagBlocks(this) && ((h.attackHeld = !1), (h.special = !1), (h.skills = [!1, !1, !1, !1]), (v = !1));
     const o = this.pad;
     if (
       (o.poll(),

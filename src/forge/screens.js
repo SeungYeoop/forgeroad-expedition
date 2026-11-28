@@ -39,7 +39,7 @@ export function panelFrame(P, S, title, R) {
 
 export function makeScreens(R, D) {
   const { Ne, it: SAVE, j, q, yt } = R;
-  const { mkItem, kindOf, itemIcon, IT, sd, STARTER, refresh, elCss, shopPrice, matCost, hubSellPrice, rarityDeco } = D;
+  const { mkItem, kindOf, itemIcon, IT, sd, STARTER, refresh, elCss, shopPrice, matCost, hubSellPrice, rarityDeco, BAG_MAX = 48 } = D;
   const matsOf = () => (sd().mats = sd().mats ?? {});
   const gkey = (id, g) => (g > 1 ? `${id}@${g}` : id);
   const gradeTag = (P, x, y, it, d = 207) => {
@@ -48,7 +48,8 @@ export function makeScreens(R, D) {
   };
   const KO = { weapon: "무기", armor: "방어구", skill: "스킬", magic: "마법" };
   const FREE = new Set(Object.values(STARTER).flat().filter((x) => x[1] === 0).map((x) => x[0]));
-  const countOf = (id) => (FREE.has(id) ? Infinity : sd().owned.filter((x) => x === id).length);
+  // 보유 = 창고 + 가방
+  const countOf = (id) => (FREE.has(id) ? Infinity : sd().owned.filter((x) => x === id).length + (sd().bag ?? []).filter((x) => x === id).length);
 
   // 공용: 장면 객체를 창에 붙인다
   const A = (P, o, d = 203) => (o.setScrollFactor(0).setDepth(d), P.objs.push(o), o);
@@ -145,16 +146,18 @@ export function makeScreens(R, D) {
       if (!IT.canEquip({ id: String(id).split("@")[0], grade: this.grade })) return void (j.play("error"), (this.say = `아직 자네 손에 맞지 않아. ${IT.needText({ id: String(id).split("@")[0], grade: this.grade })}. V키로 운명 보드를 보게.`), this.render());
       const c = matCost(this.grade);
       if (c && (matsOf()[c.mat.id] ?? 0) < c.n) return void (j.play("error"), (this.say = `${c.mat.name}가 모자라. ${c.n}개는 있어야 하네.`), this.render());
+      // 산 물건은 가방으로 (빈 기술·마법 칸이 있으면 바로 장착) — 가방이 꽉 차면 팔지 않는다 (2026-11-28)
+      const d = sd();
+      d.bag ??= [];
+      const auto = this.kind === "skill" ? (!d.equip.s1 ? "s1" : !d.equip.s2 ? "s2" : null) : this.kind === "magic" ? (!d.equip.magic ? "magic" : null) : null;
+      if (!auto && d.bag.length >= BAG_MAX) return void (j.play("error"), (this.say = "가방이 꽉 찼네. 창고에 좀 넣고 오게."), this.render());
       if (!SAVE.spend(price)) return void (j.play("error"), (this.say = "골드가 모자라는군. 탐험을 더 다녀오게."), this.render());
       c && (matsOf()[c.mat.id] -= c.n);
-      const d = sd();
-      d.owned.push(id);
-      if (this.kind === "skill") !d.equip.s1 ? (d.equip.s1 = id) : !d.equip.s2 && (d.equip.s2 = id);
-      else if (this.kind === "magic") !d.equip.magic && (d.equip.magic = id);
+      auto ? (d.owned.push(id), (d.equip[auto] = id)) : d.bag.push(id);
       SAVE.write();
       j.play("buy");
       refresh(this.scene);
-      this.say = "고맙네! 들고 나갔다 쓰러지면 끝이니 조심하게.";
+      this.say = auto ? "바로 손에 익혀 두었네. 쓰러지면 끝이니 조심하게." : "가방에 넣어 두었네. 쓰러지면 끝이니 조심하게.";
       this.render();
     }
     build() {

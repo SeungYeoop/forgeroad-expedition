@@ -467,6 +467,34 @@ export function iconMedalKey(scene, s, iconKey, done = 1) {
   });
   return put(scene, k, c);
 }
+// ── 어두운 대화창 (일시정지·설정·확인창 · 실측 #28272c → #161618, 테 #3d3331 · 레퍼런스 a04) ──
+export function darkPanelKey(scene, w, h, seed = 2) {
+  const k = `alb_dark_${w}x${h}_${seed}`;
+  if (scene.textures.exists(k)) return k;
+  const c = cv(w + 3, h + 3, (r) => {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) edgeRR(x, y, w, h, 4) >= 0 && r(x + 2, y + 3, 1, 1, 0x000000, 0.5);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const e = edgeRR(x, y, w, h, 4);
+        if (e < 0) continue;
+        const t = y / h;
+        let col = mix(0x2c2b31, 0x141416, t);
+        col = sh(col, (VN(x, y, 9, seed) - 0.5) * 0.12 + (H(x, y, seed) - 0.5) * 0.05);
+        if (e === 0) col = 0x08080a;
+        else if (e === 1) col = mix(0x8a8a92, 0x3a3a40, t);
+        else if (e === 2) col = 0x101012;
+        else if (e === 4) col = mix(0x4a3e38, 0x2e2622, t);
+        else if (e === 5) col = sh(col, -0.25);
+        r(x, y, 1, 1, col);
+      }
+    // 위 안쪽 반사
+    for (let x = 6; x < w - 6; x++) r(x, 6, 1, 1, 0xffffff, 0.04);
+    // 모서리 쇠 장식 (작은 마름모)
+    for (const [cx, cy] of [[6, 6], [w - 7, 6], [6, h - 7], [w - 7, h - 7]])
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) Math.abs(dx) + Math.abs(dy) <= 2 && r(cx + dx, cy + dy, 1, 1, Math.abs(dx) + Math.abs(dy) === 2 ? 0x2a2420 : dy < 0 ? 0xb8a890 : 0x6a5a48);
+  });
+  return put(scene, k, c);
+}
 // 게이지 홈 + 채움 (너비 w)
 export function gaugeKey(scene, w, frac) {
   const n = Math.round(Math.max(0, Math.min(1, frac)) * (w - 2));

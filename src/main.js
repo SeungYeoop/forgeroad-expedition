@@ -14919,6 +14919,7 @@ class dr extends Ne {
     this.sel < this.rows.length ? (this.rows[this.sel].apply(), this.render()) : (this.close(), this.onTitle());
   }
   build() {
+    if (this.alb && FG.settingsBuild) return FG.settingsBuild(this);
     const T = Ot + 10,
       C = Wt + 32,
       E = 280;
@@ -14949,6 +14950,8 @@ class dr extends Ne {
       ));
   }
 }
+// 설정 창: 알비온식 어두운 대화창 (2026-11-28)
+dr.prototype.alb = 1;
 const bt = 252,
   be = 2720;
 class cr {
@@ -19869,34 +19872,20 @@ class wr extends zt.Scene {
   openPause(view = "main") {
     if (this.modalOpen && !this._pauseOpen) return;
     this._pauseOpen ? this.clearPauseUI() : (this.openModal(), (this._pauseOpen = !0));
-    const UK = FG.UK, W = ot, H = xt, PW = 250, PH = 236, px = (W - PW) / 2, py = (H - PH) / 2 + 8;
     try {
       const cam = this.run?.cameras?.main;
       cam?.postFX && !this._pauseBlur && (this._pauseBlur = cam.postFX.addBlur(1, 2, 2, 1.2));
     } catch (e) {}
-    const add = (o) => (this.modal.push(o), o);
-    add(this.add.rectangle(0, 0, W, H, 0x08060a, 0.55).setOrigin(0).setDepth(90).setInteractive());
-    add(UK.vignette(this, 0.7, 90.5));
-    add(UK.frame(this, px, py, PW, PH, { depth: 91 }));
-    const rb = UK.ribbon(this, W / 2, py - 14, 150, view === "settings" ? "설정" : "일시정지", { depth: 93, font: "big", h: 28 });
-    rb.objs.forEach(add);
-    const z = FG.zoneNameOf?.(this.run);
-    view === "main" && z && add(ct(this, W / 2, py + 24, z, "small", "#e8d4b0", { stroke: "#140a04", strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(92));
+    // 알비온식 어두운 대화창 (2026-11-28)
     const L = view === "settings"
-      ? [...$s(this).map((e) => ({ label: e.label, fn: (P) => (e.apply(), P.set(e.label())) })), { label: () => "◀  돌아가기", fn: () => this.openPause("main") }]
+      ? [...$s(this).map((e) => ({ label: e.label, fn: (P) => (e.apply(), P.set(e.label())) })), { label: () => "◀  돌아가기", back: !0, fn: () => this.openPause("main") }]
       : [
           { label: () => "계속하기", primary: !0, fn: () => this.closeModal(!0) },
           { label: () => "지도  [M]", fn: () => (this.closeModal(!0), FG.toggleMapHud?.(this)) },
           { label: () => "운명 보드  [V]", fn: () => (this.closeModal(!0), FG.toggleDestiny(this)) },
           { label: () => "설정", fn: () => this.openPause("settings") },
         ];
-    const top = view === "settings" ? py + 22 : py + 52, bh = view === "settings" ? 24 : 34, bw = PW - 40;
-    L.forEach((e, r) => {
-      const P = UK.plate(this, px + 20, top + r * bh, bw, bh - 6, e.label(), () => e.fn(P), { primary: e.primary, small: view === "settings", depth: 92, font: e.primary ? "big" : view === "settings" ? "tiny" : "body" });
-      P.objs.forEach(add);
-      this.addModalBtn({ enabled: !0, setSelected: (v) => P.select(v) }, () => e.fn(P));
-    });
-    add(ct(this, W / 2, py + PH - 18, "ESC 닫기  ·  ↑↓ 선택  ·  Enter 확인", "tiny", "#b8a888", { stroke: "#140a04", strokeThickness: 2 }).setOrigin(0.5, 0).setDepth(92));
+    FG.pauseUI(this, view, L);
     this.modalSel = 0;
     this.modalBtns[0]?.b.setSelected(!0);
   }

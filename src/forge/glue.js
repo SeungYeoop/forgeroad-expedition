@@ -3723,6 +3723,127 @@ function renderBag(h) {
   fr.hub || (add(h.add.image(FX + 126, cy0 + 22, "fr_stone").setDepth(95).setScale(0.8)), lt(FX + 134, cy0 + 15, `융합석 ${fr.stones}`, "tiny", "#a8e0ff"));
   B.msg && lt(W / 2, Hh - 26, B.msg, "small", "#ffb090").setOrigin(0.5, 0);
 }
+// ══ 알비온식 어두운 대화창: 일시정지 · 설정 (2026-11-28) ══
+const APRI = "#e2bf98", APRI2 = "#a89a8a";
+function darkHead(h, add, o, d) {
+  ALB.makeArt(h);
+  add(h.add.image(o.x, o.y, ALB.darkPanelKey(h, o.w, o.h)).setOrigin(0).setDepth(d));
+  add(R.ct(h, o.x + 14, o.y + 10, o.title, "body", APRI, ALB.darkStyle).setDepth(d + 1));
+  o.sub && add(R.ct(h, o.x + o.w - (o.subR ?? 14), o.y + 13, o.sub, "tiny", APRI2, ALB.darkStyle).setOrigin(1, 0).setDepth(d + 1));
+  add(h.add.rectangle(o.x + 10, o.y + 28, o.w - 20, 1, 0x060607).setOrigin(0).setDepth(d + 1));
+  add(h.add.rectangle(o.x + 10, o.y + 29, o.w - 20, 1, 0x4a4440).setOrigin(0).setDepth(d + 1));
+}
+// 알약 단추 (선택되면 밝아지고 양옆 금색 화살표)
+function darkPill(h, add, x, y, w, label, fn, o = {}) {
+  const hh = o.h ?? 17, st = o.style ?? "navy", d = o.depth ?? 92;
+  const bg = add(h.add.image(x, y, ALB.pillKey(h, w, hh, st)).setOrigin(0).setDepth(d).setInteractive({ useHandCursor: !0 }));
+  const t = add(R.ct(h, x + w / 2, y + Math.floor(hh / 2) - (o.font === "small" ? 6 : 4), label, o.font ?? "tiny", st === "red" ? "#ffe27a" : ALB.C.gold, ALB.darkStyle).setOrigin(0.5, 0).setDepth(d + 0.5));
+  const al = add(R.ct(h, x - 9, y + Math.floor(hh / 2) - 4, "▶", "tiny", "#f0c860", ALB.darkStyle).setDepth(d + 0.5).setVisible(!1));
+  const ar = add(R.ct(h, x + w + 3, y + Math.floor(hh / 2) - 4, "◀", "tiny", "#f0c860", ALB.darkStyle).setDepth(d + 0.5).setVisible(!1));
+  let sel = !1, hov = !1;
+  const upd = () => bg.setTexture(ALB.pillKey(h, w, hh, st, sel || hov ? 1 : 0));
+  bg.on("pointerover", () => ((hov = !0), upd()));
+  bg.on("pointerout", () => ((hov = !1), upd()));
+  bg.on("pointerdown", () => fn());
+  return { enabled: !0, setSelected: (v) => ((sel = v), al.setVisible(v), ar.setVisible(v), upd()), select: (v) => ((sel = v), al.setVisible(v), ar.setVisible(v), upd()), set: (s) => t.setText(s) };
+}
+// 설정 한 줄: 왼쪽 이름(살구색) · 오른쪽 값 알약. "이름: 값" 글을 나눈다
+function darkRow(h, add, x, y, w, text, fn, d = 92) {
+  const split = (s) => {
+    const i = s.lastIndexOf(": ");
+    return i < 0 ? [s, ""] : [s.slice(0, i), s.slice(i + 2)];
+  };
+  const [a, b] = split(text);
+  const band = add(h.add.rectangle(x - 4, y - 2, w + 8, 16, 0xffffff, 0.001).setOrigin(0).setDepth(d - 0.2).setInteractive({ useHandCursor: !0 }));
+  const hl = add(h.add.rectangle(x - 4, y - 2, w + 8, 16, 0xf0c860, 0.08).setOrigin(0).setDepth(d - 0.1).setStrokeStyle(1, 0x8a7040, 0.6).setVisible(!1));
+  const lt = add(R.ct(h, x, y + 1, a, "tiny", APRI, ALB.darkStyle).setDepth(d + 0.5));
+  const on = (v) => v === "켜짐" || /%$/.test(v) && v !== "0%";
+  const pw = 52, px = x + w - pw;
+  const pill = add(h.add.image(px, y - 1, ALB.pillKey(h, pw, 13, on(b) ? "navy" : "off")).setOrigin(0).setDepth(d));
+  const vt = add(R.ct(h, px + pw / 2, y + 1, b, "tiny", on(b) ? ALB.C.gold : "#9a9a9e", ALB.darkStyle).setOrigin(0.5, 0).setDepth(d + 0.5));
+  band.on("pointerdown", () => fn());
+  band.on("pointerover", () => hl.setVisible(!0));
+  band.on("pointerout", () => sel || hl.setVisible(!1));
+  let sel = !1;
+  return {
+    enabled: !0,
+    setSelected: (v) => ((sel = v), hl.setVisible(v)),
+    select: (v) => ((sel = v), hl.setVisible(v)),
+    set: (s) => {
+      const [a2, b2] = split(s);
+      lt.setText(a2), vt.setText(b2).setColor(on(b2) ? ALB.C.gold : "#9a9a9e");
+      pill.setTexture(ALB.pillKey(h, pw, 13, on(b2) ? "navy" : "off"));
+    },
+  };
+}
+// 탐험 중 일시정지 (HUD 장면 h · view: main / settings) — 단추는 h.addModalBtn 으로 키보드 선택에 붙는다
+export function pauseUI(h, view, L) {
+  const add = (o) => (h.modal.push(o), o);
+  const W = R.ot, Hh = R.xt, run = h.run;
+  const set = view === "settings", PW = set ? 248 : 236, PH = set ? 30 + L.length * 18 + 20 : 170;
+  const px = Math.round((W - PW) / 2), py = Math.round((Hh - PH) / 2);
+  add(h.add.rectangle(0, 0, W, Hh, 0x060508, 0.55).setOrigin(0).setDepth(90).setInteractive());
+  add(UK.vignette(h, 0.7, 90.5));
+  darkHead(h, add, { x: px, y: py, w: PW, h: PH, title: set ? "설정" : "일시정지", sub: set ? "" : zoneNameOf(run) ?? "" }, 91);
+  let y = py + 36;
+  if (!set) {
+    // 이번 탐험 요약 (어두운 홈)
+    const fr = run?.fr, gold = Math.floor((run?.run?.gold ?? 0) + (run?.run?.milestoneGold ?? 0));
+    add(h.add.rectangle(px + 12, y, PW - 24, 28, 0x060607, 0.55).setOrigin(0).setDepth(91.5).setStrokeStyle(1, 0x3d3331));
+    const cells = [["처치", `${run?.run?.kills ?? 0}`], ["골드", `${gold.toLocaleString()}`], ["가방", `${fr?.bag?.length ?? 0}/${fr?.bagMax ?? 48}`], ["융합석", `${fr?.stones ?? 0}`]];
+    const cw = (PW - 24) / cells.length;
+    cells.forEach(([a, b], i) => {
+      const cx = px + 12 + i * cw + cw / 2;
+      add(R.ct(h, cx, y + 3, a, "tiny", APRI2, ALB.darkStyle).setOrigin(0.5, 0).setDepth(92));
+      add(R.ct(h, cx, y + 14, b, "tiny", "#f4e6d0", ALB.darkStyle).setOrigin(0.5, 0).setDepth(92));
+      i && add(h.add.rectangle(px + 12 + i * cw, y + 4, 1, 20, 0x3d3331).setOrigin(0).setDepth(92));
+    });
+    y += 36;
+  }
+  L.forEach((e, r) => {
+    let P;
+    if (set && !e.back) P = darkRow(h, add, px + 18, y + 2, PW - 36, e.label(), () => e.fn(P));
+    else {
+      set && (y += 6);
+      P = darkPill(h, add, px + 22, y, PW - 44, e.label(), () => e.fn(P), { style: e.primary ? "red" : "navy", font: e.primary ? "small" : "tiny", h: e.primary ? 19 : 17 });
+    }
+    h.addModalBtn(P, () => e.fn(P));
+    y += set && !e.back ? 18 : e.primary ? 25 : 22;
+  });
+}
+// 설정 창 (거점·타이틀의 Ne 창 P): 왼쪽 설정 줄 · 오른쪽 조작표
+const KEYS = [["이동", "A · D"], ["점프 (2단)", "Space · W"], ["대시", "Shift"], ["막기", "S · ↓"], ["발판 내려가기", "S + Space"], ["공격 (누르면 모으기)", "좌클릭"], ["특수 동작", "우클릭"], ["기술 · 마법", "Q · E · R"], ["상호작용 (거점)", "E"], ["가방", "Tab"], ["지도", "M"], ["운명 보드", "V"], ["귀환", "B"], ["메뉴", "Esc"]];
+export function settingsBuild(P) {
+  const h = P.scene, add = (o) => (o.setScrollFactor(0), P.objs.push(o), o);
+  const W = R.ot, Hh = R.xt, PW = 420, PH = 280, px = Math.round((W - PW) / 2), py = Math.round((Hh - PH) / 2);
+  darkHead(h, add, { x: px, y: py, w: PW, h: PH, title: "설정" }, 202);
+  // 닫기
+  const cl = add(h.add.image(px + PW - 18, py + 8, "alb_close").setOrigin(0).setDepth(206).setInteractive({ useHandCursor: !0 }));
+  cl.on("pointerover", () => cl.setTexture("alb_close_hov"));
+  cl.on("pointerout", () => cl.setTexture("alb_close"));
+  cl.on("pointerdown", () => P.close());
+  const lx = px + 18, lw = 196;
+  P.rows.forEach((e, v) => {
+    const row = darkRow(h, add, lx, py + 44 + v * 27, lw, e.label(), () => ((P.sel = v), e.apply(), P.render()), 205);
+    P.sel === v && row.setSelected(!0);
+  });
+  const n = P.rows.length, by = py + PH - 32;
+  const bt = darkPill(h, add, lx + 10, by, lw - 20, "타이틀 화면으로", () => ((P.sel = n), P.primary()), { depth: 205 });
+  P.sel === n && bt.setSelected(!0);
+  // 세로 홈
+  add(h.add.rectangle(px + 228, py + 36, 1, PH - 52, 0x060607).setOrigin(0).setDepth(203));
+  add(h.add.rectangle(px + 229, py + 36, 1, PH - 52, 0x4a4440).setOrigin(0).setDepth(203));
+  // 조작표
+  const rx = px + 240, rw = PW - 240 - 16;
+  KEYS.forEach(([a, b], k) => {
+    const y = py + 40 + k * 16;
+    k % 2 || add(h.add.rectangle(rx - 2, y - 1, rw + 4, 15, 0xffffff, 0.035).setOrigin(0).setDepth(203));
+    add(R.ct(h, rx + 2, y + 2, a, "tiny", APRI, ALB.darkStyle).setDepth(205));
+    const kt = R.ct(h, rx + rw - 6, y + 2, b, "tiny", "#f4e6d0", ALB.darkStyle).setOrigin(1, 0).setDepth(206);
+    add(h.add.rectangle(rx + rw - kt.width - 10, y, kt.width + 8, 12, 0x060607, 0.7).setOrigin(0).setDepth(205).setStrokeStyle(1, 0x5a5048));
+    add(kt);
+  });
+}
 // ── 알비온식 가방 (2026-11-28 2차 시안 · docs/intent/albion-ui-analysis.md 7-2) ──
 //   오른쪽 끝 종이 창 하나: 머리(초상·제목·닫기) → 장비(무기·방어구 / Q·E·R, 빈 칸은 실루엣) → 용량 게이지 → 가방 칸 5열×6줄 + 스크롤 → 판매 칸
 //   상세창은 가방 창 왼쪽에 붙는 철틀 종이, 융합 제단은 탐험 중에만 왼쪽 아래 철틀 작은 창
@@ -3837,8 +3958,7 @@ function albBag(h, B, add, slotBox, res, D) {
   const sxC = WX + 22, syC = WY + WH - 20;
   add(h.add.image(sxC, syC, sOver && sOk ? "alb_eq_sell_hi" : "alb_eq_sell").setDepth(93));
   B.hits.push({ x: sxC - 14, y: syC - 14, w: 28, h: 28, type: "sell", key: 0 });
-  ink(WX + 42, syC - 11, D && sOk ? `놓으면 판매  +${sellPrice(sc, D.it)}G` : "여기에 끌어 놓아 판매", "tiny", D && sOk ? ALB.C.inkRed : ALB.C.ink);
-  ink(WX + 42, syC + 1, B.opts.stash ? "우클릭: 가방 → 창고" : "우클릭 장착 · Shift 융합", "tiny", ALB.C.label);
+  ink(WX + 42, syC - 5, D && sOk ? `판매  +${sellPrice(sc, D.it)}G` : "판매", "small", D && sOk ? ALB.C.inkRed : ALB.C.ink);
   // ── 융합 제단 (탐험 중에만): 가방 창 왼쪽 아래 철틀 작은 창 ──
   B.albAltarTop = Hh;
   B.albStashX = null;
@@ -3881,7 +4001,7 @@ function albAltar(h, B, add, slotBox, res, WX, bottom) {
     for (const o of albBadges(h, rx, aty, res.item)) add(o);
   }
   B.altar = { x: rx, y: aty };
-  const fmsg = !res ? (B.forge.some(Boolean) ? "재료를 하나 더 올리세요" : "재료 둘을 끌어다 놓으세요") : res.err ? res.err : res.item.name;
+  const fmsg = !res ? "" : res.err ? res.err : res.item.name;
   ink(AX + 8, AY + 52, cut(fmsg, 22), res?.err ? ALB.C.inkRed : ok ? parRar(res.item) : ALB.C.label);
   const cost = B.opts.free ? 0 : 1;
   if (ok) {
@@ -3893,7 +4013,7 @@ function albAltar(h, B, add, slotBox, res, WX, bottom) {
       B.hover = null;
       doFuse(h, res.item, cost);
     }, { style: can ? "red" : "off" });
-  } else ink(AX + 8, AY + AH - 21, "Shift+클릭으로도 올립니다", ALB.C.label);
+  }
 }
 // 상세창: 아이템 (철틀 종이) / 능력치 (종이 한 장)
 function albDetail(h) {
@@ -3965,11 +4085,7 @@ function albDetail(h) {
   }
   y += 11;
   for (const o of ALB.groove(h, DX + 8, y, DW - 16, 95)) add(o);
-  y += 4;
-  const e = B.hover.e;
-  const hint = B.hover.res ? "융합 결과물" : e?.where === "eq" ? "우클릭: 해제" : "우클릭: 장착 · Shift+클릭: 융합대";
-  t(DX + 8, y, hint, "tiny", ALB.C.label);
-  y += 12;
+  B.hover.res && (t(DX + 8, y + 4, "융합 결과물", "tiny", ALB.C.label), (y += 12));
   // 높이를 내용에 맞춘다 (+아래 철 띠). 제단과 겹치지 않게
   const DH = Math.min(maxBottom - DY, y - DY + 9);
   frame.setTexture(ALB.ironKey(h, DW, DH));
@@ -3992,8 +4108,7 @@ function albStash(h, B, add, slotBox, WX, D) {
   const tab = (B.stTab ??= "all");
   const tabKo = STASH_TABS.find(([k]) => k === tab)[1];
   add(h.add.image(SX + 7, SY + 6, ALB.medalKey(h, 28, "chest")).setOrigin(0).setDepth(93));
-  ink(SX + 40, SY + 9, `거점 보관함  ·  ${tabKo}`, "tiny", ALB.C.label);
-  ink(SX + 40, SY + 19, "창고", "body", ALB.C.ink, { stroke: ALB.C.ink, strokeThickness: 1 });
+  ink(SX + 40, SY + 13, "창고", "body", ALB.C.ink, { stroke: ALB.C.ink, strokeThickness: 1 });
   ink(SX + SW - 10, SY + 9, "보관", "tiny", ALB.C.label).setOrigin(1, 0);
   ink(SX + SW - 10, SY + 20, `${fr.stash.length}개`, "small", ALB.C.ink, { stroke: ALB.C.ink, strokeThickness: 1 }).setOrigin(1, 0);
   for (const o of ALB.groove(h, SX + 8, SY + 39, SW - 16, 92)) add(o);
@@ -4004,7 +4119,6 @@ function albStash(h, B, add, slotBox, WX, D) {
   const val = fr.stash.reduce((s, it) => s + hubSellPrice(itemKey(it)), 0);
   add(h.add.image(SX + 13, SY + 68, "icon_gold").setDepth(95));
   ink(SX + 20, SY + 64, `창고 가치  ${val.toLocaleString()}G`, "tiny", ALB.C.ink);
-  ink(SX + SW - 10, SY + 64, `보이는 물건 ${view.length}`, "tiny", ALB.C.label).setOrigin(1, 0);
   // 칸
   const GX = SX + 8 + 14, GY0 = SY + 78, GY = GY0 + 14;
   const rows = Math.max(VR, Math.ceil((view.length + 1) / COLS));
@@ -4051,7 +4165,6 @@ function albStash(h, B, add, slotBox, WX, D) {
     R.j.play("click");
     renderBag(h);
   });
-  ink(SX + 8, by + 17, "끌어서 옮기기 · 우클릭: 창고 → 가방", "tiny", ALB.C.label);
 }
 // 창고 패널 (왼쪽): 종류 탭 · 5열 스크롤 칸 · 전부 넣기 · 같은 종류 넣기 · 정렬 · 창고 가치
 const STASH_TABS = [["all", "전체"], ["weapon", "무기"], ["armor", "방어"], ["skill", "스킬"], ["magic", "마법"], ["etc", "기타"]];

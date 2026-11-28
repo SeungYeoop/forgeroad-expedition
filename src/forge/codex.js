@@ -638,7 +638,7 @@ export function drawZoneCodex(P, K) {
       H.bold(mx + CW + 8, by + 18, kills(bossId) || seen[Z.id] ? boss.name : "???", "small");
       H.at(mx + CW + 8, by + 32, kills(bossId) ? `「${boss.title}」` : "이 구역 깊은 곳에 산다", "tiny", ALB_LABEL);
       H.at(mx + CW + 8, by + 44, `체력 ${boss.hp}`, "tiny", "#4a2b16");
-    } else H.at(mx + 4, by + 20, "이 구역에는 지역 보스가 없다.\n지도의 붉은 점이 보스가 사는 구역.", "tiny", ALB_LABEL, { lineSpacing: 2 });
+    } else H.at(mx + 4, by + 20, "없음", "tiny", ALB_LABEL);
   }
 
   // ── 오른쪽: 표본 + 기록 ──
@@ -670,8 +670,8 @@ export function drawZoneCodex(P, K) {
   let txt;
   if (isBoss) {
     const bd = REGIONS[boss.region]?.boss;
-    txt = n && bd ? bd.phases.map((ph, i) => `${i + 1}단계(${ph.range}) ${ph.patterns.slice(0, 2).join(" · ")}`).join("\n") : "토벌하면 단계별 행동이 기록된다.";
-  } else txt = n ? m.pattern : "한 번 처치하면 행동이 기록된다.";
+    txt = n && bd ? bd.phases.map((ph, i) => `${i + 1}단계(${ph.range}) ${ph.patterns.slice(0, 2).join(" · ")}`).join("\n") : "기록 없음";
+  } else txt = n ? m.pattern : "기록 없음";
   const pt = H.at(rx, y, txt, "tiny", n ? "#5a3c24" : ALB_LABEL, { wordWrap: { width: RW, useAdvancedWrap: !0 }, lineSpacing: 1 });
   y += pt.height + 4;
   // 움직임 고르기 (처치한 몬스터만)

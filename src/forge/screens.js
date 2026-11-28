@@ -816,9 +816,8 @@ export function makeScreens(R, D) {
     // ── 왼쪽: 진열 목록 ──
     const lx = B.bx, ly = B.by, VR = 7, RH = 30;
     bold(this, lx + 2, ly + 1, "진열 물건", "small");
-    at(this, lx + 246, ly + 3, `${L.length}종 · 값은 T1 기준`, "tiny", ALB.C.label).setOrigin(1, 0);
     const hy = ly + 16;
-    colHead(this, lx, hy, 146, "물건", !0), colHead(this, lx + 148, hy, 38, "보유"), colHead(this, lx + 188, hy, 58, "값");
+    colHead(this, lx, hy, 146, "물건", !0), colHead(this, lx + 148, hy, 38, "보유"), colHead(this, lx + 188, hy, 58, "값 (T1)");
     this.off = Math.max(0, Math.min(this.off ?? 0, L.length - VR));
     this.sel < this.off && (this.off = this.sel);
     this.sel >= this.off + VR && (this.off = this.sel - VR + 1);
@@ -896,7 +895,7 @@ export function makeScreens(R, D) {
     const sc = this.scene, d = sd();
     const bag = (d.bag ?? []).map((k, i) => ({ k, i, it: mkItem(k), price: hubSellPrice(k) })).filter((r) => r.it);
     this.sel = Math.max(0, Math.min(this.sel, bag.length - 1));
-    dt(this, B.x + B.w - 12, B.y + 40, `가방 ${bag.length} / ${BAG_MAX}  ·  값은 거점 시세`, "tiny", "#c8b49a").setOrigin(1, 0);
+    dt(this, B.x + B.w - 12, B.y + 40, `가방 ${bag.length} / ${BAG_MAX}`, "tiny", "#c8b49a").setOrigin(1, 0);
     const lx = B.bx, ly = B.by;
     bold(this, lx + 2, ly + 1, "팔 물건 고르기", "small");
     const GX = lx + 15, GY = ly + 32;
@@ -943,7 +942,7 @@ export function makeScreens(R, D) {
     const S = SAVE.data, sc = this.scene;
     const total = R.De.reduce((s, C) => s + (S.training[C.id] ?? 0), 0);
     const B = win(this, { x: 100, y: 18, w: 440, h: 324, title: "훈련소", sub: "“골드로 몸을 단련하게. 한 번 익힌 건 잃지 않네.”", medal: ALB.portraitKey(sc, 34, "npc_trainer", 10, 2) });
-    dt(this, B.x + 48, B.y + 40, `영구 능력치  ·  훈련 합계 Lv ${total}`, "tiny", "#c8b49a");
+    dt(this, B.x + 48, B.y + 40, `훈련 합계 Lv ${total}`, "tiny", "#c8b49a");
     const fmt = (C, v) => (C.fmt === "pct" ? `+${R._t(v, v < 0.1 ? 1 : 0)}` : `+${Math.round(v * 10) / 10}`);
     const lx = B.bx, hy = B.by + 1, RH = 23;
     colHead(this, lx, hy, 118, "능력치", !0), colHead(this, lx + 120, hy, 104, "단계"), colHead(this, lx + 226, hy, 110, "효과 (지금 ▸ 다음)"), colHead(this, lx + 338, hy, 82, "훈련");
@@ -964,7 +963,6 @@ export function makeScreens(R, D) {
       const hit = A(this, sc.add.rectangle(lx, y0, 336, RH, 0, 0).setOrigin(0).setInteractive(), 204.5);
       hit.on("pointerdown", () => this.sel !== i && ((this.sel = i), j.play("click"), this.render()));
     });
-    at(this, lx + 2, ty + R.De.length * RH + 5, "Enter: 고른 줄 훈련 · W/S: 줄 고르기 · 훈련한 능력치는 쓰러져도 남는다", "tiny", ALB.C.label);
     this.hintText?.setText("");
   };
 
@@ -1004,7 +1002,7 @@ export function makeScreens(R, D) {
   Board.prototype.albBuild = function () {
     const sc = this.scene, T = SAVE.data;
     const live = R.We.filter((a) => !ACH_DEAD.has(a.id)), done = live.filter((a) => T.achievements.includes(a.id)).length;
-    const B = win(this, { x: 16, y: 8, w: 608, h: 344, title: "기록 게시판", sub: "탐험 기록 · 도감 · 업적 · 융합 속성", medal: ALB.iconMedalKey(sc, 34, "icon_flag") });
+    const B = win(this, { x: 16, y: 8, w: 608, h: 344, title: "기록 게시판", medal: ALB.iconMedalKey(sc, 34, "icon_flag") });
     const tabs = ["기록", "도감", `업적 ${done}/${live.length}`, "융합 속성"], tw = [40, 40, 62, 58];
     this.tab = Math.max(0, Math.min(3, this.tab ?? 0));
     let tx0 = B.x + 48;
@@ -1016,7 +1014,6 @@ export function makeScreens(R, D) {
       const P = this;
       const H = { secHead: (...a) => secHead(P, ...a), at: (...a) => at(P, ...a), bold: (...a) => bold(P, ...a), dt: (...a) => dt(P, ...a), inset: (...a) => inset(P, ...a) };
       drawZoneCodex(this, { A, R, j, SAVE, ...this.bd, ZN, seen: sd().seen ?? {}, H });
-      dt(this, B.x + B.w - 24, B.y + 40, "지도에서 구역 · 카드로 몬스터 · 단추로 움직임", "tiny", "#c8b49a").setOrigin(1, 0);
     } else if (this.tab === 2) this.albAchieve(T, B, live, done);
     else this.albElems(B);
   };
@@ -1055,7 +1052,7 @@ export function makeScreens(R, D) {
     }).sort((p1, p2) => p2.f - p1.f);
     const fit = Math.floor((B.by + B.bh - ny - 16) / 22);
     if (fit > 0 && goals.length) {
-      secHead(this, x0, ny, LW, "다음 목표", "업적");
+      secHead(this, x0, ny, LW, "다음 목표");
       goals.slice(0, fit).forEach((g, k) => {
         const y = ny + 16 + k * 22;
         stripe(this, x0, y, LW, 22, k);
@@ -1100,7 +1097,7 @@ export function makeScreens(R, D) {
   // 업적: 2열 · 메달 · 이름 · 설명 · 보상 · 진행 막대
   Board.prototype.albAchieve = function (T, B, live, done) {
     const sc = this.scene, x0 = B.bx, y0 = B.by;
-    secHead(this, x0, y0, B.bw, "업적", `달성 ${done} / ${live.length} · 보상은 달성 즉시 골드로`);
+    secHead(this, x0, y0, B.bw, "업적", `달성 ${done} / ${live.length}`);
     const CW = Math.floor((B.bw - 8) / 2), RH = 37, rows = Math.ceil(live.length / 2);
     live.forEach((a, i) => {
       const c = Math.floor(i / rows), r = i % rows, x = x0 + c * (CW + 8), y = y0 + 17 + r * RH;
@@ -1125,7 +1122,7 @@ export function makeScreens(R, D) {
   Board.prototype.albElems = function (B) {
     const sc = this.scene, x0 = B.bx, y0 = B.by;
     const base = Object.values(IT.ELEMS).filter((e) => e.kind === "base");
-    secHead(this, x0, y0, B.bw, "융합 속성표", "속성이 다른 장비 둘을 융합하면 복합 속성 · 맞힐 때 반응이 터진다");
+    secHead(this, x0, y0, B.bw, "융합 속성표");
     this.ex = this.ex ?? 0;
     this.ey = this.ey ?? 1;
     const LC = 40, CWd = 41, CH = 26, gx = x0 + LC, gy = y0 + 30;
@@ -1178,8 +1175,6 @@ export function makeScreens(R, D) {
     });
     grooveP(this, dx + 6, dy + dh - 48, dw - 12);
     at(this, dx + 8, dy + dh - 42, pure ? "같은 적에게 다시 터지려면 1.2초" : "같은 적에게 다시 터지려면 0.9초", "tiny", ALB.C.label);
-    at(this, dx + 8, dy + dh - 28, "칸을 눌러 다른 조합을 본다", "tiny", ALB.C.label);
-    at(this, x0, gy + base.length * CH + 6, "대각선 = 같은 속성 둘 (순수 속성)", "tiny", ALB.C.label);
   };
   return { FrShop, FrLoadout, Training, Board };
 }

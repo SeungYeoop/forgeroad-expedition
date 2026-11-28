@@ -372,6 +372,34 @@ export function portraitKey(scene, s, spriteKey) {
   });
   return put(scene, k, c);
 }
+// 문장 원 (지름 s): 은 고리 + 안쪽 그림 (kind: "chest")
+export function medalKey(scene, s, kind) {
+  const k = `alb_medal_${s}_${kind}`;
+  if (scene.textures.exists(k)) return k;
+  const c = cv(s, s, (r) => {
+    const c0 = (s - 1) / 2;
+    for (let y = 0; y < s; y++)
+      for (let X = 0; X < s; X++) {
+        const d = Math.hypot(X - c0, y - c0);
+        if (d > s / 2) continue;
+        r(X, y, 1, 1, d > s / 2 - 1 ? 0x4a2e1a : d > s / 2 - 3 ? (y < c0 ? 0xd0d4e0 : 0x6a6e7c) : d > s / 2 - 4 ? 0x14161c : mix(0x5a4a3a, 0x2a2018, (Math.hypot(X - c0, y - c0 - 3) / s) * 1.6));
+      }
+    if (kind === "chest") {
+      const ox = Math.round(c0 - 8), oy = Math.round(c0 - 6);
+      // 둥근 뚜껑
+      for (let y = 0; y < 5; y++) for (let x = 0; x < 16; x++) Math.abs(x - 7.5) < 6 + y * 0.6 && r(ox + x, oy + y, 1, 1, y === 0 ? 0x2a160a : mix(0xb0703a, 0x7a4a24, y / 5));
+      // 몸통
+      for (let y = 5; y < 13; y++) for (let x = 0; x < 16; x++) r(ox + x, oy + y, 1, 1, x === 0 || x === 15 || y === 12 ? 0x2a160a : mix(0x9a6030, 0x5a3418, (y - 5) / 8));
+      // 쇠띠 · 자물쇠
+      for (const bx of [3, 12]) for (let y = 0; y < 13; y++) r(ox + bx, oy + y, 1, 1, y < 5 ? 0xb8b0a0 : 0x8a8478);
+      r(ox, oy + 5, 16, 1, 0x3a2a1a);
+      r(ox + 6, oy + 4, 4, 5, 0xe0b040);
+      r(ox + 7, oy + 6, 2, 2, 0x3a2a10);
+      r(ox + 6, oy + 4, 4, 1, 0xfff0a0);
+    }
+  });
+  return put(scene, k, c);
+}
 // 게이지 홈 + 채움 (너비 w)
 export function gaugeKey(scene, w, frac) {
   const n = Math.round(Math.max(0, Math.min(1, frac)) * (w - 2));

@@ -62,13 +62,13 @@ export function makeScreens(R, D) {
     A(P, P.scene.add.rectangle(x, y, w, h).setStrokeStyle(1, 0x1a0e06).setOrigin(0), 205);
   };
 
-  function describe(P, it, x, y, w, dep = 206) {
+  function describe(P, it, x, y, w, dep = 206, noMats = !1) {
     const b = IT.BASE[it.id] && !it.mats ? IT.BASE[it.id] : { ...it, fused: 1 };
     const tx = (s, st = "small", col = q.text) => {
       const t = P.t(x, y, s, st, col, P.wrap(s, w)).setDepth(dep);
       y += t.height + 3;
     };
-    if (b.fused) (tx(IT.describe(it)), tx(`재료: ${(it.mats ?? []).map((m) => IT.BASE[m]?.name ?? m).join(" + ")}`, "tiny", q.textDim));
+    if (b.fused) (tx(IT.describe(it)), noMats || tx(`재료: ${(it.mats ?? []).map((m) => IT.BASE[m]?.name ?? m).join(" + ")}`, "tiny", q.textDim));
     else if (b.kind === "weapon") (tx(`기본 공격 — ${b.attack}`), tx(`특수 동작 — ${b.special}`), tx(`속도 ${b.speed} · 사거리 ${b.range}`, "tiny", q.textDim));
     else if (b.kind === "skill") (tx(b.desc), tx(`쿨타임 ${b.cd}초 · 피해 ${b.dmg}`, "tiny", q.blue));
     else if (b.kind === "magic") (tx(b.desc), tx(`마나 ${b.mana} · 피해 ${b.dmg}`, "tiny", q.blue));
@@ -110,14 +110,22 @@ export function makeScreens(R, D) {
     pickGrade(g) {
       if (g === this.grade) return;
       this.grade = g;
-      const c = matCost(g);
-      this.say = g === 1 ? KEEPER[this.kind][1] : `${IT.GRADE_ROMAN[g]} 티어라. 운명 보드에서 그 계통을 충분히 익혔다면 벼려 주지.`;
+      const bid = this.list()[this.sel]?.[2];
+      const lockd = bid && !IT.canEquip({ id: bid, grade: g });
+      this.say = lockd ? `T${g}는 아직 자네 손에 맞지 않아. ${IT.needText({ id: bid, grade: g })}.` : g === 1 ? KEEPER[this.kind][1] : `T${g}라. 그만큼 값이 나가지만 훨씬 세지.`;
       j.play("click");
       this.render();
     }
+    // 고른 물건을 지금 고른 티어로 [저장 키, 골드, 기본 id] (티어는 살 때 고른다 · 2026-11-28)
+    cur() {
+      const row = this.list()[this.sel];
+      if (!row) return null;
+      const bid = row[2], g = this.grade;
+      return [gkey(bid, g), g === 1 && FREE.has(bid) ? 0 : shopPrice(bid, g), bid];
+    }
     // [저장 키, 골드, 기본 id]
     list() {
-      const g = this.grade;
+      const g = 1;
       const ids = [...STARTER[this.kind].map((x) => x[0]), ...(sd().shop ?? []).filter((x) => kindOf(x.key) === this.kind).map((x) => x.key)];
       return ids.map((id) => [gkey(id, g), g === 1 && FREE.has(id) ? 0 : shopPrice(id, g), id]);
     }
@@ -132,7 +140,7 @@ export function makeScreens(R, D) {
       this.buy();
     }
     buy() {
-      const [id, price] = this.list()[this.sel];
+      const [id, price] = this.cur();
       if (FREE.has(id)) return void ((this.say = "그건 처음부터 자네 것일세. 돈 받을 물건이 아니야."), this.render());
       if (!IT.canEquip({ id: String(id).split("@")[0], grade: this.grade })) return void (j.play("error"), (this.say = `아직 자네 손에 맞지 않아. ${IT.needText({ id: String(id).split("@")[0], grade: this.grade })}. V키로 운명 보드를 보게.`), this.render());
       const c = matCost(this.grade);
@@ -166,13 +174,8 @@ export function makeScreens(R, D) {
         woodBg(this, sx + 8, by, sw - 16, 7, { base: 0x9a6a3a, dark: 0x4a2c16, hi: 0xd09a5a, plank: 7 }, 204);
         A(this, sc.add.rectangle(sx + 8, by + 7, sw - 16, 3, 0x000000, 0.35).setOrigin(0), 204);
       }
-      // 등급 탭 (Q/E)
-      for (let g = 1; g <= IT.GRADE_MAX; g++) {
-        const on = g === this.grade;
-        const bx = sx + 12 + (g - 1) * 34;
-        this.btn(bx, sy + 6, 30, 16, IT.GRADE_ROMAN[g], () => this.pickGrade(g), { style: on ? "green" : void 0, small: !0 });
-      }
-      this.t(sx + 222, sy + 8, "Q/E 티어", "tiny", "#e8d0a0").setDepth(206);
+      // (티어는 계산대에서 살 때 고른다 — 진열장 값은 T1 기준)
+      this.t(sx + 12, sy + 8, "값은 T1 기준 · 티어는 계산대에서", "tiny", "#e8d0a0").setDepth(206);
       L.slice(this.page * PER, this.page * PER + PER).forEach(([id, price], k) => {
         const i = this.page * PER + k;
         const r = Math.floor(k / 5), c = k % 5;
@@ -222,16 +225,26 @@ export function makeScreens(R, D) {
       woodBg(this, cx0, ty, cw, shh - 132, { base: 0x8a5a30, dark: 0x3a2210, hi: 0xc08850, plank: 14 }, 204);
       woodBg(this, cx0 - 2, ty - 4, cw + 4, 6, { base: 0xb07a44, dark: 0x5a3418, hi: 0xe0a868, plank: 6 }, 205);
       // 상품 설명서 (계산대 위 종이)
-      const [id, price] = L[this.sel];
+      const [id, price, bid] = this.cur();
       const it = mkItem(id);
-      note(this, cx0 + 8, ty + 6, cw - 16, shh - 132 - 46, 7, 0, 205);
+      const locked = !FREE.has(id) && !IT.canEquip({ id: bid, grade: this.grade });
+      note(this, cx0 + 8, ty + 6, cw - 16, shh - 132 - 70, 7, 0, 205);
       pin(this, cx0 + cw / 2, ty + 10, 0xc83a2a);
       this.img(cx0 + 30, ty + 34, "ui_medal").setScale(0.75).setDepth(206);
       this.img(cx0 + 30, ty + 34, itemIcon(sc, it)).setScale(1.7).setDepth(207);
       this.t(cx0 + 52, ty + 18, it.name, "body", nameCol(it)).setDepth(206);
-      this.t(cx0 + 52, ty + 34, `${KO[this.kind]}${it.el ? " · " + IT.elName(it.el) : ""} · ${FREE.has(id) ? "기본 지급" : `${IT.GRADE_ROMAN[this.grade]} 등급 · 위력 ×${IT.GRADE_MULT[this.grade]}`}`, "tiny", FREE.has(id) ? q.textDim : ink(IT.GRADE_CSS[this.grade])).setDepth(206);
+      this.t(cx0 + 52, ty + 34, `${KO[this.kind]}${it.el ? " · " + IT.elName(it.el) : ""} · ${FREE.has(id) ? "기본 지급" : `${IT.GRADE_ROMAN[this.grade]} · 위력 ×${IT.GRADE_MULT[this.grade]}`}`, "tiny", FREE.has(id) ? q.textDim : ink(IT.GRADE_CSS[this.grade])).setDepth(206);
       A(this, sc.add.rectangle(cx0 + 16, ty + 52, cw - 32, 1, 0x9a7448), 206).setOrigin(0);
-      describe(this, it, cx0 + 16, ty + 56, cw - 32);
+      describe(this, mkItem(bid), cx0 + 16, ty + 56, cw - 32, 206, !0);
+      // 티어 고르기 (살 때 정한다 · Q/E) — 잠긴 티어는 자물쇠
+      const tby = Y1 - 60;
+      this.t(cx0 + 10, tby + 3, "티어", "tiny", "#f0d8b0", { stroke: "#2a1408", strokeThickness: 2 }).setDepth(206);
+      for (let g = 1; g <= IT.GRADE_MAX; g++) {
+        const bx = cx0 + 38 + (g - 1) * 36, on = g === this.grade, ok = IT.canEquip({ id: bid, grade: g });
+        this.btn(bx, tby, 32, 18, `T${g}`, () => this.pickGrade(g), { style: on ? "green" : void 0, small: !0 });
+        // 잠긴 티어: 어둡게 덮고 자물쇠
+        !ok && (A(this, sc.add.rectangle(bx, tby, 32, 18, 0x140a06, on ? 0.15 : 0.55).setOrigin(0), 211), this.img(bx + 24, tby + 9, "icon_lock").setScale(0.9).setDepth(212));
+      }
       // 값과 구매
       const by = Y1 - 34;
       this.img(cx0 + 18, by + 12, "icon_gold").setScale(1.3).setDepth(206);
@@ -244,7 +257,7 @@ export function makeScreens(R, D) {
         this.img(cx0 + 18, by - 10, `fr_mat_${mc.mat.id}`).setScale(1.3).setDepth(206);
         this.t(cx0 + 30, by - 16, `${mc.mat.name} ×${mc.n} (보유 ${have})`, "tiny", have < mc.n ? "#ff9a8a" : "#f0d8b0", { stroke: "#2a1408", strokeThickness: 2 }).setDepth(206);
       }
-      this.btn(X1 - 108, by + 2, 98, 26, FREE.has(id) ? "기본 장비" : "구매하기", () => this.buy(), { style: "green", enabled: !FREE.has(id) && this.canPay(price), small: !1 });
+      this.btn(X1 - 108, by + 2, 98, 26, FREE.has(id) ? "기본 장비" : locked ? "잠김" : `T${this.grade} 구매`, () => this.buy(), { style: "green", enabled: !FREE.has(id) && !locked && this.canPay(price), small: !1 });
       this.hintText?.setText("");
     }
   }

@@ -1,3 +1,4 @@
+import * as UK from "./uikit.js";
 // 거점 창: 진짜 상점(진열장+계산대), 진짜 게시판(코르크판), 진짜 훈련소(돌벽 현판), 장비 관리소(옷장+궤짝)
 import * as PAPER from "./paper.js";
 import { drawCodex, stopCodex } from "./codex.js";
@@ -19,11 +20,13 @@ export function panelFrame(P, S, title, R) {
   const D = 200;
   const out = [];
   const add = (o, d = 0) => (o.setScrollFactor(0).setDepth(D + d), out.push(o), o);
+  // 공통 UI 틀 (2026-11-28): 어두운 나무판 + 단조 철 테두리 + 붉은 리본 제목
   add(S.add.rectangle(0, 0, W, H, 0x08060c, 0.72).setOrigin(0).setInteractive());
-  add(S.add.nineslice(4, 4, "ui_panel_gold", void 0, W - 8, H - 8, 6, 6, 6, 6).setOrigin(0), 1);
+  add(UK.frame(S, 4, 4, W - 8, H - 8, {}), 1);
   const [main, sub] = title.split(" · ");
-  const tt = add(ct(S, 22, 13, main, "big", q.text), 3);
-  sub && add(ct(S, 28 + tt.width, 18, "· " + sub, "small", q.textDim), 3);
+  const rb = UK.ribbon(S, W / 2, 6, Math.max(120, main.length * 16 + 40), main, { font: "big", h: 26 });
+  rb.objs.forEach((o, i) => add(o, 3 + i * 0.1));
+  sub && add(ct(S, 22, 15, sub, "small", "#e8d4b0", { stroke: "#140a04", strokeThickness: 3 }), 3);
   add(S.add.rectangle(16, 37, W - 36, 1, LINE).setOrigin(0), 2);
   add(S.add.rectangle(16, 38, W - 36, 1, 0xfff4d0, 0.6).setOrigin(0), 2);
   add(S.add.nineslice(W - 160, 12, "ui_hud_gold", void 0, 98, 20, 6, 6, 6, 6).setOrigin(0), 2);
@@ -32,7 +35,7 @@ export function panelFrame(P, S, title, R) {
   const x = Be(S, W - 54, 12, 28, 20, "✕", () => P.close(), { small: !0, depth: D + 3 });
   x.bg.setScrollFactor(0), x.label.setScrollFactor(0), out.push(...x.container);
   add(S.add.rectangle(16, H - 27, W - 36, 1, LINE).setOrigin(0), 2);
-  P.hintText = add(ct(S, W / 2, H - 22, "", "tiny", q.textDim).setOrigin(0.5, 0), 3);
+  P.hintText = add(ct(S, W / 2, H - 22, "", "tiny", "#d8c8a8", { stroke: "#140a04", strokeThickness: 2 }).setOrigin(0.5, 0), 3);
   P.switchTo = () => {};
   return { objs: out, goldText };
 }
@@ -160,7 +163,70 @@ export function makeScreens(R, D) {
       this.say = auto ? "바로 손에 익혀 두었네. 쓰러지면 끝이니 조심하게." : "가방에 넣어 두었네. 쓰러지면 끝이니 조심하게.";
       this.render();
     }
+    // 사기 · 팔기 탭 (진열장 위 · 2026-11-28)
+    modeTabs(sx, sy) {
+      for (const [m, ko] of [[!1, "사기"], [!0, "팔기"]])
+        this.btn(sx + 12 + (m ? 60 : 0), sy + 6, 56, 18, ko, () => this.sellMode !== m && ((this.sellMode = m), (this.sel = 0), (this.say = m ? "가방에서 팔 물건을 고르게. 값은 넉넉히 쳐주지." : KEEPER[this.kind][1]), j.play("click"), this.render()), { style: this.sellMode === m ? "green" : void 0, small: !0 });
+    }
+    // 팔기: 진열장에 가방 물건 · 계산대에서 판매
+    buildSell() {
+      const sc = this.scene, d = sd();
+      const bag = (d.bag ?? []).map((k, i) => ({ k, i, it: mkItem(k), price: hubSellPrice(k) })).filter((r) => r.it);
+      this.sel = Math.max(0, Math.min(this.sel, bag.length - 1));
+      const sx = X0 + 4, sy = Y0 + 2, sw = 340, shh = Y1 - Y0 - 4;
+      woodBg(this, sx, sy, sw, shh, { base: 0x4a2c16, dark: 0x24140a, hi: 0x6a4424, vertical: 1, plank: 20 });
+      A(this, sc.add.rectangle(sx, sy, sw, shh, 0x000000, 0.25).setOrigin(0), 202);
+      frameWood(this, sx, sy, sw, shh, 8, 0x6a4022);
+      this.modeTabs(sx, sy);
+      const PER = 20, page = Math.floor(this.sel / PER);
+      bag.slice(page * PER, page * PER + PER).forEach((r, k) => {
+        const i = page * PER + k, c = k % 5, row = Math.floor(k / 5), cx = sx + 40 + c * 65, cy = sy + 52 + row * 62;
+        const on = i === this.sel;
+        on && A(this, sc.add.image(cx, cy, "vx_glow").setTint(0xffd070).setAlpha(0.5).setScale(1.4).setBlendMode(R.zt.BlendModes.ADD), 204);
+        A(this, sc.add.rectangle(cx, cy, 44, 44, 0x1a0e08, 0.85).setStrokeStyle(1, on ? 0xffd84a : 0x8a6038), 204);
+        A(this, sc.add.image(cx, cy, itemIcon(sc, r.it)).setScale(1.7), 205);
+        for (const o of rarityDeco?.(sc, r.it, cx, cy, 44, 205.5) ?? []) A(this, o, o.depth);
+        this.t(cx, cy + 24, `+${yt(r.price)}`, "tiny", "#ffe08a", { stroke: "#0a0604", strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(206);
+        const hit = A(this, sc.add.rectangle(cx, cy, 56, 56, 0, 0).setInteractive({ useHandCursor: !0 }), 208);
+        hit.on("pointerdown", () => this.sel !== i && ((this.sel = i), j.play("click"), this.render()));
+      });
+      bag.length || this.t(sx + sw / 2, sy + shh / 2, "가방이 비었다", "body", "#e8d0a0", { stroke: "#0a0604", strokeThickness: 3 }).setOrigin(0.5).setDepth(206);
+      // 계산대
+      const cx0 = sx + sw + 8, cw = X1 - cx0;
+      woodBg(this, cx0, sy, cw, shh, { base: 0x7a4e2a, dark: 0x3a2210, hi: 0xa87444, plank: 16 });
+      const [npc] = KEEPER[this.kind];
+      sc.textures.exists(npc) && A(this, sc.add.sprite(cx0 + 54, sy + 132, npc, 0).setOrigin(0.5, 1).setScale(3).play(`${npc}_idle`), 203);
+      note(this, cx0 + 96, sy + 38, cw - 106, 52, 5, 0, 204);
+      this.t(cx0 + 104, sy + 44, this.say ?? "", "tiny", q.text, this.wrap("", cw - 122)).setDepth(206);
+      const ty = sy + 132;
+      woodBg(this, cx0, ty, cw, shh - 132, { base: 0x8a5a30, dark: 0x3a2210, hi: 0xc08850, plank: 14 }, 204);
+      const r = bag[this.sel];
+      if (!r) return void this.hintText?.setText("");
+      note(this, cx0 + 8, ty + 6, cw - 16, shh - 132 - 46, 7, 0, 205);
+      this.img(cx0 + 30, ty + 34, "ui_medal").setScale(0.75).setDepth(206);
+      this.img(cx0 + 30, ty + 34, itemIcon(sc, r.it)).setScale(1.7).setDepth(207);
+      this.t(cx0 + 52, ty + 18, r.it.name, "body", nameCol(r.it)).setDepth(206);
+      this.t(cx0 + 52, ty + 34, `가방 ${r.i + 1}번째 칸`, "tiny", q.textDim).setDepth(206);
+      describe(this, r.it, cx0 + 16, ty + 56, cw - 32, 206, !0);
+      const by = Y1 - 34;
+      this.img(cx0 + 18, by + 12, "icon_gold").setScale(1.3).setDepth(206);
+      this.t(cx0 + 30, by + 2, `+${yt(r.price)}`, "big", "#ffe08a", { stroke: "#2a1408", strokeThickness: 3 }).setDepth(206);
+      this.btn(X1 - 108, by + 2, 98, 26, "판매하기", () => this.sellNow(r), { style: "green", enabled: r.price > 0, small: !1 });
+      this.hintText?.setText("");
+    }
+    sellNow(r) {
+      const d = sd();
+      if (d.bag?.[r.i] !== r.k) return;
+      d.bag.splice(r.i, 1);
+      SAVE.data.gold += r.price;
+      SAVE.write();
+      j.play("coinBig");
+      this.say = `${r.it.name}, ${yt(r.price)} 골드에 사지.`;
+      refresh(this.scene);
+      this.render();
+    }
     build() {
+      if (this.sellMode) return this.buildSell();
       const sc = this.scene;
       const L = this.list();
       this.sel = Math.max(0, Math.min(this.sel, L.length - 1));
@@ -178,7 +244,8 @@ export function makeScreens(R, D) {
         A(this, sc.add.rectangle(sx + 8, by + 7, sw - 16, 3, 0x000000, 0.35).setOrigin(0), 204);
       }
       // (티어는 계산대에서 살 때 고른다 — 진열장 값은 T1 기준)
-      this.t(sx + 12, sy + 8, "값은 T1 기준 · 티어는 계산대에서", "tiny", "#e8d0a0").setDepth(206);
+      this.modeTabs(sx, sy);
+      this.t(sx + sw - 12, sy + 10, "값은 T1 기준", "tiny", "#e8d0a0").setOrigin(1, 0).setDepth(206);
       L.slice(this.page * PER, this.page * PER + PER).forEach(([id, price], k) => {
         const i = this.page * PER + k;
         const r = Math.floor(k / 5), c = k % 5;

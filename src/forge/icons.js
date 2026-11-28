@@ -236,21 +236,52 @@ function runeStone(id) {
 export function bootIcons(scene, ht, lt) {
   for (const id of Object.keys(IT.BASE)) {
     const b = IT.BASE[id];
-    B = new ht(24, 24);
-    plate(b.kind);
-    try {
-      if (b.kind === "weapon") (WD[id] ?? WD.W01)();
-      else if (b.kind === "skill") (SD[id] ?? SD.S01)();
-      else if (b.kind === "magic") {
-        const el = b.el ?? "none";
-        orbBack(el);
-        (MD[id] ?? MD.M01)(PAL[el] ?? PAL.none);
-      } else if (b.kind === "armor") (AD[id] ?? AD.A01)();
-      else runeStone(id);
-    } catch (e) {}
-    B.outline(0x0c0810);
-    lt(scene, `fi_${id}`, B);
+    // fi_: 색 바탕판 있는 아이콘 · fa_: 바탕 없는 아이콘 (알비온식 칸, 2026-11-28)
+    for (const bare of [0, 1]) {
+      B = new ht(24, 24);
+      bare || plate(b.kind);
+      try {
+        if (b.kind === "weapon") (WD[id] ?? WD.W01)();
+        else if (b.kind === "skill") (SD[id] ?? SD.S01)();
+        else if (b.kind === "magic") {
+          const el = b.el ?? "none";
+          orbBack(el);
+          (MD[id] ?? MD.M01)(PAL[el] ?? PAL.none);
+        } else if (b.kind === "armor") (AD[id] ?? AD.A01)();
+        else runeStone(id);
+      } catch (e) {}
+      B.outline(0x0c0810);
+      lt(scene, `${bare ? "fa" : "fi"}_${id}`, B);
+    }
   }
+}
+// 바탕 없는 융합 아이콘 (알비온식 칸): 주재료 + 보조재료 작은 원 + 속성 점 (희귀도는 칸 배지로)
+export function composeBare(scene, key, it, elColor) {
+  const tex = scene.textures;
+  if (tex.exists(key)) return key;
+  const prim = it.tier === 0 ? it.id : it.primary;
+  const sec = it.tier === 0 ? null : it.secondary;
+  const c = document.createElement("canvas");
+  c.width = c.height = 24;
+  const g = c.getContext("2d");
+  g.imageSmoothingEnabled = !1;
+  const draw = (k, x, y, s) => tex.exists(k) && g.drawImage(tex.get(k).getSourceImage(), 0, 0, 24, 24, x, y, 24 * s, 24 * s);
+  draw(`fa_${prim}`, 0, 0, 1);
+  if (sec && sec !== prim) {
+    g.fillStyle = "rgba(10,10,14,0.9)";
+    g.beginPath();
+    g.arc(18, 8, 6, 0, Math.PI * 2);
+    g.fill();
+    draw(`fa_${sec}`, 12.5, 2.5, 0.46);
+  }
+  if (it.el && it.tier > 0) {
+    g.fillStyle = "#" + elColor(it.el).toString(16).padStart(6, "0");
+    g.fillRect(2, 20, 3, 3);
+    g.fillStyle = "#0c0810";
+    g.fillRect(2, 23, 3, 1);
+  }
+  tex.addCanvas(key, c);
+  return key;
 }
 // 융합 아이템: 주재료 아이콘 + 보조재료 작은 아이콘 + 등급 테두리
 const TIER_COL = ["", "#5aa8ff", "#c070ff", "#ffc840"];

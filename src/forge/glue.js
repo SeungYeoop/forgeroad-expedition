@@ -46,6 +46,7 @@ import * as HUB2 from "./hub2.js";
 import * as HUB4 from "./hub4.js";
 import * as PAPER from "./paper.js";
 import * as INV from "./invart.js";
+import * as ALB from "./albkit.js";
 import { makeTiles } from "./tiles.js";
 import { makePlayer, makeNpc } from "./char.js";
 import { makeMobs } from "./mobs.js";
@@ -384,6 +385,12 @@ export function itemIcon(scene, it) {
   const key = `fr_ic_${it.uid}`;
   if (!scene.textures.exists(key)) makeSlotIcon(scene, key, it);
   return key;
+}
+// 알비온식 칸 아이콘 (바탕판 없음)
+export function albIcon(scene, it) {
+  if (it.tier === 0 && scene.textures.exists(`fa_${it.id}`)) return `fa_${it.id}`;
+  if (it.tier === 0 || !it.primary) return itemIcon(scene, it);
+  return ICON.composeBare(scene, `fr_ab_${it.uid}`, it, elColor);
 }
 export const rarityColor = (it) => IT.RARITY_COL[IT.RARITY_OF(it)];
 // 희귀도 테두리 텍스처 (크기 s × s, 2026-11-28): 일반 회색 얇은 사각 · 고급 초록 모서리 꺾쇠 · 희귀 파랑 리벳 4개 · 영웅 보라 팔각 + 위 보석 · 전설 금 장식 틀 + 소용돌이
@@ -3341,7 +3348,7 @@ function dragMove(h, p) {
   if (!D.ghost && Math.hypot(p.x - D.x0, p.y - D.y0) > 4) {
     B.hover = null;
     hideTip(h);
-    D.ghost = h.add.image(p.x, p.y, itemIcon(B.sc, D.it)).setDepth(99).setScale(1.6).setAlpha(0.9);
+    D.ghost = h.add.image(p.x, p.y, (B.alb ? albIcon(B.sc, D.it) : itemIcon(B.sc, D.it))).setDepth(99).setScale(B.alb ? 1 : 1.6).setAlpha(0.9);
     R.j.play("click");
     renderBag(h);
   }
@@ -3551,8 +3558,6 @@ function renderBag(h) {
   h.input.mouse?.disableContextMenu();
   const W = R.ot, Hh = R.xt;
   // 화면 전체를 덮지 않는다: 왼쪽 장비 · 오른쪽 가방, 가운데는 게임 (알비온식, 2026-11-28)
-  const close = Be(h, W - 30, 6, 24, 18, "✕", () => closeBag(h), { small: !0, depth: 97 });
-  B.objs.push(...close.container);
   const res = forgeResult(B);
   const inForge = (e) => B.forge.some((f) => sameEnt(f, e));
   const D = B.drag?.ghost ? B.drag : null;
@@ -3579,7 +3584,12 @@ function renderBag(h) {
     });
     bg.on("pointerover", () => it && !B.drag && !(B.hover?.e && sameEnt(B.hover.e, e)) && setHover(h, { e, it }));
     bg.on("pointerout", () => B.hover?.e && sameEnt(B.hover.e, e) && setHover(h, null));
-    if (it) {
+    if (it && style.startsWith("alb")) {
+      const dim = (D && sameEnt(D.ent, e)) || (e.where !== "forge" && inForge(e));
+      add(h.add.image(x, y, albIcon(sc, it)).setDepth(94).setAlpha(dim ? 0.3 : 1));
+      for (const o of albBadges(h, x, y, it, e)) add(o.setAlpha(dim ? 0.35 : 1));
+      e.where !== "forge" && inForge(e) && add(ct(h, x, y, "융합", "tiny", "#ffc070", ALB.darkStyle).setOrigin(0.5).setDepth(95));
+    } else if (it) {
       const dim = (D && sameEnt(D.ent, e)) || (e.where !== "forge" && inForge(e));
       it.tier >= 1 && add(h.add.image(x, y, "vx_glow").setTint(rarityColor(it)).setBlendMode(ADD).setDepth(93).setScale(0.55 + it.tier * 0.1).setAlpha(0.5));
       add(h.add.image(x, y, itemIcon(sc, it)).setDepth(94).setScale(style === "socket" ? (big ? 1.3 : 1.05) : style === "stone" ? 1.15 : 1.25).setAlpha(dim ? 0.3 : 1));
@@ -3589,6 +3599,11 @@ function renderBag(h) {
     }
     return it;
   };
+  // 알비온식 가방 (2026-11-28 2차 시안): 창고 화면은 승인 전까지 예전 그림
+  if (!B.opts.stash) return void albBag(h, B, add, slotBox, res, D);
+  B.alb = 0;
+  const close = Be(h, W - 30, 6, 24, 18, "✕", () => closeBag(h), { small: !0, depth: 97 });
+  B.objs.push(...close.container);
   if (B.opts.stash) drawStash(h, B, add, lt, slotBox);
   else {
   // ── 왼쪽: 옷장과 캐릭터 ──
@@ -3708,6 +3723,254 @@ function renderBag(h) {
   fr.hub || (add(h.add.image(FX + 126, cy0 + 22, "fr_stone").setDepth(95).setScale(0.8)), lt(FX + 134, cy0 + 15, `융합석 ${fr.stones}`, "tiny", "#a8e0ff"));
   B.msg && lt(W / 2, Hh - 26, B.msg, "small", "#ffb090").setOrigin(0.5, 0);
 }
+// ── 알비온식 가방 (2026-11-28 2차 시안 · docs/intent/albion-ui-analysis.md 7-2) ──
+//   오른쪽 끝 종이 창 하나: 머리(초상·제목·닫기) → 장비(무기·방어구 / Q·E·R, 빈 칸은 실루엣) → 용량 게이지 → 가방 칸 5열×6줄 + 스크롤 → 판매 칸
+//   상세창은 가방 창 왼쪽에 붙는 철틀 종이, 융합 제단은 탐험 중에만 왼쪽 아래 철틀 작은 창
+function albBadges(h, x, y, it) {
+  const o = ALB.SLOT / 2 - 5, out = [];
+  out.push(h.add.image(x - o, y - o, `alb_badge_tier_${IT.gradeOf(it)}`).setDepth(94.6));
+  const rar = IT.RARITY_OF(it);
+  (rar !== "common" || it.tier > 0) && out.push(h.add.image(x + o, y + o, `alb_badge_${rar}${it.tier ? "_" + it.tier : ""}`).setDepth(94.6));
+  return out;
+}
+function albBtn(h, add, x, y, w, label, cb, o = {}) {
+  const hh = o.h ?? 13, st = o.style ?? "navy", dp = o.depth ?? 96;
+  const bg = add(h.add.image(x, y, ALB.pillKey(h, w, hh, st)).setOrigin(0).setDepth(dp).setInteractive({ useHandCursor: !0 }));
+  add(R.ct(h, x + w / 2, y + Math.floor(hh / 2) - 4, label, "tiny", st === "red" ? "#ffe27a" : st === "paper" ? ALB.C.ink : ALB.C.gold, st === "paper" ? ALB.inkStyle : ALB.darkStyle).setOrigin(0.5, 0).setDepth(dp + 0.5));
+  bg.on("pointerover", () => bg.setTexture(ALB.pillKey(h, w, hh, st, 1)));
+  bg.on("pointerout", () => bg.setTexture(ALB.pillKey(h, w, hh, st, 0)));
+  bg.on("pointerdown", () => cb());
+  return bg;
+}
+function albBag(h, B, add, slotBox, res, D) {
+  const sc = B.sc, fr = sc.fr, { ct } = R;
+  ALB.makeArt(h);
+  B.alb = 1;
+  const W = R.ot, Hh = R.xt;
+  const ink = (x, y, s, st = "tiny", col = ALB.C.ink, o = {}) => add(ct(h, x, y, s, st, col, { ...ALB.inkStyle, ...o }).setDepth(95));
+  const WW = 176, WH = Hh - 16, WX = W - WW - 6, WY = 8;
+  B.albWin = { WX, WY, WW, WH };
+  // 뒤에 겹친 종이 한 장 + 본 종이
+  add(h.add.image(WX - 4, WY + 6, ALB.parchKey(h, WW, WH - 10, { seed: 23, tone: -0.14 })).setOrigin(0).setDepth(90.5));
+  add(h.add.image(WX, WY, ALB.parchKey(h, WW, WH, { seed: 7 })).setOrigin(0).setDepth(91));
+  // 창 전체가 클릭을 먹는다 (뒤 게임으로 새지 않게)
+  add(h.add.zone(WX, WY, WW, WH).setOrigin(0).setInteractive().setDepth(90.6));
+  // ── 머리 ──
+  add(h.add.image(WX + 7, WY + 6, ALB.portraitKey(h, 28, `player_${sc.player?.stats?.armorId ?? "cloth"}`)).setOrigin(0).setDepth(93));
+  ink(WX + 40, WY + 9, `방랑 대장장이의${sc.build?.level ? `  ·  Lv ${sc.build.level}` : ""}`, "tiny", ALB.C.label);
+  ink(WX + 40, WY + 19, "가방", "body", ALB.C.ink, { stroke: ALB.C.ink, strokeThickness: 1 });
+  const cl = add(h.add.image(WX + WW - 16, WY + 5, "alb_close").setOrigin(0).setDepth(96).setInteractive({ useHandCursor: !0 }));
+  cl.on("pointerover", () => cl.setTexture("alb_close_hov"));
+  cl.on("pointerout", () => cl.setTexture("alb_close"));
+  cl.on("pointerdown", () => closeBag(h));
+  for (const o of ALB.groove(h, WX + 8, WY + 39, WW - 16, 92)) add(o);
+  // ── 장비: 1줄 무기·방어구, 2줄 Q·E·R (뒤에 사람 모양 연한 선) ──
+  const cx = WX + 8 + 76, r1 = WY + 58, r2 = WY + 92;
+  const EQ = [["weapon", cx - 16, r1], ["armor", cx + 16, r1], ["s1", cx - 31, r2], ["s2", cx, r2], ["magic", cx + 31, r2]];
+  const body = h.add.graphics().setDepth(91.5);
+  body.lineStyle(3, 0x6a4a32, 0.14);
+  body.lineBetween(cx - 16, r1, cx + 16, r1);
+  body.lineBetween(cx, r1, cx, r2);
+  body.lineBetween(cx - 31, r2, cx + 31, r2);
+  body.lineBetween(cx - 16, r1, cx - 31, r2);
+  body.lineBetween(cx + 16, r1, cx + 31, r2);
+  body.fillStyle(0x6a4a32, 0.1).fillCircle(cx, r1 - 20, 6);
+  add(body);
+  for (const [k, x, y] of EQ) {
+    slotBox(x, y, { where: "eq", key: k }, { type: "eq", key: k }, `albeq_${k}`);
+    const key = { s1: "Q", s2: "E", magic: "R" }[k];
+    key && add(h.add.image(x + 9, y - 9, `alb_key_${key}`).setDepth(94.8));
+  }
+  // 왼쪽: 금화 · 융합석(탐험) / 장착 수(거점)
+  add(h.add.image(WX + 16, r1 - 5, "icon_gold").setDepth(95));
+  ink(WX + 23, r1 - 9, `${bagGoldNow(sc).toLocaleString()}`, "tiny", ALB.C.ink);
+  if (fr.hub) {
+    ink(WX + 11, r1 + 4, `장착 ${SLOT_KEYS.filter((k) => fr.equip[k]).length}/5`, "tiny", ALB.C.label);
+  } else {
+    add(h.add.image(WX + 16, r1 + 8, "fr_stone").setDepth(95).setScale(0.6));
+    ink(WX + 23, r1 + 4, `${fr.stones}`, "tiny", ALB.C.ink);
+  }
+  // 오른쪽: 정렬 · 능력치
+  const RAR = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 }, KO = { weapon: 0, armor: 1, skill: 2, magic: 3, rune: 4 };
+  albBtn(h, add, WX + WW - 48, r1 - 14, 38, "정렬", () => {
+    const P = bagSlots(fr);
+    const items = P.filter(Boolean).sort((a, b) => (KO[a.kind] ?? 9) - (KO[b.kind] ?? 9) || (RAR[IT.RARITY_OF(b)] ?? 0) - (RAR[IT.RARITY_OF(a)] ?? 0) || IT.gradeOf(b) - IT.gradeOf(a));
+    for (let i = 0; i < P.length; i++) P[i] = items[i] ?? null;
+    B.forge = [null, null, null];
+    R.j.play("click");
+    renderBag(h);
+  });
+  albBtn(h, add, WX + WW - 48, r1 + 2, 38, B.showStats ? "능력치▲" : "능력치", () => ((B.showStats = !B.showStats), R.j.play("click"), renderBag(h)), { style: B.showStats ? "paper" : "navy" });
+  // ── 용량 게이지 ──
+  const gy = WY + 112;
+  ink(cx, gy - 1, `${fr.bag.length} / ${fr.bagMax}`, "tiny", ALB.C.ink).setOrigin(0.5, 0);
+  add(h.add.image(WX + 10, gy + 9, ALB.gaugeKey(h, 150, fr.bag.length / fr.bagMax)).setOrigin(0).setDepth(93));
+  // ── 가방 칸 5열 × 6줄 ──
+  const COLS = 5, VR = 6, P = 31, GX = WX + 8 + 14, GY = WY + 126 + 14;
+  const rows = Math.ceil(fr.bagMax / COLS);
+  B.scroll = Math.max(0, Math.min(rows - VR, B.scroll ?? 0));
+  for (let r = 0; r < VR; r++)
+    for (let c = 0; c < COLS; c++) {
+      const i = (B.scroll + r) * COLS + c;
+      i < fr.bagMax && slotBox(GX + c * P, GY + r * P, { where: "bag", key: i }, { type: "bag", key: i }, "alb");
+    }
+  // 스크롤: 주황 끝 단추 + 남색 철 홈 + 은 손잡이
+  const sx = WX + WW - 13, sy0 = WY + 126, sh = VR * P - 3;
+  const up = add(h.add.image(sx - 1, sy0, "alb_arr_up").setOrigin(0).setDepth(94).setInteractive({ useHandCursor: !0 }));
+  const dn = add(h.add.image(sx - 1, sy0 + sh - 6, "alb_arr_dn").setOrigin(0).setDepth(94).setInteractive({ useHandCursor: !0 }));
+  const scr = (d) => {
+    const s = Math.max(0, Math.min(rows - VR, B.scroll + d));
+    s !== B.scroll && ((B.scroll = s), R.j.play("click"), renderBag(h));
+  };
+  up.on("pointerdown", () => scr(-1));
+  dn.on("pointerdown", () => scr(1));
+  const rh = sh - 16;
+  add(h.add.image(sx, sy0 + 8, ALB.railKey(h, rh)).setOrigin(0).setDepth(93));
+  const th = Math.max(12, Math.round((rh * VR) / rows));
+  add(h.add.image(sx, sy0 + 8 + Math.round(((rh - th) * B.scroll) / Math.max(1, rows - VR)), ALB.thumbKey(h, th)).setOrigin(0).setDepth(94));
+  B.gridBox = { x: WX + 6, y: sy0, w: WW - 12, h: VR * P, rows, VR };
+  // ── 맨 아래: 판매 칸 ──
+  for (const o of ALB.groove(h, WX + 8, WY + WH - 38, WW - 16, 92)) add(o);
+  const sOver = B.hl === "sell:0", sOk = D ? canDrop(B, D.it, D.ent, { type: "sell" }) : !1;
+  const sxC = WX + 22, syC = WY + WH - 20;
+  add(h.add.image(sxC, syC, sOver && sOk ? "alb_eq_sell_hi" : "alb_eq_sell").setDepth(93));
+  B.hits.push({ x: sxC - 14, y: syC - 14, w: 28, h: 28, type: "sell", key: 0 });
+  ink(WX + 42, syC - 11, D && sOk ? `놓으면 판매  +${sellPrice(sc, D.it)}G` : "여기에 끌어 놓아 판매", "tiny", D && sOk ? ALB.C.inkRed : ALB.C.ink);
+  ink(WX + 42, syC + 1, "우클릭 장착 · Shift 융합", "tiny", ALB.C.label);
+  // ── 융합 제단 (탐험 중에만): 가방 창 왼쪽 아래 철틀 작은 창 ──
+  B.albAltarTop = Hh;
+  if (!fr.hub) albAltar(h, B, add, slotBox, res, WX, WY + WH);
+  // ── 알림 (아래 가운데 짙은 작은 판) ──
+  if (B.msg) {
+    const t = ct(h, (WX - 8) / 2, Hh - 22, B.msg, "tiny", "#e8d0b0", ALB.darkStyle).setOrigin(0.5, 0).setDepth(97);
+    const pw = Math.ceil(t.width) + 14;
+    add(h.add.rectangle(Math.round((WX - 8) / 2 - pw / 2), Hh - 26, pw, 16, 0x141318, 0.86).setOrigin(0).setStrokeStyle(1, 0x3d3331).setDepth(96.5));
+    add(t);
+  }
+  // 상세창 (가방 창 왼쪽)
+  B.detArgs = [];
+  renderDetail(h);
+}
+function albAltar(h, B, add, slotBox, res, WX, bottom) {
+  const sc = B.sc, fr = sc.fr, { ct } = R;
+  const AW = 150, AH = 84, AX = WX - 4 - AW, AY = bottom - AH;
+  B.albAltarTop = AY;
+  add(h.add.image(AX, AY, ALB.ironKey(h, AW, AH, { seed: 5 })).setOrigin(0).setDepth(91));
+  add(h.add.zone(AX, AY, AW, AH).setOrigin(0).setInteractive().setDepth(90.6));
+  const ink = (x, y, s, col = ALB.C.ink, o = {}) => add(ct(h, x, y, s, "tiny", col, { ...ALB.inkStyle, ...o }).setDepth(95));
+  ink(AX + 8, AY + 6, B.opts.legend ? "융합로 · 전설" : "융합 제단", ALB.C.ink, { stroke: ALB.C.ink, strokeThickness: 1 });
+  ink(AX + AW - 8, AY + 6, `융합석 ${fr.stones}`, ALB.C.label).setOrigin(1, 0);
+  const ok = res && !res.err, nS = B.opts.legend ? 3 : 2, aty = AY + 34;
+  const xs = nS === 3 ? [AX + 22, AX + 52, AX + 82] : [AX + 24, AX + 62];
+  for (let j = 0; j < nS; j++) slotBox(xs[j], aty, { where: "forge", key: j }, { type: "forge", key: j }, "alb");
+  nS === 2 && ink(AX + 43, aty - 5, "+", ALB.C.ink).setOrigin(0.5, 0);
+  const rx = AX + AW - 26;
+  ink(rx - 22, aty - 5, "▶", ok ? ALB.C.inkRed : ALB.C.label).setOrigin(0.5, 0);
+  const rb = add(h.add.image(rx, aty, ok ? "alb_slot_hi" : "alb_hollow").setDepth(93).setInteractive());
+  rb.on("pointerover", () => ok && !B.hover?.res && setHover(h, { res: 1, it: res.item }));
+  rb.on("pointerout", () => B.hover?.res && setHover(h, null));
+  if (ok) {
+    const g = add(h.add.image(rx, aty, "vx_glow").setTint(res.item.el ? elColor(res.item.el) : 0xffa040).setBlendMode(R.zt.BlendModes.ADD).setDepth(92.8).setScale(0.9).setAlpha(0.6));
+    h.tweens.add({ targets: g, alpha: 0.25, duration: 700, yoyo: !0, repeat: -1 });
+    add(h.add.image(rx, aty, albIcon(sc, res.item)).setDepth(94));
+    for (const o of albBadges(h, rx, aty, res.item)) add(o);
+  }
+  B.altar = { x: rx, y: aty };
+  const fmsg = !res ? (B.forge.some(Boolean) ? "재료를 하나 더 올리세요" : "재료 둘을 끌어다 놓으세요") : res.err ? res.err : res.item.name;
+  ink(AX + 8, AY + 52, cut(fmsg, 22), res?.err ? ALB.C.inkRed : ok ? parRar(res.item) : ALB.C.label);
+  const cost = B.opts.free ? 0 : 1;
+  if (ok) {
+    const can = fr.stones >= cost;
+    albBtn(h, add, AX + 8, AY + AH - 22, AW - 16, cost ? `망치질 · 융합석 ${cost}` : "망치질!", () => {
+      if (!can) return void R.j.play("error");
+      B.sel = B.forge.filter(Boolean).map((e) => ({ ...e, item: entItem(fr, e) }));
+      B.forge = [null, null, null];
+      B.hover = null;
+      doFuse(h, res.item, cost);
+    }, { style: can ? "red" : "off" });
+  } else ink(AX + 8, AY + AH - 21, "Shift+클릭으로도 올립니다", ALB.C.label);
+}
+// 상세창: 아이템 (철틀 종이) / 능력치 (종이 한 장)
+function albDetail(h) {
+  const B = h.frBag, sc = B.sc, fr = sc.fr, { ct } = R;
+  const it = B.hover?.it;
+  if (!it && !(fr.sp > 0) && !B.showStats) return;
+  const add = (o) => (B.det.push(o), o);
+  const { WX, WY } = B.albWin;
+  const DW = 172, DX = WX - 4 - DW, DY = WY + 4;
+  const t = (x, y, s, st, col, o = {}) => add(ct(h, x, y, s, st, col, { ...ALB.inkStyle, ...o }).setDepth(95));
+  const maxBottom = (B.albAltarTop ?? R.xt) - 4;
+  if (!it) {
+    // 능력치 종이 (알비온 '세부 정보'처럼 가방 옆에 한 장 더)
+    const p = sc.player, DH = 30 + ATTR.length * 20 + 8;
+    add(h.add.image(DX, DY, ALB.parchKey(h, DW, DH, { seed: 31, tone: -0.05 })).setOrigin(0).setDepth(92));
+    t(DX + 8, DY + 6, `방랑 대장장이  Lv ${sc.build?.level ?? 1}`, "small", ALB.C.ink);
+    t(DX + DW - 8, DY + 8, `체력 ${Math.round(p.hp)}/${p.maxHp}`, "tiny", ALB.C.label).setOrigin(1, 0);
+    t(DX + 8, DY + 19, fr.sp ? `남은 능력치 포인트 ${fr.sp}` : "레벨 업마다 능력치 +1", "tiny", fr.sp ? ALB.C.inkRed : ALB.C.label);
+    for (const o of ALB.groove(h, DX + 8, DY + 29, DW - 16, 93)) add(o);
+    fr.attr = fr.attr ?? { str: 0, vit: 0, int: 0, agi: 0, luk: 0 };
+    ATTR.forEach(([k, ko, , fx], i) => {
+      const y = DY + 33 + i * 20;
+      t(DX + 8, y, ko, "small", ALB.C.ink);
+      t(DX + 36, y, `${fr.attr[k]}`, "small", ALB.C.inkRed);
+      t(DX + 48, y + 1, fx(fr.attr[k]), "tiny", ALB.C.label, { wordWrap: { width: DW - 56 - (fr.sp > 0 ? 22 : 0), useAdvancedWrap: !0 } });
+      if (fr.sp > 0) {
+        const bg = add(h.add.image(DX + DW - 22, y, ALB.pillKey(h, 14, 13, "navy")).setOrigin(0).setDepth(96).setInteractive({ useHandCursor: !0 }));
+        add(ct(h, DX + DW - 15, y + 2, "+", "tiny", ALB.C.gold).setOrigin(0.5, 0).setDepth(96.5));
+        bg.on("pointerdown", () => addAttr(h, k, 1));
+      }
+    });
+    return;
+  }
+  // 아이템: 왼쪽 위 파란 아이콘 판 + 단계 원 · 오른쪽 이름 · 아래 설명 · 이름표 줄
+  const frame = add(h.add.image(DX, DY, ALB.ironKey(h, DW, 60)).setOrigin(0).setDepth(92));
+  add(h.add.image(DX + 3, DY + 3, ALB.iconPanelKey(h, 36)).setOrigin(0).setDepth(93));
+  add(h.add.image(DX + 21, DY + 21, albIcon(sc, it)).setDepth(94));
+  add(h.add.image(DX + 7, DY + 7, `alb_badge_tier_${IT.gradeOf(it)}`).setDepth(94.6));
+  const nameCol = it.el ? ink2(elCss(it.el)) : parRar(it);
+  const nm = t(DX + 44, DY + 6, it.name, "small", nameCol, { wordWrap: { width: DW - 52, useAdvancedWrap: !0 } });
+  const rk = { common: "일반", uncommon: "고급", rare: "희귀", epic: "영웅", legendary: "전설" }[IT.RARITY_OF(it)];
+  let y = DY + 6 + Math.max(12, nm.height) + 1;
+  t(DX + 44, y, `${IT.KIND_KO[it.kind]}${it.el ? " · " + IT.elName(it.el) : ""} · ${rk}`, "tiny", ALB.C.label);
+  y += 10;
+  t(DX + 44, y, it.tier === 0 ? (it.relic ? "보스 유물" : "기본 아이템") : `${it.catKo ?? ""} ${IT.TIER_KO[it.tier]}`, "tiny", ALB.C.label);
+  y = Math.max(y + 12, DY + 43);
+  const line = (s, col = ALB.C.ink2) => {
+    const o = t(DX + 8, y, s, "tiny", col, { wordWrap: { width: DW - 16, useAdvancedWrap: !0 }, lineSpacing: 1 });
+    y += o.height + 3;
+  };
+  line(IT.describe(it));
+  it.tier > 0 && line(`재료: ${it.mats.map((m) => IT.BASE[m]?.name ?? m).join(" + ")}`, ALB.C.label);
+  it.kind === "rune" && line("장착 불가 · 융합 재료 전용", ALB.C.inkRed);
+  // 이름표 줄 (이름표 회갈색 · 값 짙게) + 밑줄
+  y += 2;
+  const pairs = [];
+  if (it.kind === "skill" || it.kind === "magic") {
+    pairs.push(["쿨타임", `${itemCooldown(it).toFixed(1)}초`]);
+    const mana = itemMana(it);
+    mana && pairs.push(["마나", `${mana}`]);
+  }
+  it.kind === "armor" && pairs.push(["방어", `${armorDefense(it)}`]);
+  pairs.push(["판매가", `${sellPrice(sc, it)}G`]);
+  let px = DX + 8;
+  for (const [a, b] of pairs) {
+    const la = t(px, y, a, "tiny", ALB.C.label);
+    const vb = t(px + la.width + 4, y, b, "tiny", ALB.C.ink, { stroke: ALB.C.ink, strokeThickness: 1 });
+    px += la.width + vb.width + 12;
+  }
+  y += 11;
+  for (const o of ALB.groove(h, DX + 8, y, DW - 16, 95)) add(o);
+  y += 4;
+  const e = B.hover.e;
+  const hint = B.hover.res ? "융합 결과물" : e?.where === "eq" ? "우클릭: 해제" : "우클릭: 장착 · Shift+클릭: 융합대";
+  t(DX + 8, y, hint, "tiny", ALB.C.label);
+  y += 12;
+  // 높이를 내용에 맞춘다 (+아래 철 띠). 제단과 겹치지 않게
+  const DH = Math.min(maxBottom - DY, y - DY + 9);
+  frame.setTexture(ALB.ironKey(h, DW, DH));
+  // 오른쪽 아래 모서리: 희귀도 고리
+  add(h.add.image(DX + DW - 8, DY + DH - 6, `alb_badge_${IT.RARITY_OF(it)}${it.tier ? "_" + it.tier : ""}`).setDepth(94.6));
+}
 // 창고 패널 (왼쪽): 종류 탭 · 5열 스크롤 칸 · 전부 넣기 · 같은 종류 넣기 · 정렬 · 창고 가치
 const STASH_TABS = [["all", "전체"], ["weapon", "무기"], ["armor", "방어"], ["skill", "스킬"], ["magic", "마법"], ["etc", "기타"]];
 const stashKind = (it) => (["weapon", "armor", "skill", "magic"].includes(it.kind) ? it.kind : "etc");
@@ -3770,6 +4033,7 @@ function drawStash(h, B, add, lt, slotBox) {
 }
 // 칸 바탕 그림 (hi: 강조)
 function slotKey(style, big, hi, it) {
+  if (style.startsWith("alb")) return ALB.slotKey(style, hi, it);
   return style === "pocket" ? (hi ? "inv_pocket_hi" : "inv_pocket") : style === "stone" ? (hi || it ? "inv_stone_hi" : "inv_stone") : big ? (hi ? "inv_socket_big_hi" : "inv_socket_big") : hi ? "inv_socket_hi" : "inv_socket";
 }
 // 마우스 올리기: 화면 전체를 다시 만들지 않고 칸 강조와 설명 종이만 바꾼다 (렉 원인이었음)
@@ -3786,6 +4050,7 @@ function setHover(h, hv) {
   renderDetail(h, ...B.detArgs);
 }
 function renderDetail(h, PX, PY, PW, PH) {
+  if (h.frBag?.alb) return albDetail(h);
   const B = h.frBag, sc = B.sc, fr = sc.fr;
   const { ct, Be } = R;
   const add = (o) => (B.det.push(o), o);

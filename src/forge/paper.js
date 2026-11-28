@@ -1,4 +1,3 @@
-import * as AL from "./albui.js";
 // 크기에 맞춰 그때그때 그리는 종이·나무·코르크 텍스처 (늘려 쓰지 않으므로 뭉개지지 않는다)
 const H = (a, b, c = 0) => {
   let x = (a * 374761393 + b * 668265263 + c * 1274126177) | 0;
@@ -169,12 +168,10 @@ for (const [k, c] of Object.entries(CARD))
     for (let x = 6; x < w - 9; x++) (px(d, w, x, 5, col, 230), px(d, w, x, 6, col, 120), px(d, w, x, h - 9, col, 230), px(d, w, x, h - 10, col, 120));
     for (let y = 6; y < h - 9; y++) (px(d, w, 5, y, col, 230), px(d, w, w - 9, y, col, 230));
   };
-// 알비온식 UI (2026-11-28): ui_* 나인슬라이스는 albui 그림으로 정확한 크기에 그린다
-export const isPaper = (k) => k in AL.EXACT || k in PAPER;
+export const isPaper = (k) => k in PAPER;
 export function paperKey(scene, k, w, h) {
-  w = Math.max(6, Math.round(w));
-  h = Math.max(6, Math.round(h));
-  if (k in AL.EXACT) return AL.tex(scene, `al_x_${k}_${w}x${h}`, w, h, (b) => AL.EXACT[k](b, w, h));
+  w = Math.max(8, Math.round(w));
+  h = Math.max(8, Math.round(h));
   return canvasTex(scene, `pp_${k}_${w}x${h}`, w, h, (d) => PAPER[k](d, w, h));
 }
 export function woodKey(scene, w, h, o = {}) {

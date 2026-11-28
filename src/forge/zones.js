@@ -234,7 +234,6 @@ export const runSeed = () => RUN_SEED;
 export const hasDungeon = (z) => z.kind === "zone" && roll(RUN_SEED, "dg", z.id) < 0.12 + z.ring * 0.06;
 // 숨은 던전 입구는 위·아래 문 사이 조각에
 export const dungeonChunk = (z) => z.c0 + 10;
-export const packChunk = (z) => (z.kind === "zone" && roll(RUN_SEED, "pk", z.id) < 0.35 ? z.c0 + 1 + (hash(RUN_SEED, "pkc", z.id) % (ZLEN - 3)) : -1);
 export const waystoneOk = (z) => z?.kind === "zone" && z.ring >= 2 && roll(RUN_SEED, "ws", z.id) < 0.5;
 export function chestRoll(c, k, tier) {
   const z = zoneAtChunk(c);

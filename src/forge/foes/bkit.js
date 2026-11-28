@@ -72,12 +72,15 @@ export function* approach(e, A, o = {}) {
   else A.play(o.idle ?? "idle"), A.stop(), A.face();
   yield 0;
 }
+// 바닥 경고 대신 늘린 준비 시간 (초)
+const WIND_PLUS = 0.14;
 // ── 근접: 예고 → 몸을 던지며 휘두름 → 여운 ──
 //   o: range·ay(닿는 거리) · tele 예고 초 · dash 앞으로 · fw·fh 판정 · mult · knock · el · st · win 판정 시간 · fx "slash"|"heavy" · tint · sound
 export function* melee(e, A, o = {}) {
   A.face(), A.stop(1);
   o.tele !== 0 && A.tele(o.tele ?? 0.32, o.bar ? { bar: [e.cx + e.facing * (o.fw ?? 24) * 0.5, o.fw ?? 30] } : {});
-  yield A.once(o.wind ?? "wind");
+  // 빨간 바닥 경고가 없어진 대신 준비 동작을 조금 길게 잡는다
+  yield A.once(o.wind ?? "wind") + (o.bar ? WIND_PLUS : 0);
   A.once(o.atk ?? "atk");
   o.dash && (e.body.vx = e.facing * o.dash);
   o.lift && (e.body.vy = -o.lift);
@@ -100,7 +103,7 @@ export function* slam(e, A, o = {}) {
   A.face(), A.stop(1);
   const r = o.r ?? 44;
   A.tele(o.tele ?? 0.5, { bar: [e.cx + e.facing * (o.fwd ?? 10), r * 2] });
-  yield A.once(o.wind ?? "wind");
+  yield A.once(o.wind ?? "wind") + WIND_PLUS;
   A.once(o.atk ?? "atk");
   yield o.delay ?? 0.08;
   const x = e.cx + e.facing * (o.fwd ?? 10), y = e.body.y;
@@ -176,7 +179,7 @@ export function* dive(e, A, o = {}) {
 export function* charge(e, A, o = {}) {
   A.face(), A.stop(1);
   A.tele(o.tele ?? 0.5, { bar: [e.cx + e.facing * 60, 120] });
-  yield A.once(o.wind ?? "wind");
+  yield A.once(o.wind ?? "wind") + WIND_PLUS;
   A.play(o.run ?? "atk");
   A.sound(o.sound ?? "dash", 0.5);
   const dir = e.facing, W = e.host.world;

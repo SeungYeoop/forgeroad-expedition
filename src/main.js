@@ -7038,7 +7038,6 @@ function Ds(A) {
       particle: C.particle,
       bg: E.bg,
       patterns: m,
-      events: { treasure: 3, altar: 2, ambush: 4, deal: 3, eliteGround: 3, rift: 1, spring: 1 },
       music: { root: 53 + (A % 5), scale: [0, 2, 4, 6, 8, 10], tempo: 118 + (A % 4) * 4, wave: "square", mood: 8 },
       pal: h,
       theme: E.theme ?? E.id,
@@ -9212,32 +9211,9 @@ class Xn {
         const P = E.weighted(m.enemies, (V) => V.w);
         d.push({ id: `${S}:${d.length}`, enemy: P.id, x: sp.x, row: sp.row, traits: [] });
       }
-    let f = null;
+    // 예전 이벤트는 더 만들지 않는다 (2026-11-28)
+    const f = null;
     const c = S >= v - 1 && S <= v + 1;
-    if (!e && !c && S > 2) {
-      const y = 0.2 + Math.min(0.08, a.tier * 0.01);
-      if (E.chance(y)) {
-        const x = Object.entries({ ...m.events, merchant: 3 }).filter(([w]) => !C.includes(w) && w !== "goldenGoblin");
-        if (x.length) {
-          const [w] = E.weighted(x, (M) => M[1]);
-          for (let M = 0; M < 16; M++) {
-            const P = E.int(6, vt - 8);
-            if (
-              l[P] > 0 &&
-              l[P] === l[P + 1] &&
-              l[P] === l[P - 1] &&
-              flatOK(P - 1) && flatOK(P) && flatOK(P + 1) &&
-              !caveOut.shafts.some(([sx, w]) => P >= sx - 2 && P <= sx + w + 1) &&
-              !i.hazards.some((L) => P >= L.x - 2 && P <= L.x + L.w + 1)
-            ) {
-              f = { type: w, x: P, row: Ft - l[P], py: pyAt(P), seed: wn(this.seed, S, 77) };
-              for (let L = d.length - 1; L >= 0; L--) Math.abs(d[L].x - P) < 4 && d.splice(L, 1);
-              break;
-            }
-          }
-        }
-      }
-    }
     // 추가 보물 상자
     const chests = [];
     if (!e && !c && S > 1 && !planned) {
@@ -15525,7 +15501,6 @@ class xr {
   onChunkLoad(S) {
     const T = this.s.world.lx(S.index * vt);
     for (const C of S.hazards) this.makeHazard(S, C, T);
-    S.event && this.makeEvent(S, S.event, T);
     for (const sg of S.signs ?? []) {
       if (sg.dist % 200 !== 100 || !FG.waystoneOk(S.index)) continue;
       // 표지판 옆에서 실제로 밟을 수 있는 칸 (갱도 구멍 위는 피한다)
@@ -15788,490 +15763,8 @@ class xr {
       m = h[Math.floor(Math.random() * h.length)]();
     (j.play("buff"), E.fx.text(S, T, m, "#ffd84a"), (t = E.hud()) == null || t.toast(m, "#ffd84a"));
   }
-  makeEvent(S, T, C) {
-    const E = this.s,
-      R = E.add,
-      h = S.index,
-      m = this.st(h),
-      t = C + T.x * gt + 8,
-      a = T.py ?? T.row * gt,
-      v = new Ze(T.seed),
-      o = E.player,
-      n = (e) => (this.objs.push(e), e),
-      i = FG.diffDist(E.world.distAt(t));
-    switch (T.type) {
-      case "treasure": {
-        const e = v.next(),
-          r = e < 0.07 + Math.min(0.1, i / 5e4) ? 2 : e < 0.35 ? 1 : 0;
-        if (r === 1 && !m.guard) {
-          m.guard = !0;
-          const l = S.region.enemies.filter((u) => se[u.id].ai !== "turret"),
-            s = l[v.int(0, l.length - 1)].id;
-          E.spawnEnemy(s, t + 30, se[s].flying ? a - 60 : a, { traits: [v.pick(Ye)], spawnId: `ev${h}` });
-        }
-        n(this.chest(h, t, a, r, r === 2 && v.chance(0.5) ? () => this.trap(h, t, a) : void 0));
-        break;
-      }
-      case "wagon": {
-        (n({
-          chunk: h,
-          x: t - 30,
-          y: a,
-          sprites: [
-            R.image(t - 30, a + 1, "wagon")
-              .setOrigin(0.5, 1)
-              .setDepth(4),
-          ],
-          alive: !0,
-        }),
-          n(
-            this.chest(h, t, a, 1, () => {
-              var e;
-              (e = E.hud()) == null || e.toast("매복이다!", "#ff5a4a");
-              for (let r = 0; r < 3; r++) {
-                const l = E.spawnEnemy("goblin", t + (r - 1) * 50 + 60, a, {});
-                l && (l.aggro = !0);
-              }
-            }),
-          ));
-        break;
-      }
-      case "ambush": {
-        if (m.done) break;
-        const e = { chunk: h, x: t, y: a, sprites: [], alive: !0 };
-        let r = m.triggered ? 3 : 0,
-          l = [],
-          s = 0;
-        ((e.update = () => {
-          var u, d;
-          if (r === 0 && !o.dead && Math.abs(o.cx - t) < 40) {
-            ((r = 1),
-              (m.triggered = !0),
-              (s = E.time.now),
-              (u = E.hud()) == null || u.banner("적의 습격!", "모든 적을 처치하라", "#ff5a4a"),
-              E.cameras.main.flash(200, 255, 40, 40),
-              j.play("warn"));
-            const f = Math.min(7, 3 + Math.floor(i / 2500) + E.diffAtPlayer().tier),
-              c = S.region.enemies.filter(
-                (p) => se[p.id].ai !== "turret" && se[p.id].ai !== "ambush" && se[p.id].ai !== "burrower",
-              );
-            E.time.delayedCall(700, () => {
-              for (let p = 0; p < f; p++) {
-                const g = c[p % c.length].id,
-                  y = p % 2 ? 1 : -1,
-                  x = o.cx + y * (90 + (p >> 1) * 40),
-                  w = se[g],
-                  M = E.surfaceYAt(x);
-                if (M < 0 && !w.flying) continue;
-                const P = E.spawnEnemy(g, x, w.flying ? o.body.y - 70 : M, {
-                  traits: p === 0 && i > 1500 ? [v.pick(Ye)] : [],
-                });
-                P && ((P.aggro = !0), l.push(P), E.fx.burst("glow", P.cx, P.cy, 10, 16728128));
-              }
-            });
-          }
-          r === 1 &&
-            ((l = l.filter((f) => !f.dead)),
-            l.length === 0 &&
-              E.time.now - s > 1500 &&
-              ((r = 2),
-              (m.done = !0),
-              (d = E.hud()) == null || d.toast("습격 격퇴! 보상 획득", "#ffd84a"),
-              E.dropGold(o.cx, o.body.y - 20, 45 + i / 60),
-              j.play("coinBig")));
-        }),
-          n(e));
-        break;
-      }
-      case "eliteGround": {
-        const e = R.image(t - 70, a + 1, "banner_elite")
-            .setOrigin(0.5, 1)
-            .setDepth(4),
-          r = R.image(t + 70, a + 1, "banner_elite")
-            .setOrigin(0.5, 1)
-            .setDepth(4),
-          l = R.image(t, a + 1, "banner_elite")
-            .setOrigin(0.5, 1)
-            .setDepth(5)
-            .setScale(1.2),
-          s = {
-            chunk: h,
-            x: t,
-            y: a,
-            sprites: [e, r, l],
-            alive: !0,
-            prompt: m.done || m.active ? void 0 : "엘리트 사냥 도전",
-          };
-        let u = [];
-        ((s.interact = () => {
-          var c;
-          if (m.active || m.done) return;
-          ((m.active = !0),
-            (s.prompt = void 0),
-            (c = E.hud()) == null || c.banner("엘리트 사냥터", "강력한 적을 처치하면 영웅 상자를 얻는다", "#ffa040"),
-            j.play("bossRoar"));
-          const d = i > 5e3 ? 3 : 2,
-            f = S.region.enemies.filter((p) => se[p.id].ai !== "turret");
-          for (let p = 0; p < d; p++) {
-            const g = f[v.int(0, f.length - 1)].id,
-              y = se[g],
-              x = t + (p - (d - 1) / 2) * 50,
-              w = [v.pick(Ye)];
-            if (v.chance(0.4)) {
-              const P = v.pick(Ye);
-              P !== w[0] && w.push(P);
-            }
-            const M = E.spawnEnemy(g, x, y.flying ? a - 70 : a, { traits: w });
-            M && ((M.aggro = !0), u.push(M), E.fx.burst("glow", M.cx, M.cy, 14, 16752704));
-          }
-        }),
-          (s.update = () => {
-            var d;
-            if (m.active && !m.done && ((u = u.filter((f) => !f.dead)), u.length === 0)) {
-              ((m.done = !0), (d = E.hud()) == null || d.toast("엘리트 사냥 성공!", "#ffa040"));
-              const f = this.chest(h, t, a, 2);
-              (this.objs.push(f), E.fx.burst("glow", t, a - 10, 30, 16736511));
-            }
-          }),
-          n(s),
-          m.done && n(this.chest(h, t, a, 2)));
-        break;
-      }
-      case "altar": {
-        const e = R.sprite(t, a + 1, "altar")
-          .setOrigin(0.5, 1)
-          .setDepth(5)
-          .play("altar_anim");
-        m.used && e.stop().setFrame(0).setTint(6316128);
-        const r = { chunk: h, x: t, y: a, sprites: [e], alive: !0, prompt: m.used ? void 0 : "버려진 제단에 기도" };
-        ((r.interact = () => {
-          m.used ||
-            ((m.used = !0),
-            (r.prompt = void 0),
-            e.stop(),
-            e.setTint(6316128),
-            E.fx.burst("rise", t, a - 16, 30, 16769152),
-            E.fx.anim("ring", o.cx, o.cy, { tint: 16769152 }),
-            this.randomBlessing(t, a - 40));
-        }),
-          n(r));
-        break;
-      }
-      case "deal":
-      case "rift": {
-        const e = T.type === "rift",
-          r = e
-            ? R.sprite(t, a + 1, "riftgate")
-                .setOrigin(0.5, 1)
-                .setDepth(5)
-                .play("riftgate_anim")
-            : R.sprite(t, a + 1, "shrine_deal")
-                .setOrigin(0.5, 1)
-                .setDepth(5)
-                .play("shrine_deal_anim");
-        m.used && r.setAlpha(0.4);
-        const l = {
-          chunk: h,
-          x: t,
-          y: a,
-          sprites: [r],
-          alive: !0,
-          prompt: m.used ? void 0 : e ? "심연의 균열을 들여다본다" : "위험한 거래",
-        };
-        ((l.interact = () => {
-          var f;
-          if (m.used) return;
-          const s = Math.round(90 * E.diffAtPlayer().goldMult),
-            u = e
-              ? [
-                  {
-                    label: "저주를 받아들인다",
-                    desc: "받는 피해 +25%, 골드 획득 +40% (탐험 동안)",
-                    fn: () => {
-                      ((o.run.dmgTakenMult *= 1.25),
-                        (o.run.goldMult += 0.4),
-                        o.buff("curse", 99999, 1, "curse", "심연의 저주"));
-                    },
-                  },
-                ]
-              : [
-                  {
-                    label: "피의 대가",
-                    desc: `현재 체력 25% 희생 → 골드 ${s}`,
-                    fn: () => {
-                      ((o.hp = Math.max(1, Math.round(o.hp * 0.75))), E.dropGold(t, a - 20, 90, !0));
-                    },
-                  },
-                  {
-                    label: "힘의 대가",
-                    desc: "최대 체력 -15% → 공격력 +25% (탐험 동안)",
-                    fn: () => {
-                      ((o.run.maxHpPct -= 0.15), (o.hp = Math.min(o.hp, o.maxHp)), (o.run.atkPct += 0.25));
-                    },
-                  },
-                  {
-                    label: "정밀의 대가",
-                    desc: "현재 체력 30% 희생 → 치명타 +12% (탐험 동안)",
-                    fn: () => {
-                      ((o.hp = Math.max(1, Math.round(o.hp * 0.7))), (o.run.critAdd += 0.12));
-                    },
-                  },
-                  {
-                    label: "속도의 대가",
-                    desc: "받는 피해 +10% → 이동 속도 +20% (90초)",
-                    fn: () => {
-                      ((o.run.dmgTakenMult *= 1.1), o.buff("speed", 90, 0.2, "speed", "속도의 대가"));
-                    },
-                  },
-                ],
-            d = e ? u : v.shuffle([...u]).slice(0, 2);
-          (f = E.hud()) == null ||
-            f.choice(
-              e ? "심연의 균열" : "위험한 거래",
-              e ? "균열 너머에서 속삭임이 들린다..." : "그림자 상인이 대가를 요구한다.",
-              [
-                ...d.map((c) => ({
-                  label: c.label,
-                  desc: c.desc,
-                  cb: () => {
-                    var p;
-                    ((m.used = !0),
-                      (l.prompt = void 0),
-                      r.setAlpha(0.4),
-                      c.fn(),
-                      j.play("buff"),
-                      E.fx.burst("glow", o.cx, o.cy, 20, e ? 11559167 : 16724048),
-                      (p = E.hud()) == null || p.toast(c.label, "#ff8080"));
-                  },
-                })),
-                { label: "거절한다", desc: "", cb: () => {} },
-              ],
-            );
-        }),
-          n(l));
-        break;
-      }
-      case "merchant": {
-        const e = R.image(t - 26, a + 1, "wagon")
-            .setOrigin(0.5, 1)
-            .setDepth(4)
-            .setScale(0.9),
-          r = R.sprite(t + 6, a + 1, "npc_quarter", 0)
-            .setOrigin(0.5, 1)
-            .setDepth(5)
-            .setFlipX(!0)
-            .play("npc_quarter_idle"),
-          l = R.sprite(t - 44, a + 1, "hub_torch")
-            .setOrigin(0.5, 1)
-            .setDepth(4)
-            .play("hub_torch_anim"),
-          s = { chunk: h, x: t, y: a, sprites: [e, r, l], alive: !0, prompt: "방랑 상인과 거래" };
-        let u = 0;
-        ((s.update = (d) => {
-          ((u -= d), u <= 0 && ((u = 0.7), E.fx.burst("glow", t + (Math.random() - 0.5) * 30, a - 20, 1, 16765056)));
-        }),
-          (s.interact = () => E.openShop(m)),
-          n(s));
-        break;
-      }
-      case "goldenGoblin": {
-        if (m.done) break;
-        const e = { chunk: h, x: t, y: a, sprites: [], alive: !0 };
-        ((e.update = () => {
-          var r;
-          !m.done &&
-            !o.dead &&
-            Math.abs(o.cx - t) < 260 &&
-            E.spawnEnemy("golden", t + 40, a, {}) &&
-            ((m.done = !0),
-              (r = E.hud()) == null || r.banner("황금 고블린!", "도망치기 전에 처치하라!", "#ffd84a"),
-              j.play("coinBig"));
-        }),
-          n(e));
-        break;
-      }
-      case "spring": {
-        const e = R.sprite(t, a + 2, "spring")
-          .setOrigin(0.5, 1)
-          .setDepth(4)
-          .play("spring_anim");
-        m.used && e.setTint(7368816).stop();
-        const r = { chunk: h, x: t, y: a, sprites: [e], alive: !0, prompt: m.used ? void 0 : "요정의 샘에서 마시기" };
-        ((r.interact = () => {
-          var l;
-          m.used ||
-            ((m.used = !0),
-            (r.prompt = void 0),
-            e.setTint(7368816).stop(),
-            o.heal(o.maxHp * 0.4),
-            o.statuses.clear(),
-            E.fx.burst("rise", o.cx, o.cy, 30, 8454096),
-            j.play("heal"),
-            (l = E.hud()) == null || l.toast("요정의 샘: 체력 40% 회복", "#7be36a"));
-        }),
-          n(r));
-        break;
-      }
-      case "armory": {
-        const e = R.image(t, a + 1, "armory")
-          .setOrigin(0.5, 1)
-          .setDepth(4);
-        m.used && e.setTint(7368816);
-        const r = { chunk: h, x: t, y: a, sprites: [e], alive: !0, prompt: m.used ? void 0 : "버려진 무기고 뒤지기" };
-        ((r.interact = () => {
-          var l;
-          m.used ||
-            ((m.used = !0),
-            (r.prompt = void 0),
-            e.setTint(7368816),
-            (o.run.weaponDmgPct += 0.15),
-            j.play("buy"),
-            (l = E.hud()) == null || l.toast("무기고: 무기 피해 +15% (탐험 동안)", "#ffd84a"),
-            E.fx.burst("spark", t, a - 16, 20, 16769184));
-        }),
-          n(r));
-        break;
-      }
-      case "relic": {
-        const e = R.image(t, a + 2, "relic")
-          .setOrigin(0.5, 1)
-          .setDepth(4);
-        ((m.digs = m.digs ?? 0), m.digs >= 3 && e.setVisible(!1));
-        const r = {
-          chunk: h,
-          x: t,
-          y: a,
-          sprites: [e],
-          alive: !0,
-          prompt: m.digs >= 3 ? void 0 : `모래에 묻힌 유물 발굴 (${m.digs}/3)`,
-        };
-        ((r.interact = () => {
-          var l;
-          if (!(m.digs >= 3)) {
-            if (
-              (m.digs++,
-              E.fx.burst("dust", t, a - 4, 12, 14200944),
-              E.fx.burst("chunk", t, a - 4, 8, 14200944),
-              j.play("thud", 0.6),
-              m.digs === 1)
-            ) {
-              for (const [s, u] of [
-                ["scarab", -40],
-                ["scarab", 40],
-                ["scorpion", 60],
-              ]) {
-                const d = E.spawnEnemy(s, t + u, a, {});
-                d && (d.aggro = !0);
-              }
-              (l = E.hud()) == null || l.toast("무언가 깨어났다!", "#ff5a4a");
-            }
-            ((r.prompt = `모래에 묻힌 유물 발굴 (${m.digs}/3)`),
-              m.digs >= 3 &&
-                ((r.prompt = void 0), e.setVisible(!1), E.dropGold(t, a - 14, 110), this.randomBlessing(t, a - 30)));
-          }
-        }),
-          n(r));
-        break;
-      }
-      case "oreVein":
-      case "frozenHero": {
-        const e = T.type === "oreVein";
-        if ((e && (m.hits ?? 0) >= 5) || (!e && m.broken)) {
-          !e && m.broken && !m.opened && n(this.chest(h, t, a, 1));
-          break;
-        }
-        const r = R.image(t, a + 1, e ? "orevein" : "icebox")
-            .setOrigin(0.5, 1)
-            .setDepth(5),
-          l = e ? 5 : Math.round(60 * E.diffAtPlayer().hpMult);
-        ((m.hits = m.hits ?? 0), (m.hp = m.hp ?? l));
-        const s = new gr(t, a, 22, 22, m.hp, l, (d) => {
-          var f, c;
-          (r.setTintFill(16777215),
-            E.time.delayedCall(60, () => r.clearTint()),
-            E.fx.burst("chunk", t, a - 10, 5, e ? 16764992 : 10543359),
-            j.play(e ? "block" : "ice"),
-            e
-              ? (m.hits++,
-                E.dropGold(t, a - 16, 10 + i / 300),
-                m.hits >= 5 &&
-                  ((s.dead = !0), r.setAlpha(0.3), (f = E.hud()) == null || f.toast("광맥을 모두 캤다", "#ffd84a")))
-              : ((m.hp -= d),
-                (s.hp = m.hp),
-                m.hp <= 0 &&
-                  ((s.dead = !0),
-                  (m.broken = !0),
-                  r.destroy(),
-                  E.fx.anim("iceburst", t, a - 14, { scale: 0.6 }),
-                  (c = E.hud()) == null || c.toast("얼어붙은 모험가를 구출했다! 감사의 선물을 받았다", "#7be36a"),
-                  o.heal(o.maxHp * 0.25),
-                  this.objs.push(this.chest(h, t, a, 1)))));
-        });
-        ((s.chunk = h), this.hittables.push(s), n({ chunk: h, x: t, y: a, sprites: [r], alive: !0 }));
-        break;
-      }
-      case "runeVault": {
-        m.runes = m.runes ?? [!1, !1, !1];
-        const r = [t - 90, t, t + 90].map((s, u) =>
-            R.sprite(s, E.surfaceYAt(s) >= 0 ? E.surfaceYAt(s) + 1 : a, "rune", m.runes[u] ? 1 : 0)
-              .setOrigin(0.5, 1)
-              .setDepth(5),
-          ),
-          l = { chunk: h, x: t, y: a, sprites: [...r], alive: !0 };
-        ((l.update = () => {
-          var s;
-          m.opened ||
-            (r.forEach((u, d) => {
-              var f;
-              !m.runes[d] &&
-                !o.dead &&
-                Math.abs(o.cx - u.x) < 10 &&
-                Math.abs(o.body.y - u.y) < 20 &&
-                ((m.runes[d] = !0),
-                u.setFrame(1),
-                j.play("magic"),
-                E.fx.burst("glow", u.x, u.y - 8, 12, 8429823),
-                (f = E.hud()) == null || f.toast(`고대 룬 활성화 (${m.runes.filter(Boolean).length}/3)`, "#a0b8ff"));
-            }),
-            m.runes.every(Boolean) &&
-              !m.vault &&
-              ((m.vault = !0),
-              (s = E.hud()) == null || s.toast("왕의 보고가 열렸다!", "#ffd84a"),
-              E.fx.burst("glow", t, a - 20, 40, 8429823),
-              E.cameras.main.flash(200, 120, 140, 255),
-              this.objs.push(this.chest(h, t, a, 2))));
-        }),
-          m.vault && this.objs.push(this.chest(h, t, a, 2)),
-          n(l));
-        break;
-      }
-    }
-  }
-  trap(S, T, C) {
-    var h;
-    const E = this.s;
-    (h = E.hud()) == null || h.toast("함정이다!", "#ff5a4a");
-    const R = E.add
-      .image(T, C - 8, "warncircle")
-      .setDepth(29)
-      .setDisplaySize(90, 90);
-    (E.tweens.add({ targets: R, alpha: 0.2, duration: 100, yoyo: !0, repeat: 3 }),
-      j.play("warn"),
-      E.time.delayedCall(800, () => {
-        (R.destroy(), E.fx.anim("explode", T, C - 10, { scale: 2 }), E.fx.shake(5), j.play("explosion"));
-        const m = E.player;
-        !m.dead &&
-          Math.hypot(m.cx - T, m.cy - (C - 10)) < 45 &&
-          E.hurtPlayer({
-            dmg: 14 * E.diffAtPlayer().atkMult,
-            element: "fire",
-            knock: 1,
-            dir: m.cx < T ? -1 : 1,
-            melee: !1,
-            srcX: T,
-          });
-      }));
-  }
+  // 예전 이벤트(보물 수레·매복·습격·정예 사냥터·제단·거래·균열·방랑 상인·황금 고블린·회복의 샘·무기고·유물·광맥·얼어붙은 모험가·룬 금고·상자 함정)는
+  // 모두 지웠다 (2026-11-28 사용자 요청). 상자는 chests 목록으로 따로 놓인다
   update(S) {
     var E;
     const T = this.s.player;
@@ -16500,15 +15993,9 @@ class Cs {
   clearWarn() {
     this.warn && (this.warn.destroy(), (this.warn = void 0));
   }
+  // 공격 범위 빨간 표시는 쓰지 않는다 (2026-11-28 사용자 요청) — 몬스터의 준비 동작으로 읽는다
   showWarn(S, T, C, E = "warn", R) {
-    (this.clearWarn(),
-      (this.warn = this.host.add
-        .image(S, T, E)
-        .setDepth(29)
-        .setOrigin(0.5, E === "warn" ? 1 : 0.5)
-        .setAlpha(0.8)),
-      E === "warn" ? this.warn.setDisplaySize(C, 6) : this.warn.setDisplaySize(C, R ?? C),
-      this.host.tweens.add({ targets: this.warn, alpha: 0.3, duration: 120, yoyo: !0, repeat: -1 }));
+    this.clearWarn();
   }
   hit(S, T, C, E, R = 1) {
     let h = E ?? this.def.status;
@@ -17378,37 +16865,12 @@ class yr {
       a = Ut(T, m.body.y - 22, m.body.y);
     return !m.dead && Math.hypot(t - S, a - T) < C ? (this.dmg(E, !1, R, h), !0) : !1;
   }
+  // 공격 범위 빨간 표시는 쓰지 않는다 (2026-11-28 사용자 요청) — 몬스터의 준비 동작으로 읽는다
   warnBar(S, T, C, E = this.groundY) {
-    const R = this.host.add.image(S, E, "warn").setOrigin(0.5, 1).setDepth(29).setDisplaySize(T, 6).setAlpha(0.85);
-    (this.host.tweens.add({ targets: R, alpha: 0.3, duration: 110, yoyo: !0, repeat: -1 }),
-      this.temp.push(R),
-      this.host.time.delayedCall((C * 1e3) / this.speedMul, () => {
-        R.destroy();
-      }),
-      j.play("warn"));
+    j.play("warn");
   }
-  warnCircle(S, T, C, E) {
-    const R = this.host.add
-      .image(S, T, "warncircle")
-      .setDepth(29)
-      .setDisplaySize(C * 2, C * 2)
-      .setAlpha(0.8);
-    (this.host.tweens.add({ targets: R, alpha: 0.3, duration: 110, yoyo: !0, repeat: -1 }),
-      this.temp.push(R),
-      this.host.time.delayedCall((E * 1e3) / this.speedMul, () => R.destroy()));
-  }
-  warnLine(S, T, C, E, R, h = 16724e3) {
-    const m = Math.hypot(C - S, E - T),
-      t = this.host.add
-        .image(S, T, "beam")
-        .setOrigin(0, 0.5)
-        .setDepth(29)
-        .setDisplaySize(m, 2)
-        .setRotation(Math.atan2(E - T, C - S))
-        .setTint(h)
-        .setAlpha(0.8);
-    (this.temp.push(t), this.host.time.delayedCall((R * 1e3) / this.speedMul, () => t.destroy()));
-  }
+  warnCircle(S, T, C, E) {}
+  warnLine(S, T, C, E, R, h = 16724e3) {}
   shoot(S, T, C, E, R, h, m, t = {}) {
     this.host.projectiles.spawn(
       S,
@@ -20025,12 +19487,8 @@ class wr extends zt.Scene {
   addModalBtn(T, C) {
     this.modalBtns.push({ b: T, fn: C });
   }
-  toast(T, C = q.text) {
-    const E = ct(this, ot - 8, 0, T, "small", C, { stroke: "#140e18", strokeThickness: 3 })
-      .setOrigin(1, 0)
-      .setDepth(50);
-    (this.toasts.unshift({ t: E, life: 3 }), this.toasts.length > 5 && this.toasts.pop().t.destroy());
-  }
+  // 오른쪽 위 글자 알림은 쓰지 않는다 (2026-11-28 사용자 요청). 중요한 알림은 화면 가운데 큰 알림으로 옮긴다
+  toast(T, C = q.text) {}
   goldPulse() {
     this.goldScale = 1.35;
   }

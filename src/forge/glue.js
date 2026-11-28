@@ -526,7 +526,6 @@ export function startRun(scene) {
     pickups: [],
     mats: {},
     runSeed: (Math.random() * 4294967295) >>> 0,
-    packs: {},
     dgSeen: [],
     zones: [],
     ents: [],
@@ -3160,7 +3159,7 @@ function renderBag(h) {
   B.hits.push({ x: FX + FW / 2 - 60, y: cy0 + 3, w: 120, h: 46, type: "sell", key: 0 });
   // 자원
   add(h.add.image(FX + 14, cy0 + 66, "icon_gold").setDepth(95));
-  lt(FX + 24, cy0 + 59, `${Math.floor(sc.run?.gold ?? 0)}`, "small", "#ffd84a");
+  lt(FX + 24, cy0 + 59, `${Math.floor((sc.run?.gold ?? 0) + (sc.run?.milestoneGold ?? 0))}`, "small", "#ffd84a");
   add(h.add.image(FX + 100, cy0 + 66, "fr_stone").setDepth(95));
   lt(FX + 110, cy0 + 59, `융합석 ${fr.stones}`, "small", "#a8e0ff");
   B.msg && lt(FX + FW / 2, cy0 + 80, B.msg, "tiny", "#ffb090").setOrigin(0.5, 0);
@@ -4295,10 +4294,31 @@ function startLoad(sc, z, onDone, o = {}) {
   sc.frLoad = L;
   return L;
 }
+// 로딩 중 입력 잠금 (2026-11-28): 로딩 화면이 떠 있는 동안 + 닫힌 뒤 0.3초까지 키보드·마우스를 모두 무시한다.
+// 풀 때 눌려 있던 키 상태를 비워서, 로딩 중에 누른 키가 끝나자마자 실행되지 않게 한다
+const LOAD_UNLOCK_DELAY = 0.3;
+function setInputLock(sc, on) {
+  for (const s of [sc, sc.hud?.()]) {
+    const I = s?.input;
+    if (!I) continue;
+    I.enabled = !on;
+    if (I.keyboard) (I.keyboard.enabled = !on), I.keyboard.resetKeys?.();
+  }
+  sc.frInputLocked = on;
+  sc.pauseReq = !1;
+}
+export const inputLocked = (sc) => !!sc?.frInputLocked;
 // 게임 장면 update 맨 앞에서 부른다. 로딩 중이면 true (나머지 진행을 건너뛴다)
 export function loadGate(sc, dt) {
   const L = sc.frLoad;
-  if (!L) return !1;
+  if (!L) {
+    if (sc.frInputLocked && (sc.frUnlockT = (sc.frUnlockT ?? 0) - dt) <= 0) setInputLock(sc, !1);
+    return !1;
+  }
+  // HUD 장면은 로딩 도중에 뜨므로 매 프레임 같이 잠근다
+  const hud = sc.hud?.();
+  (!sc.frInputLocked || (hud?.input && hud.input.enabled)) && setInputLock(sc, !0);
+  sc.frUnlockT = LOAD_UNLOCK_DELAY;
   L.update(dt);
   if (L.dead) return void (sc.frLoad = null), !1;
   if (L.closing) return !1;
@@ -4335,9 +4355,8 @@ function arrive(sc, z) {
   R.it.write();
   sc.time.delayedCall(800, () => sc.world && prefetchNeighbors(sc, z));
   const D = ZN.dangerOf(z);
-  sc.hud?.()?.regionBanner(z.name, `${ZN.LAYER_NAME(z.y)} · ${D.name} ${D.label}${first ? " · 처음 밟는 땅" : ""}`);
-  ZN.packChunk(z) >= 0 && !sc.fr?.packs?.[z.id] && sc.time.delayedCall(1600, () => sc.hud?.()?.toast("이 구역 어딘가에 정예 무리가 떠돈다", "#ff9a6a"));
-  z.kind === "dungeon" && sc.time.delayedCall(1600, () => sc.hud?.()?.toast("숨은 던전 · 정예가 많고 끝에 보물이 있다", "#c090ff"));
+  // 지역 이름 배너는 띄우지 않는다 (2026-11-28 사용자 요청: 맵 이름 라벨 필요 없음 — 이름은 로딩 화면에서 본다)
+  void D, void first;
 }
 // 탐험 시작: 거점의 어느 출구로 나갔느냐에 따라 그 방향 이웃 칸, 들어오는 쪽(거점을 바라보는 쪽) 출구 자리에서
 //   ◀ 서문 → 서쪽 칸 오른쪽 끝 · ▶ 동문 → 동쪽 칸 왼쪽 끝 · ▲ 하늘 승강장 → 위 칸 아래 출구 · ▼ 갱도 승강기 → 아래 칸 위 출구
@@ -4363,7 +4382,7 @@ export function zoneBegin(sc) {
   });
 }
 export const seenCount = () => Object.keys(sd().seen ?? {}).filter((k) => ZN.BY_ID[k]?.kind === "zone").length;
-// 출구 물체, 떠도는 정예 무리
+// 출구 물체
 export function zoneObjs(evm, S, T, traits) {
   const sc = evm.s, W = sc.world;
   const z = ZN.zoneAtChunk(S.index);
@@ -4373,28 +4392,7 @@ export function zoneObjs(evm, S, T, traits) {
     if (Math.floor(tile / 32) !== S.index || row <= 0) continue;
     evm.objs.push(exitObj(sc, S.index, T + (tile - S.index * 32) * 16 + 8, py > 0 ? py : row * 16, z, e));
   }
-  const pc = ZN.packChunk(z);
-  const fr = sc.fr;
-  if (pc === S.index && fr && !(fr.packs ??= {})[z.id]) {
-    fr.packs[z.id] = 1;
-    const pool = (S.region?.layers?.ground?.enemies ?? S.region?.enemies ?? []).filter((x) => FOES.hasSpec(x.id));
-    if (pool.length) {
-      const pick = () => {
-        let t = pool.reduce((s, x) => s + (x.w ?? 1), 0) * Math.random();
-        for (const x of pool) if ((t -= x.w ?? 1) <= 0) return x.id;
-        return pool[0].id;
-      };
-      const n = 3 + (Math.random() < 0.4 ? 1 : 0);
-      const cx = T + 16 * 16;
-      for (let i = 0; i < n; i++) {
-        const x = cx + (i - n / 2) * 30, y = sc.surfaceYAt(x);
-        if (y < 0) continue;
-        const tr = [traits[Math.floor(Math.random() * traits.length)]];
-        i === 0 && tr.push(traits[Math.floor(Math.random() * traits.length)]);
-        sc.spawnEnemy(pick(), x, y, { traits: [...new Set(tr)], homeChunk: S.index });
-      }
-    }
-  }
+  // 떠도는 정예 무리는 지웠다 (2026-11-28 사용자 요청)
 }
 const EXIT_LOOK = {
   L: { arrow: "◀", tex: "fr_gate" },
@@ -4449,8 +4447,8 @@ export function zoneHudText(hud, run) {
 export function zoneProgress(hud) {
   const run = hud.run, z = zoneOfPlayer(run);
   if (!z) return !1;
-  for (const n of [hud.progBg, hud.progFill, hud.progSkull, hud.progText]) n?.setVisible(!0);
-  hud.progBest?.setVisible(!1);
+  // 위 가운데 진행 막대는 숨김 (2026-11-28). 값 계산은 그대로 둔다
+  for (const n of [hud.progBg, hud.progFill, hud.progSkull, hud.progText, hud.progBest]) n?.visible && n.setVisible(!1);
   const t = run.world.gtx(run.player.x) - z.c0 * 32, len = (z.c1 - z.c0) * 32;
   hud.progFill.width = (hud.progBg.width - 2) * Math.max(0, Math.min(1, t / len));
   const dead = z.boss && run.bossDefeated.has(z.c1 - 2);

@@ -320,18 +320,9 @@ export function remakeHud(hud, R) {
   for (const o of hud.children.list.slice())
     o !== hud.distText && o !== hud.goldText && o !== hud.goldIcon && o !== hud.killText && o.x < 236 && o.y < 72 && o.y > -20 && o.y !== void 0 && !((o.width ?? 0) > 200) && ![hud.bossName, hud.bossMark].includes(o) && (o.y += dy);
   mask.y += dy;
-  // 위 가운데 거리: 숫자 + 가는 진행 막대만
-  hud.add.nineslice(W / 2 - 64, 2, "ui_hud_panel", void 0, 128, 30, 6, 6, 6, 6).setOrigin(0).setDepth(-1).setAlpha(0.85);
-  hud.distText?.setPosition(W / 2, 4);
-  for (const o of [hud.bestText, hud.progText, hud.progBest]) o?.setAlpha(0);
-  if (hud.progBg) {
-    const bw = 100, bx = W / 2 - bw / 2 - 5, by = 23;
-    hud.progBg.setPosition(bx, by).setSize(bw, 4).setDepth(3);
-    hud.progFill.setPosition(bx + 1, by + 1).setDepth(4);
-    hud.progSkull.setPosition(bx + bw + 8, by + 2).setScale(0.8).setDepth(4);
-  }
-  hud.add.nineslice(W - 94, 2, "ui_hud_gold", void 0, 92, 34, 6, 6, 6, 6).setOrigin(0).setDepth(-1).setAlpha(0.92);
-  for (const o of [hud.distText, hud.goldText, hud.goldIcon, hud.killText]) o?.setDepth(3);
+  // 위 가운데 맵 이름 패널과 오른쪽 위 돈 패널은 쓰지 않는다 (2026-11-28). 돈은 가방에서 본다
+  hud.frTopHidden = [hud.distText, hud.bestText, hud.progBg, hud.progFill, hud.progBest, hud.progSkull, hud.progText, hud.goldText, hud.goldIcon, hud.killText];
+  for (const o of hud.frTopHidden) o?.setVisible(!1);
 }
 export function updateHud(hud) {
   const sc = hud.run;

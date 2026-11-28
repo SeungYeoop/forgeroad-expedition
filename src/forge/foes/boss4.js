@@ -159,11 +159,8 @@ export async function bossRun4(b, name, R) {
         b.faceP();
         b.frame(F("throw"));
         const ox = b.cx + b.facing * 20, oy = Rb.y - 60, ang = Math.atan2(p.cy - oy, p.cx - ox);
-        const g = host.add.image(ox, oy, "warn").setOrigin(0, 0.5).setDepth(29).setDisplaySize(500, 4).setRotation(ang).setAlpha(0.8);
-        host.tweens.add({ targets: g, alpha: 0.2, duration: 100, yoyo: !0, repeat: -1 });
         j.play("warn", 0.6);
         await b.wait(0.6);
-        g.destroy();
         j.play("swingHeavy", 1.1);
         b.shoot({ sprite: "p_ballista", speed: 620, life: 1.2, radius: 8, aoe: 40 }, ox, oy, ang, 1.6, "fire", BURN(0.35, 3), { tint: HOT, scale: 1.6 });
         b.frame(F("cut2"));

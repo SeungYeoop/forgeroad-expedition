@@ -372,15 +372,13 @@ function actions(e) {
     frame(f) {
       e.fz.anim = { name: "hold", f };
     },
-    // 예고: 느낌표 + 붉은 번쩍임 (+ 바닥 경고)
+    // 예고: 준비 동작 시간만 잡는다. 바닥 빨간 경고(o.bar)는 그리지 않는다 (2026-11-28 사용자 요청)
     tele(dur, o = {}) {
       e.fz.teleT = dur;
-      if (o.bar) {
-        const [x, w] = o.bar;
-        const im = host.add.image(x, Rb.y, "warn").setOrigin(0.5, 1).setDepth(29).setDisplaySize(w, 6).setAlpha(0.85);
-        host.tweens.add({ targets: im, alpha: 0.25, duration: 110, yoyo: !0, repeat: -1 });
-        e.fz.temp.push(im);
-        host.time.delayedCall(dur * 1000, () => im.destroy());
+      // 준비 시작 순간 몸에 아주 짧은 흰 번쩍임 (그림 색조는 건드리지 않고 위에 빛만 얹는다)
+      if (e.sprite?.visible) {
+        const f = host.add.image(e.cx, e.cy, "vx_glow").setBlendMode(R.zt.BlendModes.ADD).setTint(0xfff4e0).setDepth((e.sprite.depth ?? 10) + 0.1).setScale(Math.max(0.5, (e.sprite.displayHeight ?? 32) / 48)).setAlpha(0.55);
+        host.tweens.add({ targets: f, alpha: 0, duration: 140, onComplete: () => f.destroy() });
       }
       if (o.glow && !1) {
         const [gx, gy, col] = o.glow;

@@ -5581,3 +5581,6 @@ function buildDestiny(scene) {
   scene.input.on("pointerup", D.onUp);
   scene.input.on("wheel", D.onWheel);
 }
+// 일시정지 메뉴에서 쓰는 것 (2026-11-28)
+export const toggleMapHud = (hud) => toggleMap(hud);
+export const zoneNameOf = (sc) => zoneOfPlayer(sc)?.name ?? null;

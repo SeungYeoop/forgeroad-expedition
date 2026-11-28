@@ -33,7 +33,7 @@ function wood(g, x0, y0, w, h, base = [58, 36, 20]) {
       px === 0 && (v *= 0.45);
       px === 1 && (v *= 0.8);
       px === plank - 1 && (v *= 1.12);
-      g.fillStyle(`rgb(${Math.round(base[0] * v)},${Math.round(base[1] * v)},${Math.round(base[2] * v)})`);
+      g.fillStyle = `rgb(${Math.round(base[0] * v)},${Math.round(base[1] * v)},${Math.round(base[2] * v)})`;
       g.fillRect(x0 + x, y0 + y, 1, 1);
     }
 }
@@ -44,7 +44,7 @@ function paper(g, x0, y0, w, h) {
       const e = Math.min(x, y, w - 1 - x, h - 1 - y);
       let v = 0.93 + (H(x >> 2, y >> 2, 3) - 0.5) * 0.07 + (H(x, y, 4) - 0.5) * 0.04;
       e < 6 && (v *= 0.78 + e * 0.035);
-      g.fillStyle(`rgb(${Math.round(232 * v)},${Math.round(212 * v)},${Math.round(170 * v)})`);
+      g.fillStyle = `rgb(${Math.round(232 * v)},${Math.round(212 * v)},${Math.round(170 * v)})`;
       g.fillRect(x0 + x, y0 + y, 1, 1);
     }
 }

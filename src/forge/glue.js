@@ -40,7 +40,8 @@ import * as LOOK from "./look.js";
 import * as ICON from "./icons.js";
 import * as UI from "./ui.js";
 import * as SCR from "./screens.js";
-export { HOOKS } from "./codex.js";
+import { HOOKS } from "./codex.js";
+export { HOOKS };
 import * as HUB2 from "./hub2.js";
 import * as HUB4 from "./hub4.js";
 import * as PAPER from "./paper.js";
@@ -5328,7 +5329,8 @@ export function ensurePlan(sc, z) {
 function prefetchNeighbors(sc, z) {
   const zz = z.kind === "dungeon" ? ZN.zoneOfPocket(z) : z;
   // 지금 구역과 이웃 구역 몬스터 그림을 뒤에서 미리
-  const pre = (q) => q?.reg?.layers && FOES.preloadRegion(sc, -1, Object.values(q.reg.layers).flatMap((b) => [...b.enemies.map((e) => e.id), ...b.elites]));
+  // 이웃 구역 몬스터 그림 + 배경 그림(로딩 화면에 바로 보이게 · 2026-11-28)을 뒤에서 미리
+  const pre = (q) => (q?.reg?.id && !sc.textures.exists(`bg_${q.reg.id}_sky`) && HOOKS.bg?.(sc, q.reg), q?.reg?.layers && FOES.preloadRegion(sc, -1, Object.values(q.reg.layers).flatMap((b) => [...b.enemies.map((e) => e.id), ...b.elites])));
   pre(zz);
   for (const e of ZN.exitList(zz)) {
     const t = ZN.BY_ID[e.to];

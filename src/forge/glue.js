@@ -5527,6 +5527,8 @@ function setInputLock(sc, on) {
   sc.frInputLocked = on;
   sc.pauseReq = !1;
 }
+// 확인용: 로딩 화면만 띄워 둔다 (설계 단계에 멈춰 닫히지 않음)
+export const _loadDbg = (sc, zid, p = 0.4) => { const L = startLoad(sc, ZN.BY_ID[zid], null, { instant: 1 }); L.t = 9; L.p = L.shownP = p; return !!L; };
 export const inputLocked = (sc) => !!sc?.frInputLocked;
 // 게임 장면 update 맨 앞에서 부른다. 로딩 중이면 true (나머지 진행을 건너뛴다)
 export function loadGate(sc, dt) {

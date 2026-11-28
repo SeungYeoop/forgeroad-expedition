@@ -2,6 +2,7 @@
 // 떠오르는 빛 알갱이, 진행 막대. 게임 장면(Run) 위에 화면 고정으로 덮는다 (HUD는 그동안 숨긴다)
 const W = 640, H = 360, LW = 320; // 실루엣은 320폭으로 그려 2배로 (픽셀 느낌)
 import * as UK from "./uikit.js";
+import * as ALB from "./albkit.js";
 import { HOOKS } from "./codex.js";
 // 지역 소개 한 줄 (로딩 화면 · 2026-11-28)
 const DESC = {
@@ -202,32 +203,33 @@ export function showLoad(sc, z, R, o = {}) {
   };
   putArt();
   art.length && (artA = 1);
-  // ── 아래 정보 띠 (철 테두리 · 2026-11-28 리메이크) ──
+  // ── 아래 정보 띠 (알비온식 짙은 철판 · 2026-11-29) ──
   const D0 = R.dangerOf ? R.dangerOf(z) : null;
   const shade = add(sc.add.graphics());
-  for (let i = 0; i < 16; i++) shade.fillStyle(0x05040a, 0.05 * i).fillRect(0, H - 150 + i * 6, W, 6);
-  const BX = 16, BY = H - 110, BW = W - 32, BH = 98;
-  add(UK.frame(sc, BX, BY, BW, BH, {}));
-  // 대표 몬스터 실루엣 (띠 위에 선다)
-  const ids = [];
-  for (const band of Object.values(reg.layers ?? {})) for (const e of band.enemies ?? []) ids.length < 6 && !ids.includes(e.id) && ids.push(e.id);
-  const shown = ids.filter((id) => sc.textures.exists(`e_${id}`)).slice(0, 3);
-  shown.forEach((id, i) => {
-    const im = sc.add.image(W - 70 - i * 58, BY + 2, `e_${id}`, 0).setOrigin(0.5, 1);
-    im.setScale(Math.min(2, 52 / Math.max(1, im.height), 60 / Math.max(1, im.width))).setTintFill(0x07050a);
-    add(im);
-  });
-  // 링 색 띠 + 이름 + 층·위험도 + 소개
-  const ring = add(sc.add.graphics());
-  ring.fillStyle(D0?.color ?? 0xc8bca0, 1).fillRect(BX + 14, BY + 14, 4, BH - 28);
-  const name = add(R.ct(sc, BX + 28, BY + 7, z.name ?? "", "title", "#f6ecd2", { stroke: "#140c06", strokeThickness: 4 }));
-  const sub = add(R.ct(sc, BX + 30 + name.width + 12, BY + 18, [R.layerName ? R.layerName(z.y) : "", D0 ? `${D0.name} · ${D0.label}` : ""].filter(Boolean).join("   "), "small", D0?.css ?? "#c8bca0", { stroke: "#140c06", strokeThickness: 3 }));
-  add(R.ct(sc, BX + 30, BY + 48, DESC[z.id] ?? "", "tiny", "#e8dcc4", { stroke: "#140c06", strokeThickness: 2, wordWrap: { width: BW - 230, useAdvancedWrap: !0 } }));
-  const orn = add(sc.add.graphics());
-  const status = add(R.ct(sc, BX + 30, BY + BH - 20, "지형을 설계하는 중", "tiny", "#d8ccb0", { stroke: "#140c06", strokeThickness: 2 }).setOrigin(0, 0.5));
-  const pct = add(R.ct(sc, BX + BW - 18, BY + BH - 20, "0%", "small", "#f6ecd2", { stroke: "#140c06", strokeThickness: 3 }).setOrigin(1, 0.5));
+  for (let i = 0; i < 16; i++) shade.fillStyle(0x05040a, 0.045 * i).fillRect(0, H - 130 + i * 5, W, 5);
+  const BY = H - 66, BH = 66;
+  add(sc.add.image(-4, BY, ALB.darkPanelKey(sc, W + 8, BH + 6, 21)).setOrigin(0));
+  add(sc.add.graphics()).fillStyle(0x050406, 0.8).fillRect(0, BY - 2, W, 1).fillStyle(0xd8a860, 0.6).fillRect(0, BY - 1, W, 1);
+  // 위험 고리 마름모 + 이름 + 층·위험 알약 + 소개
+  const dc = D0?.color ?? 0xc8bca0, ring = add(sc.add.graphics()), rx = 22, ry = BY + 17;
+  ring.fillStyle(0x08080a).fillTriangle(rx - 8, ry, rx, ry - 8, rx + 8, ry).fillTriangle(rx - 8, ry, rx, ry + 8, rx + 8, ry);
+  ring.fillStyle(0x9a9aa2).fillTriangle(rx - 6, ry, rx, ry - 6, rx + 6, ry).fillTriangle(rx - 6, ry, rx, ry + 6, rx + 6, ry);
+  ring.fillStyle(dc).fillTriangle(rx - 4, ry, rx, ry - 4, rx + 4, ry).fillTriangle(rx - 4, ry, rx, ry + 4, rx + 4, ry);
+  const name = add(R.ct(sc, 36, BY + 8, z.name ?? "", "big", "#e8c8a0", ALB.darkStyle));
+  let cx = 36 + name.width + 10;
+  const chip = (label, col, st) => {
+    const t = R.ct(sc, 0, 0, label, "tiny", col, ALB.darkStyle);
+    const w = Math.ceil(t.width) + 14;
+    add(sc.add.image(cx, BY + 10, ALB.pillKey(sc, w, 13, st)).setOrigin(0));
+    add(t.setPosition(cx + w / 2, BY + 12).setOrigin(0.5, 0));
+    cx += w + 4;
+  };
+  R.layerName && chip(R.layerName(z.y), "#f0ece4", "steel");
+  D0 && chip(`${D0.name} · ${D0.label}`, D0.css, "navy");
+  // 설명은 진행 막대 바로 위 · 퍼센트는 그 줄 오른쪽 끝
+  add(R.ct(sc, 14, BY + 34, DESC[z.id] ?? "", "small", "#c8b8a0", { ...ALB.darkStyle, wordWrap: { width: W - 80, useAdvancedWrap: !0 } }));
+  const pct = add(R.ct(sc, W - 12, BY + 34, "0%", "small", "#f4e6d0", ALB.darkStyle).setOrigin(1, 0));
   const bar = add(sc.add.graphics());
-  void sub;
   const L = {
     stage: "plan",
     t: 0,
@@ -265,22 +267,15 @@ export function showLoad(sc, z, R, o = {}) {
         if (m.y < -4) ((m.y = H + 4), (m.x = Math.random() * W));
         fx.fillStyle(pal.accent ?? 0xffe0a0, 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(m.ph))).fillRect(Math.round(m.x + Math.sin(m.ph * 0.7) * 6), Math.round(m.y), m.s, m.s);
       }
-      // 이름 아래 장식선 (끝 마름모가 천천히 빛난다)
-      const a = 0.6 + 0.4 * Math.sin(L.t * 3), ox = BX + 30, oy = BY + 42, ow = Math.min(BW - 250, name.width + 120);
-      orn.clear().fillStyle(0xc8a060, 0.7).fillRect(ox, oy, ow, 1);
-      orn.fillStyle(0xffe0a0, a).fillTriangle(ox + ow, oy - 3, ox + ow + 4, oy, ox + ow, oy + 4);
-      // 진행 막대: 층 재질 색 (하늘 = 구름빛 · 동굴 = 불씨 · 지상 = 금빛), 칸 + 깜빡이는 끝
+      // 진행 홈: 쇠 테 + 층 재질 색 채움 (하늘 = 구름빛 · 동굴 = 불씨 · 지상 = 금빛) + 빛나는 끝
       const [c0, c1] = LAYER_BAR[S.layer] ?? LAYER_BAR.ground;
-      const bx = BX + 150, by = BY + BH - 23, bw = BW - 220, n = Math.floor(bw / 6), fill = L.shownP * n;
-      bar.clear().fillStyle(0x05040a, 0.85).fillRect(bx - 3, by - 3, bw + 6, 12).lineStyle(1, 0x8a6a3a, 0.9).strokeRect(bx - 3.5, by - 3.5, bw + 7, 13);
-      for (let i = 0; i < n; i++) {
-        const on = i < Math.floor(fill), edge = i === Math.floor(fill);
-        if (!on && !edge) continue;
-        bar.fillStyle(mix(c1, c0, i / n), edge ? 0.35 + 0.35 * Math.sin(L.t * 10) : 1).fillRect(bx + i * 6, by, 5, 6);
-      }
+      // 화면 왼쪽 끝부터 오른쪽 끝까지
+      const bw = W, bx = 0, by = H - 9, fw = Math.round(bw * L.shownP);
+      bar.clear().fillStyle(0x08080a).fillRect(bx - 2, by - 2, bw + 4, 9).fillStyle(0x6a6a72).fillRect(bx - 1, by - 1, bw + 2, 1).fillStyle(0x2a2a30).fillRect(bx - 1, by + 5, bw + 2, 1);
+      bar.fillStyle(0x121214).fillRect(bx, by, bw, 5);
+      for (let i = 0; i < fw; i++) bar.fillStyle(mix(c1, c0, i / bw)).fillRect(bx + i, by, 1, 5);
+      fw > 0 && bar.fillStyle(0xffffff, 0.25).fillRect(bx, by, fw, 1).fillStyle(0xfff0c0, 0.4 + 0.4 * Math.sin(L.t * 8)).fillRect(bx + fw - 2, by - 1, 2, 7);
       pct.setText(`${Math.round(L.shownP * 100)}%`);
-      const dots = ".".repeat(1 + (Math.floor(L.t * 3) % 3));
-      status.setText((L.stage === "plan" ? "지형을 설계하는 중" : L.stage === "paint" ? "땅을 그리는 중" : "준비 완료") + (L.stage === "ready" ? "" : dots));
       if (L.closing && L.alpha <= 0) L.destroy();
     },
     close(cb) {

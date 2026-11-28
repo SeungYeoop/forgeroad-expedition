@@ -1649,6 +1649,7 @@ export function update(sc, dt) {
   if (!fr || !sc.player) return;
   const p = sc.player;
   recallTick(sc, dt);
+  oxygenTick(sc, dt);
   FOES.updateZones(sc, dt);
   // 중간 보스 등장 알림
   for (const e of sc.enemies)
@@ -2553,6 +2554,61 @@ export function recallTick(sc, dt) {
   sc.cameras.main.flash(300, 160, 240, 255);
   R.j.play("portal");
   sc.extract?.();
+}
+
+// ── 물속 산소 (2026-11-28) ─────────────────────────────
+//   머리가 물에 잠기면 산소가 OXY_T초 동안 줄어든다 (머리 위 거품 10개). 다 떨어지면 0.5초마다 최대 체력 5%씩 잃고 화면 가장자리가 어두워진다.
+//   물 밖에서는 초당 30%씩 다시 찬다. 장비 효과 afx.oxy(초)로 늘릴 수 있다
+const OXY_T = 10, OXY_REFILL = 0.3, DROWN_TICK = 0.5, DROWN_PCT = 0.05;
+export function oxygenTick(sc, dt) {
+  const fr = sc.fr, p = sc.player;
+  if (!fr || !p || p.dead) return;
+  fr.oxy ??= 1;
+  const under = !!p.body.headWater, max = OXY_T + (fr.afx?.oxy ?? 0);
+  if (under) fr.oxy = Math.max(0, fr.oxy - dt / max);
+  else fr.oxy = Math.min(1, fr.oxy + dt * OXY_REFILL);
+  // 입에서 거품
+  under && (fr.oxyFx = (fr.oxyFx ?? 0) - dt) <= 0 && ((fr.oxyFx = fr.oxy > 0 ? 0.45 : 0.15), sc.fx.burst("rise", p.cx + p.facing * 4, p.body.y - 20, fr.oxy > 0 ? 1 : 3, 0xcfeeff));
+  // 숨이 막힘
+  if (under && fr.oxy <= 0) {
+    if ((fr.drownT = (fr.drownT ?? 0) + dt) >= DROWN_TICK) {
+      fr.drownT = 0;
+      const d = Math.max(1, Math.round(p.maxHp * DROWN_PCT));
+      p.hp -= d;
+      sc.fx.number(p.cx, p.body.y - 30, `-${d}`, "#7fc8ff", !1);
+      R.j.play("playerHurt", 0.6);
+      sc.fx.shake(1.5);
+      p.hp <= 0 && ((p.hp = 0), (sc.frDeathCause = { name: "익사", el: "water" }), p.die());
+    }
+  } else fr.drownT = 0;
+  // 머리 위 거품 막대
+  const g = (sc.frOxyG ??= sc.add.graphics().setDepth(40));
+  g.clear();
+  if (fr.oxy < 1) {
+    const n = 10, left = fr.oxy * n, x0 = p.cx - (n * 6) / 2 + 3, y = p.body.y - p.body.h - 14;
+    for (let i = 0; i < n; i++) {
+      const f = Math.max(0, Math.min(1, left - i)), x = x0 + i * 6;
+      g.lineStyle(1, 0x0a1a2a, 0.8).strokeCircle(x, y, 2.6);
+      f > 0 && (g.fillStyle(0xbfe8ff, 0.95).fillCircle(x, y, 2.3 * Math.max(0.35, f)), g.fillStyle(0xffffff, 0.9).fillRect(x - 1, y - 2, 1, 1));
+    }
+  }
+  // 숨 막힘: 화면 가장자리 어둡게 (HUD)
+  const h = sc.hud?.();
+  if (h) {
+    const v = (h.frDrownV ??= h.add.graphics().setDepth(-3).setScrollFactor(0));
+    const a = under && fr.oxy <= 0 ? 0.55 + 0.15 * Math.sin(sc.time.now / 160) : fr.oxy < 0.3 && under ? (0.3 - fr.oxy) * 1.2 : 0;
+    if (a !== h.frDrownA) {
+      h.frDrownA = a;
+      v.clear();
+      if (a > 0) {
+        const W = R.ot, Hh = R.xt;
+        for (let i = 0; i < 12; i++) {
+          const t = a * (1 - i / 12) * 0.5;
+          v.fillStyle(0x020a16, t).fillRect(0, i * 4, W, 4).fillRect(0, Hh - (i + 1) * 4, W, 4).fillRect(i * 5, 0, 5, Hh).fillRect(W - (i + 1) * 5, 0, 5, Hh);
+        }
+      }
+    }
+  }
 }
 
 // ── 휴식처 (보스 처치 후) ───────────────────────────
@@ -4609,6 +4665,8 @@ function toggleMap(hud) {
 export const _ZN = ZN;
 export const _ZG = ZG;
 export const _exitPos = (world, z, at) => exitPos(world, z, at);
+// 시험 도구용: 지금 쓰는 설계 캐시 (페이지에서 natgen을 따로 import하면 다른 모듈이 된다)
+export const _plans = () => ZG.planCache;
 // 카메라가 지금 구역 밖(옆 구역)을 비추지 않게: 구역 왼쪽 끝 ~ 오른쪽 끝 - 화면 폭
 // 자연 지형 나무·폐허 그림: 처음 쓸 때 한 번 그려 텍스처로 둔다
 // 움직이는 장식 층에 넘길 지금 구역의 설계 (설계가 준비된 자연 지형 구역만)

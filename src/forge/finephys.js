@@ -150,6 +150,9 @@ export function installFinePhysics(proto, K) {
     // 물 속인가 (몸 가운데)
     const wsp = this.fspec(Math.floor(S.x + this.originChunk * CPX), Math.floor(S.y - (S.h ?? 16) / 2));
     S.inWater = wsp === 3 || wsp === 11 || wsp === 12;
+    // 머리가 물에 잠겼나 (산소 · 2026-11-28)
+    const hsp = S.inWater ? this.fspec(Math.floor(S.x + this.originChunk * CPX), Math.floor(S.y - (S.h ?? 16) + 3)) : 0;
+    S.headWater = hsp === 3 || hsp === 11 || hsp === 12;
     for (let m = 0; m < R; m++) {
       this.moveX(S, S.vx * h);
       this.moveY(S, S.vy * h);

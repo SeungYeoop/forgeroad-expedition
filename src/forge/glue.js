@@ -557,6 +557,7 @@ export function applyLoadout(scene) {
 // ── 피격 보정 (방어구) ─────────────────────────────
 export function hurtMod(player, S, C) {
   const sc = player.host;
+  sc && (sc.frLastHurt = sc.time?.now ?? 0); // 귀환: 맞은 뒤 4초는 전투 중
   const fr = sc?.fr;
   if (!fr) return C;
   const fx = fr.afx ?? {};
@@ -1647,6 +1648,7 @@ export function update(sc, dt) {
   const fr = sc.fr;
   if (!fr || !sc.player) return;
   const p = sc.player;
+  recallTick(sc, dt);
   FOES.updateZones(sc, dt);
   // 중간 보스 등장 알림
   for (const e of sc.enemies)
@@ -2456,6 +2458,103 @@ export function waystone(evm, chunk, x, y) {
   return o;
 }
 
+// ── B 귀환 (2026-11-28, 알비온식) ─────────────────────
+//   B를 누르면 5초 집중 → 거점으로. 움직이거나 맞으면 끊긴다. 전투 중(가까운 적이 나를 노림·4초 안에 맞음)에는 못 쓴다
+//   비용 = (기본 + 가방 아이템 수 × 아이템당) × 늘림^(거점까지 지역 수 − 1) — 재료는 10개를 아이템 1개로 센다
+//   탐험 골드에서 먼저, 모자라면 모아 둔 골드에서 낸다
+const RECALL_T = 5, RECALL_BASE = 80, RECALL_PER_ITEM = 15, RECALL_GROW = 1.5;
+const HOPS = new Map();
+// 거점에서 몇 구역 떨어졌나 (출구로 이어진 길 기준, 숨은 던전은 바깥 구역 +1)
+export function hubHops(z) {
+  if (!z) return 1;
+  if (z.kind === "dungeon") return hubHops(ZN.zoneOfPocket(z)) + 1;
+  if (HOPS.has(z.id)) return HOPS.get(z.id);
+  const dist = new Map([[ZN.HUB_ID, 0]]), q = [ZN.HUB_ID];
+  const nb = (id) => (id === ZN.HUB_ID ? Object.values(ZN.BY_ID).filter((t) => t.kind === "zone" && ZN.exitList(t).some((e) => e.to === ZN.HUB_ID)).map((t) => t.id) : ZN.exitList(ZN.BY_ID[id]).map((e) => e.to));
+  while (q.length) {
+    const a = q.shift();
+    for (const b of nb(a)) if (!dist.has(b) && (b === ZN.HUB_ID || ZN.BY_ID[b])) (dist.set(b, dist.get(a) + 1), q.push(b));
+  }
+  for (const [id, d] of dist) id !== ZN.HUB_ID && HOPS.set(id, d);
+  return HOPS.get(z.id) ?? 3;
+}
+export function recallItems(fr) {
+  const mats = Object.values(fr?.mats ?? {}).reduce((a, b) => a + b, 0);
+  return (fr?.bag?.length ?? 0) + Math.floor(mats / 10);
+}
+export function recallCost(sc) {
+  const hops = hubHops(zoneOfPlayer(sc));
+  return Math.round(((RECALL_BASE + recallItems(sc.fr) * RECALL_PER_ITEM) * Math.pow(RECALL_GROW, Math.max(0, hops - 1))) / 10) * 10;
+}
+const goldHave = (sc) => Math.floor((sc.run?.gold ?? 0) + (sc.run?.milestoneGold ?? 0)) + Math.floor(R.it.data.gold ?? 0);
+function payGold(sc, n) {
+  const run = sc.run, a = Math.min(n, Math.max(0, Math.floor(run.gold)));
+  run.gold -= a;
+  n -= a;
+  n > 0 && (R.it.data.gold = Math.max(0, (R.it.data.gold ?? 0) - n));
+  R.it.write();
+}
+const recallSay = (sc, msg, col = "#ff9a8a") => {
+  const p = sc.player;
+  sc.fx.text(p.cx, p.body.y - 44, msg, col);
+};
+function inCombat(sc) {
+  const p = sc.player;
+  if (sc.time.now - (sc.frLastHurt ?? -1e9) < 4000) return !0;
+  return (sc.enemies ?? []).some((e) => !e.dead && e.aggro && Math.abs(e.cx - p.cx) < 360 && Math.abs(e.body.y - p.body.y) < 200);
+}
+export function toggleRecall(sc) {
+  if (!sc?.fr || !sc.player || sc.dying || sc.player.dead || sc.frLoad || sc.zoneBusy) return;
+  if (sc.frRecall) return void stopRecall(sc, "귀환을 멈췄다", "#c8c8d0");
+  if (sc.hud?.()?.modalOpen) return;
+  if (inCombat(sc)) return void (recallSay(sc, "전투 중에는 귀환할 수 없다"), R.j.play("error"));
+  const cost = recallCost(sc);
+  if (goldHave(sc) < cost) return void (recallSay(sc, `골드 부족 · 귀환 ${cost.toLocaleString()}G`), R.j.play("error"));
+  const p = sc.player;
+  sc.frRecall = { t: 0, hp: p.hp, x: p.cx, y: p.body.y, cost, fxT: 0, g: sc.add.graphics().setDepth(40), txt: R.ct(sc, p.cx, p.body.y - 64, "", "tiny", "#bff4ff", { stroke: "#0a1418", strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(41) };
+  R.j.play("magic");
+}
+function stopRecall(sc, msg, col) {
+  const C = sc.frRecall;
+  if (!C) return;
+  C.g.destroy();
+  C.txt.destroy();
+  sc.frRecall = null;
+  msg && (recallSay(sc, msg, col), R.j.play("error"));
+}
+export function recallTick(sc, dt) {
+  const C = sc.frRecall;
+  if (!C) return;
+  const p = sc.player;
+  if (!p || p.dead || sc.dying || sc.frLoad) return stopRecall(sc);
+  if (Math.abs(p.cx - C.x) > 6 || Math.abs(p.body.y - C.y) > 10) return stopRecall(sc, "귀환이 끊겼다 · 움직임");
+  if (p.hp < C.hp) return stopRecall(sc, "귀환이 끊겼다 · 공격받음");
+  C.hp = p.hp;
+  C.t += dt;
+  const f = Math.min(1, C.t / RECALL_T), hx = p.cx, hy = p.body.y - 50;
+  // 집중 막대 + 남은 시간·비용
+  const g = C.g.clear(), W = 44;
+  g.fillStyle(0x0a1418, 0.85).fillRect(hx - W / 2 - 1, hy - 1, W + 2, 6);
+  g.fillStyle(0x80f0ff, 1).fillRect(hx - W / 2, hy, W * f, 4);
+  g.fillStyle(0xffffff, 0.35).fillRect(hx - W / 2, hy, W * f, 1);
+  // 발밑 빛 고리 + 몸을 감싸는 빛 기둥
+  g.lineStyle(1, 0x80f0ff, 0.35 + 0.4 * f).strokeEllipse(hx, p.body.y, 26 + 10 * f, 6 + 2 * f);
+  g.fillStyle(0x80f0ff, 0.06 + 0.12 * f).fillRect(hx - 9, p.body.y - 40 - 60 * f, 18, 40 + 60 * f);
+  const s = `귀환 ${(RECALL_T - C.t).toFixed(1)}초 · ${C.cost.toLocaleString()}G`;
+  C.txt.text !== s && C.txt.setText(s);
+  C.txt.setPosition(hx, hy - 3);
+  C.fxT -= dt;
+  C.fxT <= 0 && ((C.fxT = 0.08), sc.fx.burst("rise", hx + rnd(-10, 10), p.body.y - rnd(0, 8), 1, 0x80f0ff));
+  if (C.t < RECALL_T) return;
+  if (goldHave(sc) < C.cost) return stopRecall(sc, "골드 부족");
+  payGold(sc, C.cost);
+  stopRecall(sc);
+  sc.fx.burst("rise", p.cx, p.cy, 40, 0x80f0ff);
+  sc.cameras.main.flash(300, 160, 240, 255);
+  R.j.play("portal");
+  sc.extract?.();
+}
+
 // ── 휴식처 (보스 처치 후) ───────────────────────────
 export function maybeRest(sc) {
   const fr = sc.fr;
@@ -2534,7 +2633,9 @@ export function hudCreate(hud) {
   miniCreate(hud);
   hud.input.keyboard.addCapture("TAB");
   hud.input.keyboard.on("keydown-TAB", () => toggleBag(hud.run));
-  hud.input.keyboard.on("keydown-B", () => toggleDestiny(hud));
+  // B = 귀환, V = 운명 보드 (2026-11-28)
+  hud.input.keyboard.on("keydown-B", () => toggleRecall(hud.run));
+  hud.input.keyboard.on("keydown-V", () => toggleDestiny(hud));
   hud.input.keyboard.on("keydown-M", () => toggleMap(hud));
   hud.events.once("shutdown", () => (hud.frMap = null));
 }
@@ -4164,7 +4265,8 @@ export const pocketChunk = (S) => ZN.isPocket(S);
 export const pocketLast = (S) => ZN.isPocket(S) && ZN.isLast(S);
 export const sameZone = (a, b) => ZN.zoneAtTile(a) === ZN.zoneAtTile(b);
 export const chunkSameZone = (a, b) => ZN.zoneAtChunk(a) === ZN.zoneAtChunk(b);
-export const waystoneOk = (S) => ZN.waystoneOk(ZN.zoneAtChunk(S));
+// 귀환 표석은 B 귀환으로 바꿨다 (2026-11-28)
+export const waystoneOk = () => !1;
 export const chestRoll = (S, k, tier) => ZN.chestRoll(S, k, tier);
 export const zoneOfPlayer = (sc) => (sc?.world && sc.player ? ZN.zoneAtTile(sc.world.gtx(sc.player.x)) : null);
 // 구역 양 끝: 위아래 전체를 막는 절벽 벽 (2칸)
@@ -4637,7 +4739,7 @@ function whenPlanned(sc, z, f) {
 }
 
 
-// ── 운명 보드 (B키) ─────────────────────────────────
+// ── 운명 보드 (V키) ─────────────────────────────────
 // 가운데 → 직업 사슬(T1~T2) → 계통마다 티어 사슬(T3~T6) → 장비 전문화 마디(0~100)
 // 끌어서 움직이고 휠로 확대·축소. 마디에 올리면 정보, 누르면 그 마디로 이동.
 export function toggleDestiny(scene) {

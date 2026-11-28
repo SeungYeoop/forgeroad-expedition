@@ -134,7 +134,7 @@ export function makeScreens(R, D) {
     buy() {
       const [id, price] = this.list()[this.sel];
       if (FREE.has(id)) return void ((this.say = "그건 처음부터 자네 것일세. 돈 받을 물건이 아니야."), this.render());
-      if (!IT.canEquip({ id: String(id).split("@")[0], grade: this.grade })) return void (j.play("error"), (this.say = `아직 자네 손에 맞지 않아. ${IT.needText({ id: String(id).split("@")[0], grade: this.grade })}. B키로 운명 보드를 보게.`), this.render());
+      if (!IT.canEquip({ id: String(id).split("@")[0], grade: this.grade })) return void (j.play("error"), (this.say = `아직 자네 손에 맞지 않아. ${IT.needText({ id: String(id).split("@")[0], grade: this.grade })}. V키로 운명 보드를 보게.`), this.render());
       const c = matCost(this.grade);
       if (c && (matsOf()[c.mat.id] ?? 0) < c.n) return void (j.play("error"), (this.say = `${c.mat.name}가 모자라. ${c.n}개는 있어야 하네.`), this.render());
       if (!SAVE.spend(price)) return void (j.play("error"), (this.say = "골드가 모자라는군. 탐험을 더 다녀오게."), this.render());

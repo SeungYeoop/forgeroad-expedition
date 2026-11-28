@@ -433,7 +433,7 @@ export function needText(it) {
   const lk = lineKeyOf(it);
   if (!lk) return "";
   const g = gradeOf(it);
-  return `운명 보드 「${lk.split(":")[2]}」 ${TIER_LV[g]}레벨에 T${g} (지금 ${lineLevel(lk)}레벨) · B키`;
+  return `운명 보드 「${lk.split(":")[2]}」 ${TIER_LV[g]}레벨에 T${g} (지금 ${lineLevel(lk)}레벨) · V키`;
 }
 // 명성 더하기: 직업 · 계통 · 장비에 함께 쌓인다
 export function addFame(it, n) {

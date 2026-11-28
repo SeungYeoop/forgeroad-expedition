@@ -15098,7 +15098,7 @@ class pr extends zt.Scene {
         exitD: () => (FG.setHubDest("D"), this.startRun(), null),
       };
     this.facilities = H2.facilities.map((f) => ({ ...f, open: OPEN[f.id] }));
-    this.input.keyboard.on("keydown-B", () => this.panelOpen || FG.toggleDestiny(this));
+    this.input.keyboard.on("keydown-V", () => this.panelOpen || FG.toggleDestiny(this));
     const t = (i, e, r) => null;
     const a = FG.hubStats(this);
     ((this.player = new Ws(this, a, FG.hubArrivalX(1420), bt)),

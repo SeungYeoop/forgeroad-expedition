@@ -2038,6 +2038,76 @@ function reaction(sc, T, E, dmg) {
   }
 }
 
+// ── 화면 가운데 큰 알림 (2026-11-28, 알비온식) ──────────
+//   장식 띠가 펼쳐지고 → 아이콘 · 제목 · 설명 → 잠시 뒤 접힌다. 여러 개면 차례로
+//   o: { title, sub, color(숫자), css, icon(텍스처 키), small(작은 알림), sound }
+export function bigNotice(scene, o) {
+  if (!scene?.add) return;
+  (scene.frNotes ??= []).push(o);
+  scene.frNoteBusy || nextNotice(scene);
+}
+function nextNotice(sc) {
+  const o = sc.frNotes?.shift();
+  if (!o || !sc.sys?.isActive?.()) return void (sc.frNoteBusy = 0);
+  sc.frNoteBusy = 1;
+  const ADD = R.zt.BlendModes.ADD, W = R.ot, small = !!o.small;
+  const pw = small ? 230 : 330, ph = small ? 30 : 56, y = small ? 54 : 70;
+  const col = o.color ?? 0xffd070, css = o.css ?? "#ffe08a";
+  const C = sc.add.container(W / 2, y).setScrollFactor(0).setDepth(60);
+  const glow = sc.add.image(0, 0, "vx_glow").setTint(col).setBlendMode(ADD).setScale(pw / 40, ph / 26).setAlpha(0.35);
+  const g = sc.add.graphics();
+  // 띠 꼬리 (양끝 제비꼬리)
+  const tail = (s) => {
+    const x = (s * pw) / 2;
+    g.fillStyle(0x2a1a0c, 0.95).fillTriangle(x, -ph / 2 + 6, x + s * 22, -ph / 2 + 6, x + s * 12, 0).fillTriangle(x, ph / 2 - 6, x + s * 22, ph / 2 - 6, x + s * 12, 0);
+    g.fillStyle(0x2a1a0c, 0.95).fillRect(Math.min(x, x + s * 12), -ph / 2 + 6, 12, ph - 12);
+    g.lineStyle(1, 0xc8a050, 0.9).lineBetween(x, -ph / 2 + 6, x + s * 22, -ph / 2 + 6).lineBetween(x + s * 22, -ph / 2 + 6, x + s * 12, 0).lineBetween(x + s * 12, 0, x + s * 22, ph / 2 - 6).lineBetween(x + s * 22, ph / 2 - 6, x, ph / 2 - 6);
+  };
+  tail(-1), tail(1);
+  // 판: 어두운 가죽 + 금 테두리 두 줄 + 모서리 마름모
+  g.fillStyle(0x140c08, 0.94).fillRect(-pw / 2, -ph / 2, pw, ph);
+  g.fillStyle(col, 0.1).fillRect(-pw / 2, -ph / 2, pw, ph / 2);
+  g.lineStyle(2, 0xc8a050, 1).strokeRect(-pw / 2, -ph / 2, pw, ph);
+  g.lineStyle(1, 0x6a4a20, 1).strokeRect(-pw / 2 + 4, -ph / 2 + 4, pw - 8, ph - 8);
+  g.lineStyle(1, col, 0.8).lineBetween(-pw / 2 + 8, ph / 2 - 6, pw / 2 - 8, ph / 2 - 6);
+  for (const [cx, cy] of [[-pw / 2, -ph / 2], [pw / 2, -ph / 2], [-pw / 2, ph / 2], [pw / 2, ph / 2]]) g.fillStyle(0xe8c070, 1).fillTriangle(cx - 4, cy, cx, cy - 4, cx + 4, cy).fillTriangle(cx - 4, cy, cx, cy + 4, cx + 4, cy);
+  const parts = [glow, g];
+  let tx = 0;
+  if (o.icon && !small) {
+    const ix = -pw / 2 + 30;
+    parts.push(sc.add.image(ix, 0, "ui_medal").setScale(0.85), sc.add.image(ix, 0, o.icon).setScale(1.5));
+    const ring = sc.add.image(ix, 0, "vx_glow").setTint(col).setBlendMode(ADD).setScale(1.1).setAlpha(0.6);
+    parts.push(ring);
+    sc.tweens.add({ targets: ring, alpha: 0.2, scale: 1.4, duration: 700, yoyo: !0, repeat: -1 });
+    tx = 22;
+  }
+  const t1 = R.ct(sc, tx, small ? 0 : -9, o.title ?? "", small ? "small" : "big", css, { stroke: "#140a04", strokeThickness: 4 }).setOrigin(0.5);
+  parts.push(t1);
+  if (o.sub && !small) parts.push(R.ct(sc, tx, 14, o.sub, "tiny", "#e8d8b8", { stroke: "#140a04", strokeThickness: 3 }).setOrigin(0.5));
+  C.add(parts);
+  C.setScale(0.05, 1).setAlpha(0);
+  R.j.play(o.sound ?? (small ? "buff" : "levelup"));
+  // 반짝이는 가루
+  const sp = !small && sc.time.addEvent({ delay: 90, repeat: 20, callback: () => sc.fx?.burst?.("glow", W / 2 + (Math.random() - 0.5) * pw, y + (Math.random() - 0.5) * ph, 1, col) });
+  void sp;
+  sc.tweens.add({
+    targets: C,
+    scaleX: 1,
+    alpha: 1,
+    duration: 260,
+    ease: "Back.easeOut",
+    onComplete: () =>
+      sc.tweens.add({
+        targets: C,
+        alpha: 0,
+        y: y - 10,
+        delay: small ? 1300 : 2600,
+        duration: 320,
+        onComplete: () => (C.destroy(), nextNotice(sc)),
+      }),
+  });
+}
+
 // ── 처치 시 ─────────────────────────────────────────
 // 운명 보드 명성: 낀 장비 계열마다 (무기 100% · 방어구 50% · 기술·마법 40%). 강한 적·높은 티어 지역일수록 많이
 export function fameOnKill(sc, T, mult = 1) {
@@ -2053,9 +2123,9 @@ export function fameOnKill(sc, T, mult = 1) {
   for (const [it, k] of gains) {
     const u = it && IT.addFame(it, base * k);
     if (!u || !(u.tierUp || u.lineUp || u.specUp)) continue;
-    if (u.tierUp) (h?.toast(`운명 보드 · ${u.lineName} ${u.lineUp}레벨 · T${u.tierUp} 장비를 낄 수 있다!`, IT.GRADE_CSS[u.tierUp]), R.j.play("levelup"));
-    else if (u.lineUp) (h?.toast(`운명 보드 · ${u.lineName} ${u.lineUp}레벨`, "#ffe6a0"), R.j.play("buff"));
-    else if (u.specUp) h?.toast(`전문화 · ${u.itemName} ${u.specUp}레벨`, "#ffe0a0");
+    // 티어 해금 = 큰 알림, 계열 레벨 = 작은 알림 (2026-11-28 · 오른쪽 위 글자 알림 대신)
+    if (u.tierUp) bigNotice(h, { title: `T${u.tierUp} 해금`, sub: `운명 보드 · ${u.lineName} ${u.lineUp}레벨 — 이제 T${u.tierUp} 장비를 낄 수 있다`, css: IT.GRADE_CSS[u.tierUp], color: parseInt(String(IT.GRADE_CSS[u.tierUp] ?? "#ffd070").slice(1, 7), 16), icon: itemIcon(sc, it) });
+    else if (u.lineUp) bigNotice(h, { small: 1, title: `${u.lineName} ${u.lineUp}레벨`, css: "#ffe6a0", color: 0xffd070 });
     applyLoadout(sc);
   }
 }

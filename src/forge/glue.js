@@ -3156,6 +3156,30 @@ function bagUI(sc) {
   return SM.get("FrBagUI");
 }
 export const hubBagOpen = (sc) => !!sc?.scene?.get?.("FrBagUI")?.frBag;
+// ── 창고 (알비온식, 2026-11-28): 창고 시설에서 연다. 왼쪽 = 창고 칸(종류 탭·스크롤), 오른쪽 = 가방
+//   저장: 창고 = 보유 목록(owned)에서 장착 중인 것 하나씩을 뺀 나머지. 옮길 때마다 owned = 창고 + 장착
+function stashOf(d) {
+  const keys = d.owned.slice();
+  for (const k of SLOT_KEYS) {
+    const e = d.equip[k];
+    if (!e || FREE_KEYS.has(e)) continue;
+    const i = keys.indexOf(e);
+    i >= 0 && keys.splice(i, 1);
+  }
+  return keys.map((k) => mkItem(k)).filter(Boolean);
+}
+export function openStashHub(sc) {
+  const cur = sc.scene.get("FrBagUI");
+  if (cur?.frBag) closeBag(cur);
+  if (sc.leaving) return;
+  const ui = bagUI(sc);
+  sc.fr = hubFrOf();
+  sc.fr.stash = stashOf(sd());
+  sc.frHubEq = { ...sd().equip };
+  const go = () => (ui.sys.settings.status >= 5 ? openBagOn(ui, sc, { free: !1, legend: !1, hub: !0, stash: !0 }) : sc.time.delayedCall(16, go));
+  go();
+  sc.events.once("shutdown", () => ui.frBag && closeBag(ui));
+}
 export function toggleBagHub(sc) {
   const cur = sc.scene.get("FrBagUI");
   if (cur?.frBag) return void closeBag(cur);
@@ -3193,6 +3217,8 @@ function hubSync(sc) {
     sc.frHubEq[k] = nk;
   }
   d.bag = fr.bag.map((it) => bagKeyOf(d, it));
+  // 창고를 열었으면 보유 목록 = 창고 + 장착 (무료 기본 장비는 세지 않는다)
+  fr.stash && (d.owned = [...fr.stash.map((it) => bagKeyOf(d, it)), ...SLOT_KEYS.map((k) => d.equip[k]).filter((k) => k && !FREE_KEYS.has(k))].filter((k) => !FREE_KEYS.has(k)));
   R.it.write();
   sc.player?.applyStats?.(hubStats(sc));
 }
@@ -3215,8 +3241,13 @@ function openBagOn(h, sc, opts) {
   B.onUp = (p) => dragEnd(h, p);
   // 휠: 가방 칸 위에서 굴리면 줄을 넘긴다
   B.onWheel = (p, objs, dx, dy) => {
-    const G = B.gridBox;
-    if (!G || !dy || p.x < G.x || p.x > G.x + G.w || p.y < G.y || p.y > G.y + G.h) return;
+    const inB = (G) => G && dy && p.x >= G.x && p.x <= G.x + G.w && p.y >= G.y && p.y <= G.y + G.h;
+    const G = B.gridBox, S = B.stashBox;
+    if (inB(S)) {
+      const s = Math.max(0, Math.min(S.rows - S.VR, (B.stScroll ?? 0) + (dy > 0 ? 1 : -1)));
+      return void (s !== B.stScroll && ((B.stScroll = s), renderBag(h)));
+    }
+    if (!inB(G)) return;
     const s = Math.max(0, Math.min(G.rows - G.VR, B.scroll + (dy > 0 ? 1 : -1)));
     s !== B.scroll && ((B.scroll = s), renderBag(h));
   };
@@ -3267,7 +3298,7 @@ const bagReplace = (fr, a, b) => {
   const i = fr.bag.indexOf(a);
   i >= 0 && (b ? (fr.bag[i] = b) : fr.bag.splice(i, 1));
 };
-const entItem = (fr, e) => (!e ? null : e.where === "eq" ? fr.equip[e.key] : e.where === "bag" ? bagSlots(fr)[e.key] ?? null : null);
+const entItem = (fr, e) => (!e ? null : e.where === "eq" ? fr.equip[e.key] : e.where === "bag" ? bagSlots(fr)[e.key] ?? null : e.where === "stash" ? fr.stashView?.[e.key] ?? null : null);
 const sameEnt = (a, b) => !!(a && b && a.where === b.where && a.key === b.key);
 function forgeResult(B) {
   const fr = B.sc.fr;
@@ -3360,6 +3391,23 @@ function dropOn(h, src, tgt) {
     return void R.j.play("buy");
   }
   const changed = () => ((B.forge = [null, null, null]), (B.pin = null), applyLoadout(sc), R.j.play("buy"));
+  if (tgt.type === "stash") {
+    if (!fr.stash || src.where === "stash") return;
+    if (src.where === "eq" && (src.key === "weapon" || src.key === "armor") && FREE_KEYS.has(itemKey(it))) return fail("기본 장비는 창고에 넣지 않습니다");
+    takeOut(fr, src);
+    fr.stash.push(it);
+    B.msg = `창고에 넣음: ${it.name}`;
+    return changed();
+  }
+  if (src.where === "stash" && tgt.type === "bag") {
+    const P = bagSlots(fr);
+    if (fr.bag.length >= fr.bagMax) return fail("가방이 가득 찼습니다");
+    takeOut(fr, src);
+    fr.bag.push(it);
+    P[tgt.key] ? bagSlots(fr) : (P[tgt.key] = it);
+    B.msg = `가방에 넣음: ${it.name}`;
+    return changed();
+  }
   if (tgt.type === "eq") {
     const k = tgt.key;
     if (src.where === "eq" && src.key === k) return;
@@ -3434,6 +3482,14 @@ function quickAction(h, e, toForge) {
     }
     return void renderBag(h);
   }
+  if (fr.stash && (e.where === "stash" || e.where === "bag")) {
+    if (e.where === "stash") {
+      const i = bagSlots(fr).indexOf(null);
+      if (i < 0) return void ((B.msg = "가방이 가득 찼습니다"), R.j.play("error"), renderBag(h));
+      dropOn(h, e, { type: "bag", key: i });
+    } else dropOn(h, e, { type: "stash", key: 0 });
+    return void renderBag(h);
+  }
   if (e.where === "eq") {
     const i = bagSlots(fr).indexOf(null);
     if (i < 0) return void ((B.msg = "가방이 가득 찼습니다"), R.j.play("error"), renderBag(h));
@@ -3450,6 +3506,8 @@ function quickAction(h, e, toForge) {
 }
 function canDrop(B, it, srcEnt, tgt) {
   if (!it) return !1;
+  if (tgt.type === "stash") return !!B.sc.fr.stash && srcEnt.where !== "stash";
+  if (srcEnt.where === "stash") return tgt.type === "bag" ? B.sc.fr.bag.length < B.sc.fr.bagMax : tgt.type === "sell" || tgt.type === "forge" || (tgt.type === "eq" && slotFits(tgt.key, it));
   if (tgt.type === "eq") return slotFits(tgt.key, it);
   if (tgt.type === "sell") return !(srcEnt.where === "eq" && (srcEnt.key === "weapon" || srcEnt.key === "armor"));
   if (tgt.type === "forge") return tgt.key < 2 || B.opts.legend;
@@ -3519,6 +3577,8 @@ function renderBag(h) {
     }
     return it;
   };
+  if (B.opts.stash) drawStash(h, B, add, lt, slotBox);
+  else {
   // ── 왼쪽: 옷장과 캐릭터 ──
   const AX = 8, AY = 8, AW = 200, AH = Hh - 16;
   add(h.add.image(AX, AY, PAPER.woodKey(h, AW, AH, { base: 0x5a3820, dark: 0x24140a, hi: 0x8a5a32, vertical: 1, plank: 22 })).setOrigin(0).setDepth(91));
@@ -3551,6 +3611,7 @@ function renderBag(h) {
     slotBox(x, y, { where: "eq", key: k }, { type: "eq", key: k }, "socket");
     lt(x, y + 18, ko, "small", "#ffe08a").setOrigin(0.5, 0);
   });
+  }
   // ── 가운데: 비워 둔다 (게임 화면이 보인다 · 알비온식 좌우 분할, 2026-11-28) ──
   // ── 오른쪽: 가방 (5열 · 스크롤) ──
   const RX = W - 208, RY = 8, RW = 200, RH = Hh - 16;
@@ -3627,6 +3688,65 @@ function renderBag(h) {
   lt(FX + 140, cy0 + 15, `${fr.stones}`, "tiny", "#a8e0ff");
   B.msg && lt(W / 2, Hh - 26, B.msg, "small", "#ffb090").setOrigin(0.5, 0);
 }
+// 창고 패널 (왼쪽): 종류 탭 · 5열 스크롤 칸 · 전부 넣기 · 같은 종류 넣기 · 정렬 · 창고 가치
+const STASH_TABS = [["all", "전체"], ["weapon", "무기"], ["armor", "방어"], ["skill", "스킬"], ["magic", "마법"], ["etc", "기타"]];
+const stashKind = (it) => (["weapon", "armor", "skill", "magic"].includes(it.kind) ? it.kind : "etc");
+function drawStash(h, B, add, lt, slotBox) {
+  const sc = B.sc, fr = sc.fr, { Be } = R;
+  const AX = 8, AY = 8, AW = 200, AH = R.xt - 16;
+  add(h.add.image(AX, AY, PAPER.woodKey(h, AW, AH, { base: 0x4a3018, dark: 0x1e1208, hi: 0x7a4e2a, vertical: 0, plank: 18 })).setOrigin(0).setDepth(91));
+  add(h.add.rectangle(AX, AY, AW, AH).setStrokeStyle(2, 0x1a0e06).setOrigin(0).setDepth(92));
+  lt(AX + 12, AY + 6, `창 고  ${fr.stash.length}개`, "small");
+  const tab = (B.stTab ??= "all");
+  STASH_TABS.forEach(([k, ko], i) => {
+    const b = Be(h, AX + 6 + i * 31.5, AY + 26, 30, 16, ko, () => ((B.stTab = k), (B.stScroll = 0), R.j.play("click"), renderBag(h)), { small: !0, depth: 97, style: k === tab ? "green" : void 0 });
+    B.objs.push(...b.container);
+  });
+  // 보이는 목록 (탭으로 거른다) — stashView[i]가 칸 i의 물건
+  const view = (fr.stashView = fr.stash.filter((it) => tab === "all" || stashKind(it) === tab));
+  const COLS = 5, VR = 6, CW = 37, CH = 37, GX = AX + 23, GY = AY + 66;
+  const rows = Math.max(VR, Math.ceil((view.length + 1) / COLS));
+  B.stScroll = Math.max(0, Math.min(rows - VR, B.stScroll ?? 0));
+  add(h.add.rectangle(AX + 6, GY - 22, AW - 12, VR * CH + 6, 0x0e0804, 0.75).setOrigin(0).setDepth(91));
+  for (let r = 0; r < VR; r++)
+    for (let c = 0; c < COLS; c++) {
+      const i = (B.stScroll + r) * COLS + c;
+      slotBox(GX + c * CW, GY + r * CH, { where: "stash", key: i }, { type: "stash", key: i }, "pocket");
+    }
+  if (rows > VR) {
+    const bx = AX + AW - 7, by = GY - 18, bh = VR * CH - 2;
+    add(h.add.rectangle(bx, by, 3, bh, 0x2a1a0e, 1).setOrigin(0).setDepth(93));
+    add(h.add.rectangle(bx, by + (bh * B.stScroll) / rows, 3, Math.max(10, (bh * VR) / rows), 0xd0a060, 1).setOrigin(0).setDepth(94));
+  }
+  B.stashBox = { x: AX + 4, y: GY - 22, w: AW - 8, h: VR * CH + 6, rows, VR };
+  // 칸 사이 어디에 놓아도 창고로
+  B.hits.push({ x: AX + 4, y: GY - 22, w: AW - 8, h: VR * CH + 6, type: "stash", key: 0 });
+  // 단추: 전부 넣기 · 같은 종류 넣기 · 정렬
+  const by = GY + VR * CH - 10;
+  const move = (pred) => {
+    let n = 0;
+    for (const it of fr.bag.slice()) if (pred(it)) (bagReplace(fr, it, null), fr.stash.push(it), n++);
+    n && (applyLoadout(sc), R.j.play("buy"));
+    B.msg = n ? `창고에 ${n}개 넣음` : "넣을 물건이 없습니다";
+    renderBag(h);
+  };
+  const b1 = Be(h, AX + 8, by, 60, 18, "전부 넣기", () => move(() => !0), { small: !0, depth: 97, style: "green" });
+  const kinds = new Set(fr.stash.map((it) => it.id));
+  const b2 = Be(h, AX + 71, by, 66, 18, "같은 것 넣기", () => move((it) => kinds.has(it.id)), { small: !0, depth: 97 });
+  const RAR = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 }, KO = { weapon: 0, armor: 1, skill: 2, magic: 3, rune: 4 };
+  const b3 = Be(h, AX + 140, by, 52, 18, "정렬", () => {
+    fr.stash.sort((a, b) => (KO[a.kind] ?? 9) - (KO[b.kind] ?? 9) || (RAR[IT.RARITY_OF(b)] ?? 0) - (RAR[IT.RARITY_OF(a)] ?? 0) || IT.gradeOf(b) - IT.gradeOf(a) || String(a.name).localeCompare(String(b.name)));
+    applyLoadout(sc);
+    R.j.play("click");
+    renderBag(h);
+  }, { small: !0, depth: 97 });
+  B.objs.push(...b1.container, ...b2.container, ...b3.container);
+  // 창고 가치 (거점 판매가 합)
+  const val = fr.stash.reduce((s, it) => s + hubSellPrice(itemKey(it)), 0);
+  add(h.add.image(AX + 16, by + 34, "icon_gold").setDepth(95).setScale(0.8));
+  lt(AX + 26, by + 27, `창고 가치 ${val.toLocaleString()}G`, "tiny", "#ffd84a");
+  lt(AX + 12, by + 42, "우클릭: 가방 ↔ 창고", "tiny", LIGHT2);
+}
 // 칸 바탕 그림 (hi: 강조)
 function slotKey(style, big, hi, it) {
   return style === "pocket" ? (hi ? "inv_pocket_hi" : "inv_pocket") : style === "stone" ? (hi || it ? "inv_stone_hi" : "inv_stone") : big ? (hi ? "inv_socket_big_hi" : "inv_socket_big") : hi ? "inv_socket_hi" : "inv_socket";
@@ -3698,6 +3818,12 @@ function hideTip() {}
 function showTip() {}
 function moveTip() {}
 function takeOut(fr, s) {
+  if (s.where === "stash") {
+    const it = fr.stashView?.[s.key];
+    const i = it ? fr.stash.indexOf(it) : -1;
+    i >= 0 && fr.stash.splice(i, 1);
+    return it;
+  }
   if (s.where === "eq") {
     const it = fr.equip[s.key];
     fr.equip[s.key] = null;

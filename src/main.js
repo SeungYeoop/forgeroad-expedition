@@ -15089,7 +15089,8 @@ class pr extends zt.Scene {
         destiny: () => (FG.toggleDestiny(this), null),
         dojo: () => new (P().FrShop)(this, cl, ["skill"], "기술 도장 · 스킬"),
         lab: () => new (P().FrShop)(this, cl, ["magic"], "마법 연구소 · 마법"),
-        wardrobe: () => new (P().FrLoadout)(this, cl),
+        // 창고: 알비온식 창고 (왼쪽 창고 · 오른쪽 가방, 2026-11-28)
+        wardrobe: () => (FG.openStashHub(this), null),
         board: () => new (P().Board)(this, cl),
         exit: () => (this.startRun(), null),
         // 갈림길 요새: 네 갈래 출구 (그 방향 이웃 구역에서 탐험 시작)

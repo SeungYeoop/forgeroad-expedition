@@ -39,7 +39,7 @@ export function panelFrame(P, S, title, R) {
 
 export function makeScreens(R, D) {
   const { Ne, it: SAVE, j, q, yt } = R;
-  const { mkItem, kindOf, itemIcon, IT, sd, STARTER, refresh, elCss, shopPrice, matCost, hubSellPrice } = D;
+  const { mkItem, kindOf, itemIcon, IT, sd, STARTER, refresh, elCss, shopPrice, matCost, hubSellPrice, rarityDeco } = D;
   const matsOf = () => (sd().mats = sd().mats ?? {});
   const gkey = (id, g) => (g > 1 ? `${id}@${g}` : id);
   const gradeTag = (P, x, y, it, d = 207) => {
@@ -186,6 +186,7 @@ export function makeScreens(R, D) {
         sel && A(this, sc.add.image(cx, by - 18, "vx_glow").setTint(0xffd070).setAlpha(0.55).setScale(1.6).setBlendMode(R.zt.BlendModes.ADD), 204);
         A(this, sc.add.ellipse(cx, by, 30, 6, 0x000000, 0.4), 204);
         const ic = A(this, sc.add.image(cx, by - 18, itemIcon(sc, it)).setScale(2.3), 205);
+        for (const o of rarityDeco?.(sc, it, cx, by - 18, 50, 205.5) ?? []) A(this, o, o.depth);
         gradeTag(this, cx + 22, by - 14, it);
         sel && sc.tweens.add({ targets: ic, y: by - 23, duration: 420, yoyo: !0, repeat: -1, ease: "Sine.easeInOut" });
         // 가격표 (실에 매달린 종이)
@@ -232,6 +233,8 @@ export function makeScreens(R, D) {
       pin(this, cx0 + cw / 2, ty + 10, 0xc83a2a);
       this.img(cx0 + 30, ty + 34, "ui_medal").setScale(0.75).setDepth(206);
       this.img(cx0 + 30, ty + 34, itemIcon(sc, it)).setScale(1.7).setDepth(207);
+      for (const o of rarityDeco?.(sc, it, cx0 + 30, ty + 34, 38, 207.5) ?? []) A(this, o, o.depth);
+      IT.BASE[bid] && ["skill", "magic"].includes(IT.BASE[bid].kind) && this.t(X1 - 24, ty + 18, IT.RARITY_KO[IT.RARITY_OF(it)], "tiny", IT.RARITY_CSS[IT.RARITY_OF(it)], { stroke: "#2a1408", strokeThickness: 2 }).setOrigin(1, 0).setDepth(207);
       this.t(cx0 + 52, ty + 18, it.name, "body", nameCol(it)).setDepth(206);
       this.t(cx0 + 52, ty + 34, `${KO[this.kind]}${it.el ? " · " + IT.elName(it.el) : ""} · ${FREE.has(id) ? "기본 지급" : `${IT.GRADE_ROMAN[this.grade]} · 위력 ×${IT.GRADE_MULT[this.grade]}`}`, "tiny", FREE.has(id) ? q.textDim : ink(IT.GRADE_CSS[this.grade])).setDepth(206);
       A(this, sc.add.rectangle(cx0 + 16, ty + 52, cw - 32, 1, 0x9a7448), 206).setOrigin(0);

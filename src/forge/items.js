@@ -635,4 +635,26 @@ export function dropPool(region, kinds) {
   return ITEMS.filter((x) => !x.id.startsWith("B") && (x.region ?? 0) <= region && (!kinds || kinds.includes(x.kind)));
 }
 export const STARTER_IDS = ITEMS.filter((x) => !x.id.startsWith("B") && (x.region ?? 0) === 0).map((x) => x.id);
-export const RARITY_OF = (it) => (it.tier === 3 ? "legendary" : it.tier === 2 ? "epic" : it.tier === 1 ? "rare" : it.relic ? "epic" : "common");
+// 희귀도 (2026-11-28): 일반 · 고급 · 희귀 · 영웅 · 전설
+//   기본 스킬·마법은 위력 대비 쿨타임(마법은 마나)으로 일반/고급, 1차 융합 = 희귀, 2차 융합 = 영웅, 전설 융합 = 전설
+export const RARITIES = ["common", "uncommon", "rare", "epic", "legendary"];
+export const RARITY_KO = { common: "일반", uncommon: "고급", rare: "희귀", epic: "영웅", legendary: "전설" };
+export const RARITY_CSS = { common: "#c8c8c8", uncommon: "#7be36a", rare: "#6ab8ff", epic: "#c58aff", legendary: "#ffc040" };
+export const RARITY_COL = { common: 0x9a9a9a, uncommon: 0x5ac84a, rare: 0x4a90e0, epic: 0xa060e0, legendary: 0xf0b030 };
+// 피해 글 ("60% × 5회", "200%")의 총 배율
+const pctTotal = (s) => {
+  const m = String(s ?? "").match(/(\d+)%(?:\D*?(\d+))?/);
+  return m ? +m[1] * (m[2] ? +m[2] : 1) : 0;
+};
+const BASE_RAR = {};
+{
+  const sc = (b) => (b.kind === "skill" ? pctTotal(b.dmg) / Math.max(1, b.cd ?? 6) : pctTotal(b.dmg) / Math.max(5, b.mana ?? 20));
+  for (const kind of ["skill", "magic"]) {
+    const L = ITEMS.filter((x) => x.kind === kind && !x.id.startsWith("B"));
+    const vals = L.map(sc).filter((v) => v > 0).sort((a, b) => a - b);
+    const cut = vals[Math.floor(vals.length * 0.55)] ?? 1e9;
+    // 피해가 없는 보조 기술(버프·소환 등)은 고급
+    for (const b of L) BASE_RAR[b.id] = sc(b) >= cut || pctTotal(b.dmg) === 0 ? "uncommon" : "common";
+  }
+}
+export const RARITY_OF = (it) => (it.tier === 3 ? "legendary" : it.tier === 2 ? "epic" : it.tier === 1 ? "rare" : it.relic ? "epic" : BASE_RAR[it.id] ?? "common");

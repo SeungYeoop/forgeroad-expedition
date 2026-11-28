@@ -379,8 +379,61 @@ export function itemIcon(scene, it) {
   if (!scene.textures.exists(key)) makeSlotIcon(scene, key, it);
   return key;
 }
-const RAR_COL = { common: 0x9a9a9a, rare: 0x4a90e0, epic: 0xa060e0, legendary: 0xf0b030 };
-export const rarityColor = (it) => RAR_COL[IT.RARITY_OF(it)];
+export const rarityColor = (it) => IT.RARITY_COL[IT.RARITY_OF(it)];
+// 희귀도 테두리 텍스처 (크기 s × s, 2026-11-28): 일반 회색 얇은 사각 · 고급 초록 모서리 꺾쇠 · 희귀 파랑 리벳 4개 · 영웅 보라 팔각 + 위 보석 · 전설 금 장식 틀 + 소용돌이
+export function rarityFrame(scene, rar, s) {
+  const key = `rf_${rar}_${s}`;
+  if (scene.textures.exists(key)) return key;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = s + 6;
+  const g = cv.getContext("2d"), o = 3;
+  const px = (x, y, c, w = 1, h = 1) => ((g.fillStyle = c), g.fillRect(o + x, o + y, w, h));
+  const box = (c, t, cut = 0) => {
+    for (let i = 0; i < t; i++) {
+      px(cut, i, c, s - cut * 2, 1), px(cut, s - 1 - i, c, s - cut * 2, 1), px(i, cut, c, 1, s - cut * 2), px(s - 1 - i, cut, c, 1, s - cut * 2);
+    }
+  };
+  if (rar === "common") (box("#2a2a2a", 2), box("#8a8a8a", 1));
+  else if (rar === "uncommon") {
+    box("#1a3a14", 2), box("#4aa83a", 1);
+    const L = Math.max(4, s >> 2);
+    for (const [x, y, dx, dy] of [[0, 0, 1, 1], [s - 1, 0, -1, 1], [0, s - 1, 1, -1], [s - 1, s - 1, -1, -1]])
+      for (let k = 0; k < L; k++) (px(x + dx * k - (dx < 0 ? 0 : 0), y - dy * 1, "#a8ff90"), px(x - dx * 1, y + dy * k, "#a8ff90"), px(x + dx * k, y, "#7be36a"), px(x, y + dy * k, "#7be36a"));
+  } else if (rar === "rare") {
+    box("#0e2240", 2), box("#4a90e0", 1);
+    px(1, 1, "#4a90e0", s - 2, 1);
+    for (const [x, y] of [[1, 1], [s - 4, 1], [1, s - 4], [s - 4, s - 4]]) (px(x, y, "#2a5a98", 3, 3), px(x, y, "#cfe6ff"), px(x + 1, y + 1, "#8ac0ff"));
+  } else if (rar === "epic") {
+    const c = 3;
+    box("#2a1040", 2, c), box("#a060e0", 1, c);
+    for (let k = 0; k <= c; k++) for (const [x, y] of [[c - k, k], [s - 1 - c + k, k], [k, s - 1 - c + k], [s - 1 - k, s - 1 - c + k]]) px(x, y, "#c58aff");
+    const m = s >> 1;
+    px(m - 2, -2, "#5a2a8a", 4, 4), px(m - 1, -2, "#f0c8ff", 2, 1), px(m - 1, -1, "#d090ff", 2, 2);
+  } else {
+    box("#3a2408", 3), box("#f0b030", 2), box("#ffe9a0", 1);
+    for (const [x, y, dx, dy] of [[0, 0, 1, 1], [s - 1, 0, -1, 1], [0, s - 1, 1, -1], [s - 1, s - 1, -1, -1]]) {
+      px(x + dx * 2, y + dy * 2, "#fff4c0"), px(x + dx * 3, y + dy * 2, "#f0b030"), px(x + dx * 2, y + dy * 3, "#f0b030"), px(x + dx * 3, y + dy * 3, "#b07010");
+      px(x - dx * 1, y - dy * 1, "#ffd860");
+    }
+    const m = s >> 1;
+    px(m - 3, -3, "#3a2408", 6, 4), px(m - 2, -3, "#f0b030", 4, 3), px(m - 1, -3, "#fff4c0", 2, 1);
+  }
+  scene.textures.addCanvas(key, cv);
+  return key;
+}
+const RAR_KINDS = new Set(["skill", "magic"]);
+// 스킬·마법 그림 위에 희귀도 테두리를 얹는다 (전설은 은은한 빛이 돈다). 돌려준 물체 목록은 부르는 쪽이 지운다
+export function rarityDeco(scene, it, x, y, s, depth) {
+  if (!it || !RAR_KINDS.has(it.kind ?? IT.BASE[it.id]?.kind)) return [];
+  const rar = IT.RARITY_OF(it), out = [scene.add.image(x, y, rarityFrame(scene, rar, s)).setDepth(depth)];
+  if (rar === "legendary" || rar === "epic") {
+    const gl = scene.add.image(x, y, "vx_glow").setTint(IT.RARITY_COL[rar]).setBlendMode(R.zt.BlendModes.ADD).setScale((s / 40) * 1.2).setAlpha(rar === "legendary" ? 0.5 : 0.28).setDepth(depth - 0.1);
+    const tw = scene.tweens.add({ targets: gl, alpha: rar === "legendary" ? 0.2 : 0.12, scale: (s / 40) * 1.45, duration: 900, yoyo: !0, repeat: -1 });
+    gl.once("destroy", () => tw.remove());
+    out.push(gl);
+  }
+  return out;
+}
 
 // 부팅 시 생성하는 공용 텍스처
 export function bootTextures(scene) {
@@ -2408,7 +2461,7 @@ export function gain(sc, item) {
     h?.toast("가방이 가득 찼습니다 · 아이템을 바닥에 두었습니다", "#ffb0a0");
   }
 }
-const rarCss = (it) => ({ common: "#e0e0e0", rare: "#7ab8ff", epic: "#d090ff", legendary: "#ffd84a" })[IT.RARITY_OF(it)];
+const rarCss = (it) => IT.RARITY_CSS[IT.RARITY_OF(it)];
 function autoSlot(fr, it) {
   if (it.kind === "skill") return !fr.equip.s1 ? "s1" : !fr.equip.s2 ? "s2" : !fr.equip.magic ? "magic" : null;
   if (it.kind === "magic") return !fr.equip.magic ? "magic" : !fr.equip.s2 ? "s2" : !fr.equip.s1 ? "s1" : null;
@@ -2756,6 +2809,11 @@ export function hudCreate(hud) {
     return s ? ct(hud, s.bg.x, s.bg.y - 25, "", "tiny", "#ffffff", { stroke: "#140e18", strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(5) : null;
   });
   UI.remakeHud(hud, R);
+  // 스킬 칸 희귀도 테두리 (2026-11-28)
+  hud.frRarImgs = [0, 1, 2].map((i) => {
+    const f = hud.frFrames?.[i];
+    return f ? hud.add.image(f.x, f.y, "__DEFAULT").setDepth(5).setVisible(!1) : null;
+  });
   miniCreate(hud);
   hud.input.keyboard.addCapture("TAB");
   hud.input.keyboard.on("keydown-TAB", () => toggleBag(hud.run));
@@ -2778,6 +2836,13 @@ export function hudUpdate(hud) {
     // 바뀔 때만 다시 그린다 (setColor는 매번 글자 텍스처를 새로 만들어 렉의 원인이었다)
     const sig = it ? it.kind : "";
     if (f && f._frSig !== sig) (f._frSig = sig), f.setStrokeStyle(1, it ? ICON.KIND_COL[it.kind] : 0x403848, it ? 1 : 0.5);
+    // 희귀도 테두리: 아이템이 바뀔 때만 (uid로)
+    const ri = hud.frRarImgs?.[i], rs = it ? `${it.uid ?? it.id}|${IT.RARITY_OF(it)}` : "";
+    if (ri && ri._frSig !== rs) {
+      ri._frSig = rs;
+      it ? ri.setTexture(rarityFrame(hud, IT.RARITY_OF(it), 22)).setVisible(!0) : ri.setVisible(!1);
+      f?.setStrokeStyle(1, 0, 0);
+    }
     if (t && t._frSig !== sig) (t._frSig = sig), t.setText(it ? (it.kind === "magic" ? "마법" : "스킬") : "").setColor(it ? ICON.KIND_CSS[it.kind] : "#ffffff");
   });
   const wtag = fr.equip.weapon?.cat === "WS" ? `  ·  충전 ${fr.charge}` : "";
@@ -3231,7 +3296,7 @@ function canDrop(B, it, srcEnt, tgt) {
 }
 // ── 인벤토리: 옷장(장비) · 가죽 배낭(가방) · 돌 제단(융합) ──
 const INK = "#2a1709", INK2 = "#5c3d22", INK_R = "#8a1a0e";
-const parRar = (it) => ({ common: "#3a2a1a", rare: "#183f88", epic: "#621a92", legendary: "#8a5200" })[IT.RARITY_OF(it)];
+const parRar = (it) => ({ common: "#3a2a1a", uncommon: "#1d6418", rare: "#183f88", epic: "#621a92", legendary: "#8a5200" })[IT.RARITY_OF(it)];
 const LIGHT = "#f4e4c4", LIGHT2 = "#c8b08a";
 function renderBag(h) {
   const B = h.frBag;
@@ -3285,6 +3350,7 @@ function renderBag(h) {
       const dim = (D && sameEnt(D.ent, e)) || (e.where !== "forge" && inForge(e));
       it.tier >= 1 && add(h.add.image(x, y, "vx_glow").setTint(rarityColor(it)).setBlendMode(ADD).setDepth(93).setScale(0.55 + it.tier * 0.1).setAlpha(0.5));
       add(h.add.image(x, y, itemIcon(sc, it)).setDepth(94).setScale(style === "socket" ? (big ? 1.3 : 1.05) : style === "stone" ? 1.15 : 1.25).setAlpha(dim ? 0.3 : 1));
+      for (const o of rarityDeco(h, it, x, y, Math.round(Math.min(sw, shh) - 6), 94.5)) add(o.setAlpha(dim ? 0.3 : o.alpha));
       it.tier > 0 && lt(x - sw / 2 + 3, y + shh / 2 - 13, ["", "Ⅰ", "Ⅱ", "★"][it.tier], "tiny", rarCss(it));
       e.where !== "forge" && inForge(e) && lt(x - 10, y - 5, "융합", "tiny", "#ffb060");
     }
@@ -3574,7 +3640,7 @@ export function panelFrame(P, S, title) {
   return SCR.panelFrame(P, S, title, R);
 }
 export function makeHubPanels() {
-  if (R) return SCR.makeScreens(R, { mkItem, kindOf, itemIcon, IT, sd, STARTER, elCss, shopPrice, matCost, hubSellPrice, refresh: (sc) => sc.player?.applyStats?.(hubStats(sc)) });
+  if (R) return SCR.makeScreens(R, { mkItem, kindOf, itemIcon, IT, sd, STARTER, elCss, shopPrice, matCost, hubSellPrice, rarityDeco, refresh: (sc) => sc.player?.applyStats?.(hubStats(sc)) });
   return makeHubPanelsOld();
 }
 function makeHubPanelsOld() {

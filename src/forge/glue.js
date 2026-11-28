@@ -618,6 +618,7 @@ export function applyLoadout(scene) {
 export function hurtMod(player, S, C) {
   const sc = player.host;
   sc && (sc.frLastHurt = sc.time?.now ?? 0); // 귀환: 맞은 뒤 4초는 전투 중
+  sc && noteHurt(sc, S, C); // 사망 화면: 받은 피해 기록
   const fr = sc?.fr;
   if (!fr) return C;
   const fx = fr.afx ?? {};
@@ -4244,7 +4245,109 @@ export function settleLoot(sc, safe) {
   }
   sc.run.frLoot = out;
   sc.run.frZoneName = zoneOfPlayer(sc)?.name;
+  sc.run.frDeath = safe ? null : deathSummary(sc);
   R.it.write();
+}
+
+// ── 알비온식 사망 화면 (2026-11-28 · 탐험 일지 대신) ─────────
+//   맞을 때마다 피해 출처를 기록해 두고(최근 15초), 쓰러지면: 쓰러뜨린 상대 · 받은 피해 내역 · 잃은 것 · 거점에서 다시 일어나기
+const DMG_WIN = 15000;
+const EL_SRC = { fire: "불길", poison: "독", ice: "냉기", lightning: "번개", water: "물", phys: "함정", dark: "어둠", holy: "빛" };
+export function noteHurt(sc, S, dmg) {
+  if (!sc?.time) return;
+  const a = S?.attacker, now = sc.time.now;
+  const name = a?.def?.name ?? (S?.boss ? "보스" : EL_SRC[S?.element] ?? "알 수 없는 것");
+  const log = (sc.frDmgLog ??= []);
+  log.push({ t: now, name, dmg, el: S?.element ?? "phys", tex: a?.sprite?.texture?.key ?? null, elite: !!a?.isElite });
+  while (log.length && now - log[0].t > DMG_WIN) log.shift();
+}
+function deathSummary(sc) {
+  const log = sc.frDmgLog ?? [], now = sc.time?.now ?? 0;
+  const recent = log.filter((e) => now - e.t <= DMG_WIN);
+  const by = new Map();
+  for (const e of recent) {
+    const g = by.get(e.name) ?? { name: e.name, dmg: 0, hits: 0, tex: e.tex, el: e.el, elite: e.elite };
+    g.dmg += e.dmg;
+    g.hits++;
+    e.tex && (g.tex = e.tex);
+    by.set(e.name, g);
+  }
+  const rows = [...by.values()].sort((a, b) => b.dmg - a.dmg);
+  const last = sc.frDeathCause ? { name: sc.frDeathCause.name, tex: null } : recent[recent.length - 1] ?? null;
+  return { rows: rows.slice(0, 6), total: rows.reduce((s, r) => s + r.dmg, 0), killer: last ? { name: last.name, tex: last.tex, elite: !!last.elite } : null };
+}
+export function deathScreen(scene, T) {
+  const D = T?.frDeath;
+  if (!D || T.abandoned) return !1;
+  const { ct, Be, ot: W, xt: H } = R;
+  scene.frPicked = !0; // 잃은 것은 이 화면에서 보여 준다
+  const A = (o) => o;
+  // 바탕: 어두운 잿빛 + 붉은 가장자리
+  A(scene.add.rectangle(0, 0, W, H, 0x0a0809, 1).setOrigin(0));
+  const vg = scene.add.graphics();
+  for (let i = 0; i < 18; i++) {
+    const a = 0.05 * (1 - i / 18);
+    vg.fillStyle(0x6a0a0a, a).fillRect(0, i * 5, W, 5).fillRect(0, H - (i + 1) * 5, W, 5).fillRect(i * 6, 0, 6, H).fillRect(W - (i + 1) * 6, 0, 6, H);
+  }
+  for (let i = 0; i < 40; i++) scene.add.rectangle(Math.random() * W, Math.random() * H, 1, 1, 0xb0a090, 0.15 + Math.random() * 0.2);
+  // 제목
+  const t1 = ct(scene, W / 2, 22, "쓰러졌다", "title", "#e05040", { stroke: "#1a0606", strokeThickness: 6 }).setOrigin(0.5, 0).setAlpha(0);
+  scene.tweens.add({ targets: t1, alpha: 1, y: 18, duration: 600 });
+  ct(scene, W / 2, 58, `${T.frZoneName ?? "어딘가"}  ·  ${D.killer ? `${D.killer.name}에게` : "알 수 없는 이유로"}`, "small", "#c8b8a8", { stroke: "#0a0606", strokeThickness: 3 }).setOrigin(0.5, 0);
+  // 패널 틀
+  const panel = (x, y, w, h, title) => {
+    const g = scene.add.graphics();
+    g.fillStyle(0x16100c, 0.92).fillRect(x, y, w, h);
+    g.lineStyle(2, 0x6a4a28, 1).strokeRect(x, y, w, h);
+    g.lineStyle(1, 0x2a1a10, 1).strokeRect(x + 3, y + 3, w - 6, h - 6);
+    g.fillStyle(0x6a4a28, 1).fillRect(x + 10, y + 20, w - 20, 1);
+    ct(scene, x + 10, y + 6, title, "tiny", "#e8c890", { stroke: "#0a0604", strokeThickness: 2 });
+  };
+  // 왼쪽: 쓰러뜨린 상대
+  const KX = 36, KY = 82, KW = 196, KH = 196;
+  panel(KX, KY, KW, KH, "쓰러뜨린 상대");
+  const k = D.killer;
+  if (k?.tex && scene.textures.exists(k.tex)) {
+    const glow = scene.add.image(KX + KW / 2, KY + 104, "vx_glow").setTint(0xa02020).setBlendMode(R.zt.BlendModes.ADD).setScale(2.6).setAlpha(0.45);
+    void glow;
+    const im = scene.add.image(KX + KW / 2, KY + 150, k.tex, 0).setOrigin(0.5, 1);
+    im.setScale(Math.min(3, 110 / Math.max(im.height, 1), 150 / Math.max(im.width, 1)));
+  } else ct(scene, KX + KW / 2, KY + 90, k?.name === "익사" ? "물속에서 숨이 막혔다" : "…", "body", "#8a7a6a").setOrigin(0.5);
+  ct(scene, KX + KW / 2, KY + 160, k?.name ?? "알 수 없음", "big", k?.elite ? "#ffb060" : "#f0e0c8", { stroke: "#0a0604", strokeThickness: 4 }).setOrigin(0.5, 0);
+  k?.elite && ct(scene, KX + KW / 2, KY + 180, "정예", "tiny", "#ffb060").setOrigin(0.5, 0);
+  // 오른쪽: 받은 피해 (마지막 15초)
+  const PX = 248, PY = 82, PW = 356, PH = 196;
+  panel(PX, PY, PW, PH, `받은 피해 · 마지막 15초 · 합계 ${Math.round(D.total).toLocaleString()}`);
+  const max = Math.max(1, ...D.rows.map((r) => r.dmg));
+  D.rows.forEach((r, i) => {
+    const y = PY + 32 + i * 26;
+    const pct = D.total ? Math.round((r.dmg / D.total) * 100) : 0;
+    ct(scene, PX + 12, y, r.name, "small", r.elite ? "#ffb060" : "#e8dcc8");
+    ct(scene, PX + PW - 12, y, `${Math.round(r.dmg).toLocaleString()}  ·  ${pct}%`, "tiny", "#c8b8a8").setOrigin(1, 0);
+    scene.add.rectangle(PX + 12, y + 15, PW - 24, 5, 0x2a1a14).setOrigin(0);
+    const bar = scene.add.rectangle(PX + 12, y + 15, 1, 5, i === 0 ? 0xc83a2a : 0x9a5a3a).setOrigin(0);
+    scene.tweens.add({ targets: bar, width: Math.max(2, ((PW - 24) * r.dmg) / max), duration: 500, delay: 200 + i * 80 });
+  });
+  D.rows.length || ct(scene, PX + PW / 2, PY + 90, "기록된 피해가 없다", "small", "#8a7a6a").setOrigin(0.5);
+  // 아래: 잃은 것
+  const lost = (T.frLoot?.items ?? []).slice(0, 14);
+  ct(scene, 36, 292, lost.length ? `잃은 것 ${T.frLoot.items.length}개` : "잃은 것 없음", "small", "#e8c890");
+  lost.forEach((o, i) => {
+    const x = 52 + i * 30, y = 326;
+    scene.add.rectangle(x, y, 26, 26, 0x1a1210).setStrokeStyle(1, 0x5a3a20);
+    try {
+      const it = mkItem(o.key) ?? o.item;
+      it && scene.add.image(x, y, itemIcon(scene, it)).setScale(0.95).setAlpha(0.75);
+      it && scene.add.line(0, 0, x - 11, y - 11, x + 11, y + 11, 0xc83a2a, 0.8).setOrigin(0);
+    } catch {}
+  });
+  const go = () => scene.leaving || scene.leave();
+  const b = Be(scene, W - 196, 300, 170, 30, "거점에서 다시 일어나기", go, { style: "green" });
+  void b;
+  ct(scene, W - 111, 334, "Enter · Space", "tiny", "#8a7a6a").setOrigin(0.5, 0);
+  scene.input.keyboard.once("keydown-ENTER", go);
+  scene.input.keyboard.once("keydown-SPACE", go);
+  return !0;
 }
 
 // 결과 화면: 가져온 것 / 잃은 것

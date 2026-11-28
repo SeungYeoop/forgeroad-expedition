@@ -20147,6 +20147,8 @@ class Pr extends zt.Scene {
       return;
     }
     j.playMusic("result", { root: 57, scale: [0, 2, 3, 5, 7, 8, 10], tempo: 70, wave: "triangle", mood: 10, hub: !0 });
+    // 쓰러졌으면 알비온식 사망 화면 (탐험 일지 대신 · 2026-11-28)
+    if (!T.abandoned && FG.deathScreen(this, T)) return;
     const C = (T.achievementsNow ?? []).filter((l) => zi[l]),
       W = ot,
       H = xt,

@@ -5,7 +5,9 @@ import ITEMS from "./items.json";
 import * as PAPER from "./paper.js";
 import { FR_REGIONS, FR_MONSTERS, FR_ELITES, FR_BOSSES } from "./world.js";
 import { paintPreview } from "./terrain.js";
-import { SPECS, preloadRegion } from "./foes/core.js";
+import { SPECS, preloadRegion, ensure as ensureFoe } from "./foes/core.js";
+import { EL as EL_KO } from "./items.js";
+import { BESTIARY } from "./bestiary.js";
 
 export const HOOKS = {};
 
@@ -113,15 +115,19 @@ export function drawCodex(P, K) {
 
   // ── 가죽 표지 + 두 쪽 ──
   const BX = X0 + 4, BY = Y0 + 2, BW = X1 - X0 - 8, BH = Y1 - Y0 - 4;
+  // 알비온식 창 안에서는 가죽 표지 없이 안쪽 판 두 장 (2026-11-28)
+  const PW = Math.floor((BW - 30) / 2), PH = BH - 14, LX = BX + 10, RX = LX + PW + 10, PY = BY + 7;
+  if (K.alb) (K.inset(LX - 6, PY - 4, PW + 6, PH + 8, 70), K.inset(RX, PY - 4, PW + 6, PH + 8, 71));
+  else {
   A(P, sc.add.image(BX, BY, PAPER.woodKey(sc, BW, BH, { base: 0x5a2a1a, dark: 0x2a1008, hi: 0x8a4a2a, plank: 40 })).setOrigin(0), 202);
   A(P, sc.add.rectangle(BX + 3, BY + 3, BW - 6, BH - 6).setStrokeStyle(1, 0xc8a050, 0.6).setOrigin(0), 203);
-  const PW = (BW - 30) / 2, PH = BH - 14, LX = BX + 10, RX = LX + PW + 10, PY = BY + 7;
   A(P, sc.add.image(LX + PW / 2, PY + PH / 2, PAPER.noteKey(sc, PW, PH, 70)), 203);
   A(P, sc.add.image(RX + PW / 2, PY + PH / 2, PAPER.noteKey(sc, PW, PH, 71)), 203);
   // 가운데 접힌 자국 (책등 그늘)
   rect(LX + PW - 6, PY, 6, PH, 0x3a2010, 0.18, 204);
   rect(RX, PY, 6, PH, 0x3a2010, 0.18, 204);
   rect(LX + PW, PY - 2, 10, PH + 4, 0x2a1008, 1, 203);
+  }
 
   // ── 왼쪽 쪽: 지역 책갈피 ──
   const n = FR_REGIONS.length, cw = Math.floor((PW - 16) / n);
@@ -136,7 +142,7 @@ export function drawCodex(P, K) {
   const reached = (T.best ?? 0) >= REG.start;
   tx(LX + 10, PY + 24, `지역 ${ri + 1}`, "tiny", q.textDim);
   const ttl = tx(LX + 38, PY + 21, REG.name, "big", q.text);
-  tx(LX + PW - 10, PY + 24, `${REG.start}m ~ ${REG.end}m`, "tiny", q.textDim).setOrigin(1, 0);
+  K.alb || tx(LX + PW - 10, PY + 24, `${REG.start}m ~ ${REG.end}m`, "tiny", q.textDim).setOrigin(1, 0);
   reached || stamp(LX + 38 + ttl.width + 18, PY + 29, "미답");
   // 분류 쪽지
   CATS.forEach((c, i) => {
@@ -510,3 +516,278 @@ export function stopCodex(P) {
   P._timer = null;
   P._anims = [];
 }
+
+// ══════════ 새 도감 (2026-11-28): 지금 세계 기준 ══════════
+//   왼쪽 = 7×7 세계 지도(구역 고르기) + 구역 정보 · 가운데 = 층 띠 3줄 × 4종 + 지역 보스 · 오른쪽 = 움직이는 표본 + 기록
+//   자료: zones.js(구역·고리·층·보스 자리) · bestiary.js(구역별 12종) · world.js(보스) · regions.json(보스 단계)
+const BAND_KO = { ground: "지표", sky: "하늘섬", under: "땅속", low: "아래 섬 줄", mid: "가운데", high: "위 섬 줄", top: "윗층", bot: "아랫층" };
+const BAND_ORDER = ["sky", "high", "top", "ground", "mid", "under", "low", "bot"];
+const RING_C = [null, [0x4a90ff, "파랑", "위험 낮음"], [0xffc83a, "노랑", "위험"], [0xff4a3a, "빨강", "매우 위험 · 봉인"]];
+export function drawZoneCodex(P, K) {
+  const { A, R, j, SAVE, X0, Y0, X1, Y1, H } = K; // H: 알비온 그리기 도우미 (secHead, at, bold, dt, inset, colHead)
+  const sc = P.scene, T = SAVE.data;
+  const ZN = K.ZN, seen = K.seen ?? {};
+  const kills = (id) => (id.startsWith("frb") ? T.bossKills?.[id] : T.codex?.[id]) ?? 0;
+  const zones = ZN.ZONES.filter((z) => z.kind === "zone");
+  const bestZones = zones.filter((z) => BESTIARY[z.id]);
+  const S = (P.cz = P.cz ?? { zid: (bestZones.find((z) => seen[z.id]) ?? bestZones[0]).id, sel: null, anim: null });
+  const Z = ZN.BY_ID[S.zid], B = BESTIARY[S.zid], reg = Z.reg;
+  const click = (o, fn) => (o.setInteractive({ useHandCursor: !0 }).on("pointerdown", () => (j.play("click"), fn(), P.render())), o);
+  const rect = (x, y, w, h, col, a = 1, d = 204) => A(P, sc.add.rectangle(x, y, w, h, col, a).setOrigin(0), d);
+  P._anims = [];
+  P._pend = [];
+  // 몬스터 목록 (층 띠 순서: 위 → 아래)
+  const bands = B ? Object.keys(B.bands).sort((a, b) => BAND_ORDER.indexOf(a) - BAND_ORDER.indexOf(b)) : [];
+  const roster = bands.flatMap((bd) => B.bands[bd].map((m) => ({ ...m, band: bd })));
+  const bossId = Z.boss ? reg?.boss : null, boss = bossId ? FR_BOSSES.find((b) => b.id === bossId) : null;
+  preloadRegion(sc, 0, [...roster.map((m) => m.id), ...(bossId ? [bossId] : [])]);
+  S.sel = S.sel && (roster.some((m) => m.id === S.sel) || S.sel === bossId) ? S.sel : roster[0]?.id ?? bossId;
+  S.bossId = bossId;
+  // 보스 그림은 미리 만들기(일꾼)에서 빠지는 일이 있어 이 구역 보스 하나만 바로 만든다
+  if (bossId && SPECS[bossId]?.model && !SPECS[bossId]._fi) try { ensureFoe(sc, bossId); } catch (e) {}
+
+  // ── 왼쪽: 세계 지도 ──
+  const LW = 168, lx = X0, ly = Y0 + 2;
+  const found = bestZones.filter((z) => roster && seen[z.id]).length;
+  H.secHead(lx, ly, LW, "세계 지도", `밟은 땅 ${found} / ${bestZones.length}`);
+  const CS = 21, gx = lx + Math.floor((LW - 7 * CS) / 2), gy = ly + 26;
+  H.dt(gx + (7 * CS) / 2, ly + 15, "▲ 하늘", "tiny", ALB_LABEL).setOrigin(0.5, 0);
+  for (let yy = -3; yy <= 3; yy++)
+    for (let xx = -3; xx <= 3; xx++) {
+      const x = gx + (xx + 3) * CS, y = gy + (yy + 3) * CS;
+      const z = ZN.cell(xx, yy);
+      if (z === ZN.HUB_ID) {
+        rect(x, y, CS - 1, CS - 1, 0x3a302a, 1, 204);
+        A(P, sc.add.image(x + CS / 2, y + CS / 2, "icon_flag"), 205);
+        continue;
+      }
+      if (!z) continue;
+      const [col] = RING_C[z.ring], isSeen = !!seen[z.id], has = !!BESTIARY[z.id], on = z.id === S.zid;
+      const c = rect(x, y, CS - 1, CS - 1, col, has ? (isSeen ? 0.85 : 0.4) : 0.18, 204);
+      has || rect(x + 3, y + CS / 2 - 1, CS - 7, 1, 0x3a2414, 0.5, 205);
+      z.boss && A(P, sc.add.circle(x + CS - 5, y + 4, 2, 0xa01818).setStrokeStyle(1, 0xfff0d0, 0.8), 206);
+      isSeen && rect(x + 2, y + CS - 5, 3, 3, 0xffffff, 0.9, 206);
+      on && A(P, sc.add.rectangle(x - 1, y - 1, CS + 1, CS + 1).setOrigin(0).setStrokeStyle(2, 0x2a1408), 207);
+      click(c, () => Object.assign(S, { zid: z.id, sel: null, anim: null }));
+    }
+  H.dt(gx + (7 * CS) / 2, gy + 7 * CS + 1, "▼ 땅속", "tiny", ALB_LABEL).setOrigin(0.5, 0);
+  // 구역 정보
+  let iy = gy + 7 * CS + 14;
+  const [rc, rn, rl] = RING_C[Z.ring];
+  A(P, sc.add.rectangle(lx + 2, iy + 3, 8, 8, rc).setOrigin(0).setStrokeStyle(1, 0x2a1a10), 206);
+  H.bold(lx + 14, iy, Z.name, "small");
+  iy += 15;
+  const known = roster.filter((m) => kills(m.id) > 0).length;
+  const info = [
+    ["층", ZN.LAYER_NAME(Z.y)],
+    ["위험", `${rn} 고리 · ${rl}`],
+    ["세기 단계", `${Z.lvl + 1} / 12  (드롭 T${Math.min(6, Z.lvl + 1)} 중심)`],
+    ["지역 보스", boss ? (kills(bossId) || seen[Z.id] ? boss.name : "???") : "없음"],
+    ["발견한 몬스터", B ? `${known} / ${roster.length}` : "-"],
+  ];
+  info.forEach(([a, b], k) => {
+    const y = iy + k * 12;
+    k % 2 || rect(lx, y, LW, 12, 0x5a3a22, 0.07, 203.5);
+    H.at(lx + 4, y + 2, a, "tiny", ALB_LABEL);
+    H.bold(lx + LW - 4, y + 2, b, "tiny").setOrigin(1, 0);
+  });
+
+  // ── 가운데: 층 띠별 몬스터 카드 ──
+  const mx = X0 + LW + 8, MW = 206, CW = 47, CH = 40;
+  const card = (x, y, m, isBoss) => {
+    const id = m.id, n = kills(id), on = S.sel === id;
+    // 칸: 철 테 + 짙은 청회색 + 구역 하늘색 아래 그림자
+    rect(x, y, CW, CH, on ? 0xc8a050 : 0x25262a, 1, 205);
+    rect(x + 1, y + 1, CW - 2, CH - 2, on ? 0xf0d488 : 0x6a6b6e, 1, 205);
+    const top = reg?.pal?.sky?.[0] ?? 0x34393f, bot = reg?.pal?.sky?.[1] ?? 0x383f45;
+    A(P, sc.add.graphics(), 205.5).fillGradientStyle(top, top, bot, bot, 1).fillRect(x + 2, y + 2, CW - 4, CH - 4);
+    rect(x + 2, y + CH - 8, CW - 4, 6, 0x2a2018, 0.55, 205.6);
+    const spec = SPECS[id], key = (isBoss ? "b_" : "e_") + id;
+    const ok = spec?.model ? spec._fi && sc.textures.exists(key) : sc.textures.exists(key);
+    if (ok) {
+      const f = sc.textures.get(key).get(0), s = Math.min(1, (CH - 4) / f.height * 1.15, (CW - 4) / f.width * 1.15);
+      const im = A(P, sc.add.image(x + CW / 2, y + CH - 2, key, 0).setOrigin(0.5, 1).setScale(s), 206);
+      im.setCrop(0, Math.max(0, f.height - (CH - 4) / s), f.width, (CH - 4) / s);
+      n || im.setTint(0x1a1410).setAlpha(0.85);
+    } else (H.at(x + CW / 2, y + CH / 2 - 5, "…", "small", "#f2e6c4").setOrigin(0.5, 0), P._pend.push(id));
+    m.e && (rect(x + 1, y + 1, 19, 9, 0xa02818, 1, 207), H.dt(x + 3, y + 1, "정예", "tiny", "#f8e8d0").setDepth(208));
+    n && H.dt(x + CW - 3, y + CH - 11, `×${n}`, "tiny", "#ffffff").setOrigin(1, 0).setDepth(208);
+    const hit = rect(x, y, CW, CH, 0, 0.001, 209);
+    click(hit, () => Object.assign(S, { sel: id, anim: null }));
+  };
+  if (!B) {
+    H.secHead(mx, ly, MW, "봉인된 땅");
+    H.inset(mx, ly + 18, MW, 120, 31);
+    H.at(mx + 10, ly + 28, `${Z.name}`, "small", "#4a2b16");
+    H.at(mx + 10, ly + 46, "빨강 고리는 아직 봉인되어 있다.\n들어갈 수 없으니 기록도 없다.\n\n파랑·노랑 구역을 골라 보자.", "tiny", ALB_LABEL, { lineSpacing: 3 });
+  } else {
+    bands.forEach((bd, k) => {
+      const y = ly + k * (CH + 34), L = B.bands[bd];
+      H.secHead(mx, y, MW, BAND_KO[bd] ?? bd, `${L.filter((m) => kills(m.id) > 0).length} / ${L.length} 발견`);
+      L.forEach((m, i) => {
+        const x = mx + i * (CW + 6) + 1;
+        card(x, y + 16, { ...m, band: bd });
+        H.at(x + CW / 2, y + 16 + CH + 2, kills(m.id) ? cutName(m.name, 6) : "???", "tiny", kills(m.id) ? "#4a2b16" : ALB_LABEL).setOrigin(0.5, 0);
+      });
+    });
+    // 지역 보스
+    const by = ly + 3 * (CH + 34);
+    H.secHead(mx, by, MW, "지역 보스", boss ? (kills(bossId) ? `토벌 ×${kills(bossId)}` : "미토벌") : "");
+    if (boss) {
+      card(mx + 1, by + 16, { id: bossId }, 1);
+      H.bold(mx + CW + 8, by + 18, kills(bossId) || seen[Z.id] ? boss.name : "???", "small");
+      H.at(mx + CW + 8, by + 32, kills(bossId) ? `「${boss.title}」` : "이 구역 깊은 곳에 산다", "tiny", ALB_LABEL);
+      H.at(mx + CW + 8, by + 44, `체력 ${boss.hp}`, "tiny", "#4a2b16");
+    } else H.at(mx + 4, by + 20, "이 구역에는 지역 보스가 없다.\n지도의 붉은 점이 보스가 사는 구역.", "tiny", ALB_LABEL, { lineSpacing: 2 });
+  }
+
+  // ── 오른쪽: 표본 + 기록 ──
+  const rx = mx + MW + 8, RW = X1 - rx, ry = ly;
+  const isBoss = S.sel && S.sel === bossId;
+  const m = isBoss ? null : roster.find((x) => x.id === S.sel);
+  if (!S.sel || (!m && !isBoss)) return startTimer();
+  const n = kills(S.sel);
+  const PH = 96;
+  const st = specimen(rx, ry, RW, PH, S.sel, isBoss);
+  n || stamp(rx + RW - 16, ry + 16, isBoss ? "미토벌" : "미조사");
+  let y = ry + PH + 5;
+  const name = isBoss ? boss.name : m.name;
+  H.bold(rx, y, n || (isBoss && seen[Z.id]) ? name : "???", "body", n ? "#4a2b16" : "#76563f");
+  H.at(X1, y + 3, isBoss ? "지역 보스" : m.e ? "정예" : m.type, "tiny", isBoss || m.e ? "#8a1a0e" : ALB_LABEL).setOrigin(1, 0);
+  y += 16;
+  const rows = isBoss
+    ? [["체력", `${boss.hp}`], ["약점", EL_KO[boss.weak]?.ko ?? boss.weak ?? "-"], ["내성", EL_KO[boss.resist]?.ko ?? boss.resist ?? "-"], ["토벌", n ? `${n}회` : "아직"]]
+    : [["체력", n ? `${m.hp}` : "?"], ["무리", `${m.pack[0]}${m.pack[1] > m.pack[0] ? `~${m.pack[1]}` : ""}마리`], ["사는 곳", `${Z.name} · ${BAND_KO[m.band] ?? m.band}`], ["처치", n ? `${n}마리` : "아직"]];
+  rows.forEach(([a, b], k) => {
+    const yy = y + k * 12;
+    k % 2 || rect(rx, yy, RW, 12, 0x5a3a22, 0.07, 203.5);
+    H.at(rx + 4, yy + 2, a, "tiny", ALB_LABEL);
+    H.bold(rx + RW - 4, yy + 2, b, "tiny").setOrigin(1, 0);
+  });
+  y += rows.length * 12 + 4;
+  H.at(rx, y, isBoss ? "싸움 기록" : "행동 기록", "tiny", ALB_LABEL);
+  y += 11;
+  let txt;
+  if (isBoss) {
+    const bd = REGIONS[boss.region]?.boss;
+    txt = n && bd ? bd.phases.map((ph, i) => `${i + 1}단계(${ph.range}) ${ph.patterns.slice(0, 2).join(" · ")}`).join("\n") : "토벌하면 단계별 행동이 기록된다.";
+  } else txt = n ? m.pattern : "한 번 처치하면 행동이 기록된다.";
+  const pt = H.at(rx, y, txt, "tiny", n ? "#5a3c24" : ALB_LABEL, { wordWrap: { width: RW, useAdvancedWrap: !0 }, lineSpacing: 1 });
+  y += pt.height + 4;
+  // 움직임 고르기 (처치한 몬스터만)
+  n && animChips(st, rx, Math.max(y, Y1 - 26), RW);
+  startTimer();
+
+  // ── 표본 그리기 (구역 하늘 + 땅 + 움직이는 몬스터) ──
+  function specimen(x, y, w, h, id, boss) {
+    const top = reg?.pal?.sky?.[0] ?? 0x3a5a8a, bot = reg?.pal?.sky?.[1] ?? 0xc8d8e8;
+    A(P, sc.add.graphics(), 204).fillGradientStyle(top, top, bot, bot, 1).fillRect(x, y, w, h);
+    const gH = 16;
+    try {
+      const gk = paintPreview(sc, `cz_flat_${Z.id}`, flatGrid(), reg), gs = (w + 8) / 512;
+      const gi = A(P, sc.add.image(x - 4, y + h - gH - 7 * 16 * gs + 4, gk).setOrigin(0).setScale(gs), 205);
+      gi.setCrop(0, 7 * 16 - 6, 512, Math.max(1, (gH - 3) / gs));
+    } catch (e) {
+      rect(x, y + h - gH, w, gH, reg?.pal?.top ?? 0x5a7a3a, 1, 205);
+    }
+    A(P, sc.add.rectangle(x - 1, y - 1, w + 2, h + 2).setStrokeStyle(2, 0x25262a).setOrigin(0), 207);
+    A(P, sc.add.rectangle(x - 2, y - 2, w + 4, h + 4).setStrokeStyle(1, 0x8a8c90, 0.8).setOrigin(0), 207);
+    const spec = SPECS[id], isFoe = !!spec?.model, key = (boss ? "b_" : "e_") + id;
+    const spr = A(P, sc.add.sprite(x + w / 2, y + h - gH + 4, "__DEFAULT").setOrigin(0.5, 1).setVisible(!1), 206);
+    const wait = H.dt(x + w / 2, y + h / 2 - 6, "그리는 중…", "tiny", "#f2e6c4").setOrigin(0.5, 0);
+    const s0 = { spr, id, spec, key, isFoe, ready: !1, names: [], cur: null, t: 0, frames: [], fps: 6, loop: !0, hold: 0, order: 0, mode: S.anim, box: [x, y, w, h], wait, dark: !kills(id) };
+    P._anims.push(s0);
+    tryReady(s0);
+    return s0;
+  }
+  function tryReady(s0) {
+    if (s0.ready) return;
+    const { spec, key, isFoe } = s0;
+    if (isFoe ? !spec._fi || !sc.textures.exists(key) : !sc.textures.exists(key)) return;
+    s0.ready = !0;
+    s0.wait.setVisible(!1);
+    const f0 = sc.textures.get(key).get(0), [, , w, h] = s0.box;
+    let s = Math.min((h - 14) / f0.height, (w - 10) / f0.width);
+    s = s >= 2 ? 2 : s >= 1 ? 1 : Math.max(0.35, Math.round(s * 10) / 10);
+    s0.spr.setTexture(key, 0).setScale(s).setVisible(!0);
+    s0.dark && s0.spr.setTint(0x1a1410);
+    s0.names = isFoe ? Object.keys(spec.anims).filter((nm) => spec._fi[nm]?.length) : ["idle", "move"].filter((nm) => sc.anims.exists(`${key}_${nm}`));
+    s0.names.length || (s0.names = ["idle"]);
+    play(s0, s0.mode && s0.names.includes(s0.mode) ? s0.mode : s0.names[0]);
+    s0.cb?.(s0);
+  }
+  function play(s0, nm) {
+    s0.cur = nm;
+    s0.t = 0;
+    s0.hold = 0;
+    if (s0.isFoe) {
+      const a = s0.spec.anims[nm];
+      s0.frames = s0.spec._fi[nm] ?? [0];
+      s0.fps = a?.[1] ?? 6;
+      s0.loop = a?.[2] ?? !0;
+    } else {
+      const an = sc.anims.get(`${s0.key}_${nm}`);
+      s0.frames = an ? an.frames.map((f) => f.textureFrame) : [0];
+      s0.fps = an?.frameRate ?? 6;
+      s0.loop = !0;
+    }
+  }
+  function animChips(s0, x, y, w) {
+    const draw = () => {
+      s0.chips?.forEach((c) => c.destroy());
+      s0.chips = [];
+      let cx = x, cy = y;
+      for (const nm of ["전체", ...s0.names]) {
+        const lab = nm === "전체" ? "▶ 전체" : ANIM_KO[nm] ?? nm, on = (nm === "전체" && !S.anim) || nm === S.anim;
+        const t = P.t(0, 0, lab, "tiny", on ? "#f6e4c8" : "#4a2b16").setDepth(208);
+        const bw = t.width + 8;
+        if (cx + bw > x + w) ((cx = x), (cy += 12));
+        if (cy > Y1 - 10) (t.destroy());
+        else {
+          const bg = A(P, sc.add.rectangle(cx, cy, bw, 11, on ? 0x3a302a : 0xe0c49c, 1).setOrigin(0).setStrokeStyle(1, 0x3a302a, 0.8), 207);
+          t.setPosition(cx + 4, cy + 1);
+          bg.setInteractive({ useHandCursor: !0 }).on("pointerdown", () => {
+            j.play("click");
+            S.anim = nm === "전체" ? null : nm;
+            s0.mode = S.anim;
+            play(s0, S.anim ?? s0.names[0]);
+            s0.order = 0;
+            draw();
+          });
+          s0.chips.push(bg, t);
+        }
+        cx += bw + 3;
+      }
+    };
+    s0.ready ? draw() : (s0.cb = () => draw());
+  }
+  function stamp(x, y, txt) {
+    A(P, sc.add.circle(x, y, 13).setStrokeStyle(2, 0xa02818, 0.8), 209).setRotation(-0.25);
+    H.at(x, y - 5, txt, "tiny", "#a02818").setOrigin(0.5, 0).setRotation(-0.25).setDepth(210);
+  }
+  function startTimer() {
+    P._timer = sc.time.addEvent({
+      delay: 1000 / 30, loop: !0,
+      callback: () => {
+        if (P._pend.length && (P._pt = (P._pt ?? 0) + 1) % 15 === 0 && P._pend.some((id) => SPECS[id]?._fi && (sc.textures.exists("e_" + id) || sc.textures.exists("b_" + id)))) return void P.render();
+        for (const s0 of P._anims) {
+          if (!s0.ready) { tryReady(s0); continue; }
+          if (!s0.spr.active) continue;
+          s0.t += 1 / 30;
+          const n2 = s0.frames.length, k = Math.floor(s0.t * s0.fps);
+          let f;
+          if (s0.loop) f = s0.frames[k % n2];
+          else ((f = s0.frames[Math.min(n2 - 1, k)]), k >= n2 && (s0.hold += 1 / 30));
+          s0.spr.setFrame(f ?? 0);
+          if (!s0.mode && s0.names.length > 1) {
+            const dur = s0.loop ? Math.max(1.4, (2 * n2) / s0.fps) : n2 / s0.fps + 0.5;
+            s0.t >= dur && ((s0.order = (s0.order + 1) % s0.names.length), play(s0, s0.names[s0.order]));
+          } else if (!s0.loop && s0.hold > 0.6) ((s0.t = 0), (s0.hold = 0));
+        }
+      },
+    });
+  }
+}
+const ALB_LABEL = "#76563f";
+const cutName = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+const flatGrid = () => patGrid("flat", 0);

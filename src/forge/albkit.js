@@ -325,7 +325,7 @@ export function makeArt(scene) {
 export function pillKey(scene, w, hh, style = "navy", hov = 0) {
   const k = `alb_pill_${w}x${hh}_${style}_${hov}`;
   if (scene.textures.exists(k)) return k;
-  const body = style === "red" ? [0xb8283a, 0x5a0a12] : style === "paper" ? [0xe0c098, 0xb89470] : style === "off" ? [0x4a4a4e, 0x2a2a2e] : [0x4c4f5e, 0x23252f];
+  const body = style === "red" ? [0xb8283a, 0x5a0a12] : style === "paper" ? [0xe0c098, 0xb89470] : style === "off" ? [0x4a4a4e, 0x2a2a2e] : style === "steel" ? [0x8c8884, 0x5c5854] : style === "green" ? [0x5a8a2a, 0x2a4a10] : [0x4c4f5e, 0x23252f];
   const c = cv(w, hh, (r) => {
     const rad = Math.floor(hh / 2);
     for (let y = 0; y < hh; y++)
@@ -346,8 +346,8 @@ export function pillKey(scene, w, hh, style = "navy", hov = 0) {
   return put(scene, k, c);
 }
 // 초상 원 (지름 s) — 플레이어 머리를 2배로
-export function portraitKey(scene, s, spriteKey) {
-  const k = `alb_portrait_${s}_${spriteKey}`;
+export function portraitKey(scene, s, spriteKey, cx = 11, cy = 4) {
+  const k = `alb_portrait_${s}_${spriteKey}_${cx}_${cy}`;
   if (scene.textures.exists(k)) return k;
   const c = cv(s, s, (r, x) => {
     const c0 = (s - 1) / 2;
@@ -366,7 +366,7 @@ export function portraitKey(scene, s, spriteKey) {
       x.clip();
       x.imageSmoothingEnabled = !1;
       // 얼굴 부분 (x 11~23, y 4~16) → 2배
-      x.drawImage(f.source.image, f.cutX + 11, f.cutY + 4, 12, 12, Math.round(c0 - 11.5), Math.round(c0 - 11.5), 24, 24);
+      x.drawImage(f.source.image, f.cutX + cx, f.cutY + cy, 12, 12, Math.round(c0 - 11.5), Math.round(c0 - 11.5), 24, 24);
       x.restore();
     }
   });
@@ -396,6 +396,73 @@ export function medalKey(scene, s, kind) {
       r(ox + 6, oy + 4, 4, 5, 0xe0b040);
       r(ox + 7, oy + 6, 2, 2, 0x3a2a10);
       r(ox + 6, oy + 4, 4, 1, 0xfff0a0);
+    }
+  });
+  return put(scene, k, c);
+}
+// ── 어두운 나무 머리띠 (상점·거래소 창 위쪽 · 실측 #43342d, 결 #382d27, 밝은 결 #927f6e) ── 위 모서리 둥글다, 아래는 철 띠
+export function woodHeadKey(scene, w, hh, seed = 3) {
+  const k = `alb_woodhead_${w}x${hh}_${seed}`;
+  if (scene.textures.exists(k)) return k;
+  const c = cv(w, hh, (r) => {
+    for (let y = 0; y < hh; y++)
+      for (let x = 0; x < w; x++) {
+        // 위 모서리만 둥글게
+        if (y < 4 && edgeRR(x, y, w, hh + 8, 4) < 0) continue;
+        const e = Math.min(x, y, w - 1 - x);
+        // 판자: 가로 결, 판자 경계 11px마다
+        const plank = Math.floor((y + (H(Math.floor(x / 90), 0, seed) * 6 | 0)) / 11);
+        let col = sh(0x46372f, (H(plank, 1, seed) - 0.5) * 0.16);
+        const grain = VN(x * 0.25, y * 2.2, 3, seed + plank) - 0.5;
+        col = sh(col, grain * 0.32 + (H(x, y, seed) - 0.5) * 0.06);
+        H(x >> 3, y, seed + 9) > 0.96 && (col = sh(col, 0.35));
+        (y + (H(Math.floor(x / 90), 0, seed) * 6 | 0)) % 11 === 0 && (col = 0x231a15);
+        // 철 테두리
+        if (e === 0) col = 0x0c0c0e;
+        else if (e === 1) col = y < 3 ? 0x8a8a90 : 0x5a5a60;
+        else if (e === 2) col = sh(col, -0.25);
+        if (y >= hh - 4) col = y === hh - 4 ? 0x0c0c0e : y === hh - 3 ? 0x6a6a70 : y === hh - 2 ? 0x3a3a40 : 0x141416;
+        r(x, y, 1, 1, col);
+      }
+  });
+  return put(scene, k, c);
+}
+// ── 안쪽 판 (구역 상자): 종이보다 살짝 어둡고, 위·왼쪽이 파인 홈 ──
+export function insetKey(scene, w, h, seed = 1, tone = -0.07) {
+  const k = `alb_inset_${w}x${h}_${seed}_${tone}`;
+  if (scene.textures.exists(k)) return k;
+  const c = cv(w, h, (r) => {
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        if (edgeRR(x, y, w, h, 2) < 0) continue;
+        const e = Math.min(x, y, w - 1 - x, h - 1 - y);
+        let col = sh(mix(0xd8b08c, 0xb48c70, y / h), tone + (VN(x, y, 10, seed) - 0.5) * 0.06 + (H(x, y, seed) - 0.5) * 0.03);
+        if (e === 0) col = x === 0 || y === 0 ? 0x7a5a42 : 0xf0d4b0;
+        else if (e === 1 && (x === 1 || y === 1)) col = sh(col, -0.12);
+        r(x, y, 1, 1, col);
+      }
+  });
+  return put(scene, k, c);
+}
+// ── 작은 문장 원 (지름 s, 안에 아이콘) ──
+export function iconMedalKey(scene, s, iconKey, done = 1) {
+  const k = `alb_imedal_${s}_${iconKey}_${done}`;
+  if (scene.textures.exists(k)) return k;
+  const c = cv(s, s, (r, x) => {
+    const c0 = (s - 1) / 2;
+    for (let y = 0; y < s; y++)
+      for (let X = 0; X < s; X++) {
+        const d = Math.hypot(X - c0, y - c0);
+        if (d > s / 2) continue;
+        r(X, y, 1, 1, d > s / 2 - 1 ? 0x1a1410 : d > s / 2 - 2.5 ? (done ? (y < c0 ? 0xf0d488 : 0x9a6a28) : y < c0 ? 0xb8bcc8 : 0x5a5e6a) : mix(0x4a5058, 0x22262c, y / s));
+      }
+    if (iconKey && scene.textures.exists(iconKey)) {
+      const f = scene.textures.getFrame(iconKey);
+      const z = f.width <= 12 && s >= 20 ? 1 : Math.min(1, (s - 6) / f.width);
+      x.imageSmoothingEnabled = !1;
+      x.globalAlpha = done ? 1 : 0.45;
+      x.drawImage(f.source.image, f.cutX, f.cutY, f.width, f.height, Math.round(c0 + 0.5 - (f.width * z) / 2), Math.round(c0 + 0.5 - (f.height * z) / 2), f.width * z, f.height * z);
+      x.globalAlpha = 1;
     }
   });
   return put(scene, k, c);

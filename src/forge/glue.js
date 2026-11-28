@@ -4308,7 +4308,7 @@ export function panelFrame(P, S, title) {
   return SCR.panelFrame(P, S, title, R);
 }
 export function makeHubPanels() {
-  if (R) return SCR.makeScreens(R, { mkItem, kindOf, itemIcon, IT, sd, STARTER, elCss, shopPrice, matCost, hubSellPrice, rarityDeco, BAG_MAX, refresh: (sc) => sc.player?.applyStats?.(hubStats(sc)) });
+  if (R) return SCR.makeScreens(R, { mkItem, kindOf, itemIcon, albIcon, IT, sd, STARTER, elCss, shopPrice, matCost, hubSellPrice, rarityDeco, BAG_MAX, refresh: (sc) => sc.player?.applyStats?.(hubStats(sc)) });
   return makeHubPanelsOld();
 }
 function makeHubPanelsOld() {

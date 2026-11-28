@@ -639,7 +639,77 @@ export function hurtMod(player, S, C) {
 
 // ── 시전 ─────────────────────────────────────────────
 export const isFr = (id) => typeof id == "string" && id.startsWith("fr");
+// ── 시전 준비 동작 (2026-11-28) ─────────────────────────
+//   마법 전부 + 쿨타임 4초 이상 스킬은 누르면 바로 나가지 않고, 준비 시간 동안 손에 빛이 모인다 (영웅·전설은 발밑 마법진)
+//   준비 시간 = 희귀도가 높을수록 길게 (마법 0.25~0.75초, 스킬 0.2~0.6초). 준비 중에는 걸음이 절반, 맞아도 끊기지 않는다
+//   마나·쿨타임은 준비가 끝나 실제로 나갈 때 쓴다
+const RAR_I = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+function windupOf(sk, S, it) {
+  const kind = it.kind ?? IT.BASE[it.id]?.kind;
+  const r = RAR_I[IT.RARITY_OF(it)] ?? 0;
+  if (kind === "magic") return 0.25 + r * 0.125;
+  if (kind === "skill" && (sk.nums(sk.slots[S])?.cooldown ?? 0) >= 4) return 0.2 + r * 0.1;
+  return 0;
+}
 export function cast(sk, S, T) {
+  const id = sk.slots[S], sc = sk.p.host, fr = sc.fr, it = fr?.slotItems?.[id];
+  if (!it || sk.cds[S] > 0 || sk.p.dead) return;
+  if (fr.windup) return;
+  const ch = fr.chain[S];
+  const w = ch && ch.t > 0 ? 0 : windupOf(sk, S, it);
+  if (w <= 0) return castNow(sk, S, T);
+  // 마나가 모자라면 준비 없이 바로 (castNow가 "마나 부족"을 띄운다)
+  const mana = itemMana(it);
+  if (mana > 0 && !castMods(it).bloodCast && fr.mana < mana) return castNow(sk, S, T);
+  const p = sk.p, col = it.el ? elColor(it.el) : rarityColor(it), rar = IT.RARITY_OF(it);
+  fr.windup = { t: 0, w, S, T: { ...T }, sk, col, big: RAR_I[rar] >= 3, g: sc.add.graphics().setDepth(12), fxT: 0 };
+  p.castT = w + 0.05;
+  p.castSlow = 0.5;
+  R.j.play("magic", 0.5);
+}
+export function windupTick(sc, dt) {
+  const W = sc.fr?.windup;
+  if (!W) return;
+  const p = sc.player;
+  if (!p || p.dead || sc.dying || sc.frLoad) return endWindup(sc);
+  W.t += dt;
+  const f = Math.min(1, W.t / W.w), hx = p.cx + p.facing * 9, hy = p.body.y - 16;
+  p.castT = Math.max(p.castT, 0.05);
+  // 손에 모이는 빛: 바깥에서 안으로 빨려 드는 알갱이 + 커지는 빛 공
+  W.fxT -= dt;
+  if (W.fxT <= 0) {
+    W.fxT = 0.03;
+    const a = Math.random() * Math.PI * 2, d = 26 * (1 - f) + 10;
+    sc.fx.burst("glow", hx + Math.cos(a) * d, hy + Math.sin(a) * d, 1, W.col);
+  }
+  const g = W.g.clear();
+  g.fillStyle(W.col, 0.18 + 0.3 * f).fillCircle(hx, hy, 3 + 6 * f);
+  g.fillStyle(0xffffff, 0.5 + 0.4 * f).fillCircle(hx, hy, 1.5 + 2 * f);
+  // 영웅·전설: 발밑 마법진 (안팎 고리 + 도는 룬 점)
+  if (W.big) {
+    const R0 = 16 + 10 * f, y0 = p.body.y - 1, rot = W.t * 4;
+    g.fillStyle(W.col, 0.08 + 0.12 * f).fillEllipse(p.cx, y0, R0 * 2, R0 * 0.5);
+    g.lineStyle(2, W.col, 0.5 + 0.5 * f).strokeEllipse(p.cx, y0, R0 * 2, R0 * 0.5);
+    g.lineStyle(1, 0xffffff, 0.3 + 0.4 * f).strokeEllipse(p.cx, y0, R0 * 1.4, R0 * 0.34);
+    for (let i = 0; i < 6; i++) {
+      const a = rot + (i * Math.PI) / 3;
+      g.fillStyle(W.col, 0.8 * f).fillRect(p.cx + Math.cos(a) * R0 - 1, y0 + Math.sin(a) * R0 * 0.25 - 1, 2, 2);
+    }
+  }
+  if (W.t < W.w) return;
+  const { sk, S, T } = W;
+  endWindup(sc);
+  sc.fx.burst("spark", hx, hy, 8, W.col);
+  castNow(sk, S, T);
+}
+function endWindup(sc) {
+  const W = sc.fr?.windup;
+  if (!W) return;
+  W.g.destroy();
+  sc.fr.windup = null;
+  sc.player && (sc.player.castSlow = 1);
+}
+function castNow(sk, S, T) {
   const id = sk.slots[S];
   const sc = sk.p.host;
   const fr = sc.fr;
@@ -1703,6 +1773,7 @@ export function update(sc, dt) {
   const p = sc.player;
   recallTick(sc, dt);
   oxygenTick(sc, dt);
+  windupTick(sc, dt);
   FOES.updateZones(sc, dt);
   // 중간 보스 등장 알림
   for (const e of sc.enemies)

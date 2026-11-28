@@ -12379,6 +12379,7 @@ class Ws {
     return (
       this.stats.armorId === "cloth" && this.stats.armorPerk5 && this.dashFollowT < 0.6 && (S *= 1.2),
       (S *= this.statuses.slowMult() || 0),
+      (S *= this.castSlow ?? 1),
       this.surface.quicksand && (S *= 0.5),
       S
     );

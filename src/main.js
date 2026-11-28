@@ -8660,10 +8660,10 @@ class Bn extends zt.Scene {
     this.wipeTimer = null;
     // 새 타이틀 (2026-11-28): 거점 마을 배경 · 단조 로고 · 철판 메뉴 (forge/title2.js)
     const items = [
-      { label: this.recovered ? "지난 탐험 이어보기" : "모험 시작", sub: this.recovered ? "끝나지 않은 탐험의 기록" : "갈림길 요새에서 다음 전설을 벼려라", primary: true, act: () => this.go() },
-      { label: "기록 게시판", sub: "최고 기록 · 업적 · 도감", col: 0, act: () => this.openPanel(() => new (FG.panels().Board)(this, () => this.closePanel())) },
-      { label: "설정", sub: "소리 · 화면 · 조작법", col: 1, act: () => this.openPanel(() => new dr(this, () => this.closePanel(), () => {})) },
-      { label: "데이터 초기화", sub: "한 번 더 누르면 모든 진행이 삭제됩니다", small: true,
+      { label: this.recovered ? "지난 탐험 이어보기" : "모험 시작", sub: "", primary: true, act: () => this.go() },
+      { label: "기록 게시판", sub: "", col: 0, act: () => this.openPanel(() => new (FG.panels().Board)(this, () => this.closePanel())) },
+      { label: "설정", sub: "", col: 1, act: () => this.openPanel(() => new dr(this, () => this.closePanel(), () => {})) },
+      { label: "데이터 초기화", sub: "", small: true,
         act: () => {
           if (!this.wipeArmed) {
             this.wipeArmed = true;
@@ -8679,8 +8679,8 @@ class Bn extends zt.Scene {
     const T2 = FG.buildTitle(this, {
       ground: bt,
       items,
-      record: `탐험 ${it.data.runs ?? 0}회  ·  골드 ${yt(it.data.gold ?? 0)}`,
       version: "v0.2",
+      stats: { runs: it.data.runs ?? 0, gold: it.data.gold ?? 0, zones: FG.seenCount?.() ?? 0, zonesMax: 48, bosses: Object.keys(it.data.bossKills ?? {}).filter((k) => k.startsWith("frb") && it.data.bossKills[k] > 0).length, bossesMax: 12 },
       onPick: (i, act) => { if (this.panelOpen || this.started) return; this.pick(i); act && this.activate(); },
     });
     this.t2 = T2;
@@ -8691,7 +8691,9 @@ class Bn extends zt.Scene {
     this.input.on("pointerdown", () => T2.isDone() || T2.finish());
     this.pick(0, true);
     const key = (k, f) => this.input.keyboard.on("keydown-" + k, () => { if (!this.panelOpen && !this.started) f(); });
-    const move = (d) => this.pick((this.menuSel + d + this.menu.length) % this.menu.length);
+    // 메뉴가 가로로 놓인 시안(C)은 화면 순서대로 움직인다
+    const order = T2.order ?? this.menu.map((_, i) => i);
+    const move = (d) => this.pick(order[(order.indexOf(this.menuSel) + d + order.length) % order.length]);
     key("UP", () => move(-1));
     key("W", () => move(-1));
     key("DOWN", () => move(1));

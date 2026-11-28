@@ -495,6 +495,30 @@ export function darkPanelKey(scene, w, h, seed = 2) {
   });
   return put(scene, k, c);
 }
+// ── 솟은 받침 (명령 띠 가운데): 비스듬한 어깨 · 위·옆 쇠 테 · 아래는 띠와 이어진다 ──
+export function raisedKey(scene, w, h, sl = 14, seed = 4) {
+  const k = `alb_raised_${w}x${h}_${sl}_${seed}`;
+  if (scene.textures.exists(k)) return k;
+  const c = cv(w, h, (r) => {
+    // 왼쪽·오른쪽 경계 (위로 갈수록 안쪽): x0(y) = sl * (1 - y / h)
+    const x0 = (y) => Math.round(sl * (1 - y / (h - 1)));
+    for (let y = 0; y < h; y++) {
+      const a = x0(y), b = w - 1 - x0(y);
+      for (let x = a; x <= b; x++) {
+        const e = Math.min(x - a, b - x, y);
+        let col = mix(0x2e2d33, 0x16161a, y / h);
+        col = sh(col, (VN(x, y, 8, seed) - 0.5) * 0.12 + (H(x, y, seed) - 0.5) * 0.05);
+        if (e === 0) col = 0x08080a;
+        else if (e === 1) col = y <= 1 ? 0x9a9aa2 : x - a <= 1 ? 0x7a7a82 : 0x3a3a40;
+        else if (e === 2) col = 0x101012;
+        else if (e === 4 && y < h - 2) col = mix(0x4a3e38, 0x2e2622, y / h);
+        r(x, y, 1, 1, col);
+      }
+    }
+    for (let x = sl + 6; x < w - sl - 6; x++) r(x, 5, 1, 1, 0xffffff, 0.05);
+  });
+  return put(scene, k, c);
+}
 // 게이지 홈 + 채움 (너비 w)
 export function gaugeKey(scene, w, frac) {
   const n = Math.round(Math.max(0, Math.min(1, frac)) * (w - 2));

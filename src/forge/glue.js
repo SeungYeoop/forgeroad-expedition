@@ -10,6 +10,7 @@ import { showLoad } from "./loadscreen.js";
 import { warmProps, prepaintStep } from "./terrain.js";
 import * as PROPS from "./props3d.js";
 import * as FOES from "./foes/core.js";
+import * as SLIME from "./foes/slimefx.js";
 import "./foes/rg0.js";
 import "./foes/regions.js"; // 새 지역 몬스터 행동 (모스바크·그린스텝·스톤브리지·리프크라운·아이언베인·드립스톤·루트홀로우)
 import { sahar } from "./foes/m6.js";
@@ -3971,6 +3972,37 @@ FOES.register("frb2", grauk);
 FOES.register("frb3", globrak);
 export const foeDef = (d) => FOES.foeDef(d);
 export const foeThink = (e, dt) => FOES.think(e, dt);
+export const foeGoHome = (e) => FOES.goHome(e);
+// 투사체 그림 키 확인: 없으면 만들 수 있는 것(점액 sl_*)은 만들고, 그래도 없으면 기본 구슬 (2026-11-28)
+const PROJ_WARNED = new Set();
+export function projTex(host, key) {
+  const tm = host?.ph?.textures ?? host?.textures;
+  if (!tm || !key || tm.exists(key)) return key;
+  if (/^sl_/.test(key) && host.fx) {
+    try {
+      SLIME.slimeFx(host);
+    } catch {}
+    if (tm.exists(key)) return key;
+  }
+  PROJ_WARNED.has(key) || (PROJ_WARNED.add(key), console.warn("[투사체] 없는 그림:", key));
+  return tm.exists("p_orb") ? "p_orb" : key;
+}
+// 몬스터 눈 → 플레이어 몸 사이에 바위가 있나 (0.2초마다 한 번 계산, e._blindFor = 못 본 시간)
+export function foeSees(e, p, dt) {
+  e._blindFor = e._blindFor ?? 0;
+  if ((e._losT = (e._losT ?? 0) - dt) > 0) return (e._los || (e._blindFor += dt), e._los ?? !0);
+  e._losT = 0.2;
+  const W = e.host?.world;
+  let ok = !0;
+  if (W?.solidAtPx) {
+    const x0 = e.cx, y0 = e.body.y - e.body.h * 0.75, x1 = p.cx, y1 = p.body.y - 14;
+    const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 6);
+    for (let i = 1; i < n && ok; i++) W.solidAtPx(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n) && (ok = !1);
+  }
+  e._los = ok;
+  ok ? (e._blindFor = 0) : (e._blindFor += dt);
+  return ok;
+}
 export const foeReady = (id) => FOES.hasSpec(id);
 // ── 몬스터 영역: 태어난 구역 + 층(하늘섬·땅·지하) + 집에서 가로 480px(정예 600px) ──
 // 플레이어가 영역을 벗어나면 쫓기를 그만두고 집으로 돌아가며, 그동안(그리고 플레이어가 밖에 있는 동안) 체력이 차오른다
@@ -4245,13 +4277,15 @@ const onGround = (world, t) => ({ tile: t, row: world.groundRowAt(t), py: world.
 function exitPos(world, z, at) {
   if (at === "L") return onGround(world, z.c0 * 32 + 3);
   if (at === "R") return onGround(world, z.c1 * 32 - 4);
+  // ▲▼ 문은 설계의 꼭대기·바닥 자리가 든 조각에 있다 (맵 맨 위·맨 아래로 옮겼다, 2026-11-28)
+  const P = world.scene && ZG.exitsOf(z, planOpts(world.scene, z).seed);
   if (at === "U") {
-    const c = ZN.upChunk(z), pk = world.gen.get(c).peak;
+    const c = P?.peak ? z.c0 + Math.floor(P.peak.x / 512) : ZN.upChunk(z), pk = world.gen.get(c).peak;
     return pk ? { tile: c * 32 + pk.x, row: pk.row, py: pk.py ?? pk.row * 16 } : onGround(world, flatTile(world, c * 32 + 16));
   }
   if (at === "D") {
     // 하늘 구역의 ▼ 문은 맨 아래 지면 (동굴이 없다)
-    const c = ZN.downChunk(z), dp = z.y < 0 ? null : world.gen.get(c).deep;
+    const c = P?.deep ? z.c0 + Math.floor(P.deep.x / 512) : ZN.downChunk(z), dp = z.y < 0 ? null : world.gen.get(c).deep;
     return dp ? { tile: c * 32 + dp.x, row: dp.row, py: dp.py ?? dp.row * 16 } : onGround(world, flatTile(world, c * 32 + 16));
   }
   return onGround(world, flatTile(world, ZN.dungeonChunk(z) * 32 + 16));

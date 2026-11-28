@@ -468,6 +468,14 @@ export function think(e, dt) {
   if (!s) return "idle";
   let fz = e.fz;
   if (!fz) {
+    // 천장에 매달리는 몬스터는 실제 천장 밑으로 옮긴다 — 천장을 못 찾으면 내보내지 않는다 (허공에 매달려 보이던 문제)
+    //   (지우기는 다음 틱에: 이 프레임 엔진이 아직 그림을 만진다)
+    if (HANGERS.has(e.def.id) && !e.opts?.summoned && !e._unhung && !anchorCeil(e)) {
+      e._unhung = 1;
+      e.sprite?.setVisible(!1);
+      e.host.time.delayedCall(0, () => e.remove?.());
+    }
+    if (e._unhung) return "idle";
     fz = e.fz = { anim: { name: "idle", fps: 5, loop: !0, t: 0 }, temp: [], wait: 0, gen: null, last: e.life, teleT: 0, mem: {} };
     e.fA = actions(e);
     s.init && s.init(e, e.fA);
@@ -502,6 +510,44 @@ export function think(e, dt) {
     else fz.wait = r.value ?? 0;
   }
   return "foe";
+}
+// ── 천장 매달이 ──
+// 그림 맨 위(실·가지·뿌리 끝)가 천장에 닿아야 하는 몬스터 (2026-11-28)
+const HANGERS = new Set(["ds_bat", "ds_mimic", "lc_larva", "mr_vinesnake", "mr_glowworm", "wc_pupa"]);
+const HANG_REACH = 260; // 위로 천장을 찾는 거리 (px)
+// 자리 x에서 y부터 위로 올라가며 첫 천장 밑면(바로 아래 공기 첫 줄)을 찾는다. 몸 폭 양끝도 천장이어야 한다
+function ceilBelow(W, x, y, half) {
+  if (W.solidAtPx(x, y - 6)) return null;
+  for (let yy = y - 6; yy > y - HANG_REACH; yy -= 4) {
+    if (!W.solidAtPx(x, yy)) continue;
+    let c = yy;
+    while (c < yy + 4 && W.solidAtPx(x, c + 1)) c++;
+    for (const dx of [-half, half]) if (!W.solidAtPx(x + dx, c - 2)) return null;
+    return c + 1;
+  }
+  return null;
+}
+function anchorCeil(e) {
+  const W = e.host?.world;
+  if (!W?.solidAtPx) return !0;
+  const y0 = e._hy ?? e.body.y, x0 = e.homeX ?? e.cx;
+  const Hs = e.sprite?.displayHeight ?? e.body.h, half = Math.max(3, Math.min(10, (e.body.w ?? 12) / 2));
+  for (let k = 0; k <= 20; k++)
+    for (const sg of k ? [1, -1] : [1]) {
+      const x = x0 + sg * k * 16, c = ceilBelow(W, x, y0, half);
+      if (c == null) continue;
+      // 발(그림 밑) = 천장 + 그림 높이 (그림 맨 위가 천장에 붙는다)
+      const fy = c + Hs - 1;
+      e.homeX = x;
+      e._hy = fy;
+      e.body.x = x;
+      e.body.y = fy;
+      e.body.vx = e.body.vy = 0;
+      e.sprite?.setPosition(x, fy);
+      e._terr = null;
+      return !0;
+    }
+  return !1;
 }
 // 하던 행동을 버리고 집으로
 export function goHome(e) {

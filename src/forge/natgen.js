@@ -81,8 +81,13 @@ export function planOf(z, o) {
   best.ms = Math.round(((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0) * 10) / 10;
   while (PLANS.size >= 7) PLANS.delete(PLANS.keys().next().value);
   PLANS.set(key, best);
+  noteExits(key, best);
   return best;
 }
+// ▲▼ 문 자리는 설계 캐시(7개)에서 밀려나도 남겨 둔다 — 문 물체·도착 자리를 찾을 때 쓴다 (2026-11-28)
+const EXITS = new Map();
+const noteExits = (key, P) => EXITS.set(key, { peak: P.peak ? { x: P.peak.x, y: P.peak.y } : null, deep: P.deep ? { x: P.deep.x, y: P.deep.y } : null });
+export const exitsOf = (z, seed) => EXITS.get(`${z.id}:${seed}`) ?? null;
 
 // ── 다른 스레드(natworker)에서 만든 설계를 주고받기 ──
 export const planKey = (z, seed) => `${z.id}:${seed}`;
@@ -107,6 +112,7 @@ export function adoptPlan(z, seed, data) {
   PLANS.delete(key);
   while (PLANS.size >= 7) PLANS.delete(PLANS.keys().next().value);
   PLANS.set(key, P);
+  noteExits(key, P);
   return P;
 }
 export function makePlan(z, o, attempt) {
@@ -166,12 +172,377 @@ export function makePlan(z, o, attempt) {
   P.check = { ok: A.ok, score: A.score, miss: A.miss, traps: A.trapCount, repairs: P.repairs };
   P.A = A;
   finishMeta(P, A);
+  // 다듬기 (2026-11-28): 물·사다리를 바로잡고, 길이 끊기거나 갇히는 곳이 생기면 되돌린다
+  //   물과 사다리를 따로 검사해서 나빠진 쪽만 되돌린다
+  for (const [fix, bit] of [[settleWater, 1], [fixClimbs, 2], [linkUnreached, 4]]) {
+    const spec0 = P.spec.slice(), fd0 = bit === 2 ? P.F.d.slice() : null;
+    const carved = fix(P, A);
+    bit === 4 && (P.linkAdd = carved);
+    if (!carved && P.spec.length === spec0.length && P.spec.every((r, i) => r === spec0[i])) continue;
+    const t2 = now(), A2 = analyze(P);
+    P.tm.an += now() - t2;
+    if (A2.miss.length > A.miss.length || A2.trapCount > A.trapCount) {
+      // 디버그(globalThis.__polishDbg): 되돌리기 전 상태를 남긴다 (tools/_climbdbg.mjs)
+      globalThis.__polishDbg && (P._dbg = { bit, spec0, spec1: P.spec, Fd: P.F.d.slice(), A, A2 });
+      ((P.spec = spec0), (P.polishReverted = (P.polishReverted ?? 0) | bit));
+      fd0 && P.F.d.set(fd0);
+    }
+    else ((A = A2), (P.A = A2), (P.check = { ...P.check, ok: A2.ok, score: A2.score, miss: A2.miss, traps: A2.trapCount }));
+  }
+  P.polishReverted !== 3 && finishMeta(P, A);
+  relocateExits(P);
   P.kind === "ground" && P.h && clipWalls(P);
+  patchWalls(P);
   placeDeco(P);
   P.bp && placeProps(P);
+  propSupport(P);
+  // 무너지는 판·도개교 위 소품은 판이 움직이면 허공에 남는다 → 놓지 않는다 (2026-11-28)
+  P.props &&= P.props.filter((p) => p.bg || p.hang || !P.spec.some((r) => (r.t === 13 || r.t === 21) && p.x >= r.x0 - 2 && p.x < r.x1 + 2 && p.y + 1 >= r.y0 - 4 && p.y + 1 < r.y1 + 4));
   for (const r of P.spec) if (DYN_SPEC.has(r.t)) cutShape(P, r.x0 - 4, r.y0 - 4, r.x1 + 4, r.y1 + 4, (px, py) => Math.min(px - r.x0, r.x1 - px, py - r.y0, r.y1 - py) + 0.5);
   P.spec.some((r) => DYN_SPEC.has(r.t)) && blockSnap(P);
   return P;
+}
+// 고인 물 바로잡기 (2026-11-28): 고인 물은 아래와 양옆이 막힌 곳에만 있어야 한다
+//   8px 기둥마다 밑이 바위(또는 다른 물)인지 보고, 밑이 막힌 기둥끼리 묶는다.
+//   묶음 양옆 벽 높이 중 낮은 쪽까지만 물을 채운다 (벽보다 높이 솟은 물을 낮춘다). 옆이 트였거나 1칸도 안 남으면 지운다
+function settleWater(P) {
+  // 이웃 물에 기댄 조각이 있으니, 바뀌지 않을 때까지 몇 번 되풀이
+  for (let it = 0; it < 4 && settleWater1(P); it++);
+}
+function settleWater1(P) {
+  const { F, WP, HP } = P;
+  const isW = (t) => t === 3 || t === 11 || t === 12;
+  const water = P.spec.filter((r) => isW(r.t));
+  if (!water.length) return !1;
+  const sol = (x, y) => y >= HP || x < 0 || x >= WP || (y >= 0 && F.solid(x, y));
+  const inOther = (r, x, y) => water.some((q) => q !== r && x >= q.x0 && x < q.x1 && y >= q.y0 && y < q.y1);
+  // 기둥 x의 벽 윗면 (물 밑바닥 바로 위부터 위로 이어진 바위). 트였으면 null, 이웃 물과 이어지면 물 윗면
+  const rim = (r, x) => {
+    if (inOther(r, x, r.y1 - 4)) return r.y0;
+    if (!sol(x, r.y1 - 4)) return null;
+    let y = r.y1 - 4;
+    while (y > r.y0 - 8 && sol(x, y - 4)) y -= 4;
+    return y;
+  };
+  const out = [];
+  let moved = 0;
+  for (const r of water) {
+    const n = Math.round((r.x1 - r.x0) / 8), ok = [];
+    for (let i = 0; i < n; i++) ok.push(sol(r.x0 + i * 8 + 4, r.y1 + 3) || inOther(r, r.x0 + i * 8 + 4, r.y1 + 3));
+    for (let i = 0; i < n; ) {
+      if (!ok[i]) {
+        i++;
+        continue;
+      }
+      let j = i;
+      while (j < n && ok[j]) j++;
+      const a = r.x0 + i * 8, b = Math.min(r.x1, r.x0 + j * 8);
+      const L = rim(r, a - 3), Rr = rim(r, b + 2);
+      if (L != null && Rr != null) {
+        const top = Math.max(r.y0, Math.ceil(Math.max(L, Rr) / 8) * 8);
+        r.y1 - top >= 8 && out.push({ ...r, x0: a, x1: b, y0: top });
+      }
+      i = j;
+    }
+    const same = out.length && out[out.length - 1].x0 === r.x0 && out[out.length - 1].x1 === r.x1 && out[out.length - 1].y0 === r.y0;
+    same || moved++;
+  }
+  if (!moved) return !1;
+  P.spec = P.spec.filter((r) => !isW(r.t)).concat(out);
+  P.waterFix = (P.waterFix ?? 0) + moved;
+  return !0;
+}
+// 오르는 장치(사다리 6·밧줄 7·덩굴 8) 바로잡기 (2026-11-28)
+//   가운데 줄을 따라 공기 구간으로 나눈다 (바위 속을 지나는 부분은 뺀다. 나무판·구름·무너지는 판·도개교는 지나갈 수 있는 것으로 본다)
+//   위 끝에서 설 자리가 없으면(천장에 막힌 막다른 끝) 옆으로 내려설 수 있는 가장 높은 곳까지 줄이고, 그런 곳도 없으면 뺀다
+export function fixClimbs(P) {
+  const { F, WP, HP } = P;
+  // 지나갈 수 있는 것: 나무판·구름·무너지는 판·도개교(발판) + 금 간 벽(부수고 지나간다)
+  const PLAT = P.spec.filter((r) => r.t === 1 || r.t === 2 || r.t === 13 || r.t === 21);
+  const PASS = P.spec.filter((r) => r.t === 1 || r.t === 2 || r.t === 13 || r.t === 14 || r.t === 21);
+  const WAT = P.spec.filter((r) => r.t === 3 || r.t === 11 || r.t === 12);
+  const platAt = (x, y, m = 0) => PLAT.some((r) => x >= r.x0 - m && x < r.x1 + m && y >= r.y0 - 1 - m && y < r.y1 + m);
+  const passAt = (x, y) => PASS.some((r) => x >= r.x0 - 4 && x < r.x1 + 4 && y >= r.y0 - 5 && y < r.y1 + 4);
+  const rock = (x, y) => y >= HP || x < 0 || x >= WP || (y >= 0 && F.solid(x, y));
+  const solid = (x, y) => rock(x, y) && !passAt(x, y);
+  const foot = (x, y) => solid(x, y) || platAt(x, y);
+  const stand = (x, y) => {
+    if (!(foot(x, y + 1) && foot(x - 4, y + 1) && foot(x + 4, y + 1))) return !1;
+    for (let yy = y - 2; yy > y - HEAD; yy -= 4) for (const dx of [-5, 0, 5]) if (solid(x + dx, yy)) return !1;
+    return !0;
+  };
+  const clearRow = (ax, bx, y) => {
+    const s = Math.sign(bx - ax) || 1;
+    for (let x = ax; s > 0 ? x <= bx : x >= bx; x += s * 3) if (solid(x, y)) return !1;
+    return !0;
+  };
+  // 두 점 사이 몸 높이 선이 트였나 (사다리에서 뛰어내리는 길)
+  const clearLine = (ax, ay, bx, by) => {
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 4));
+    for (let i = 0; i <= n; i++) if (solid(ax + ((bx - ax) * i) / n, ay + ((by - ay) * i) / n)) return !1;
+    return !0;
+  };
+  // 높이 [lo, hi] 안에서 장치 옆으로 내려서거나 뛰어 닿을 자리 (옆 ±100px, 사다리에서 뛰면 ~80px까지 오른다)
+  const exitIn = (r, cx, lo, hi, ref) => {
+    for (let y = lo; y <= hi; y += 2)
+      for (let dx = 0; dx <= 100; dx += 3)
+        for (const x of dx ? [r.x0 - dx, r.x1 + dx] : [cx])
+          if (stand(x, y) && (clearRow(cx, x, Math.min(y, ref) - 12) || clearLine(cx, ref - 14, x, y - 14))) return y;
+    return null;
+  };
+  const out = [];
+  let changed = 0, carved = 0;
+  for (const r of P.spec) {
+    if (r.t !== 6 && r.t !== 7 && r.t !== 8) {
+      out.push(r);
+      continue;
+    }
+    const cx = Math.round((r.x0 + r.x1) / 2), keep = [];
+    // 얇은 바위(32px 이하)가 길을 막으면 사다리 폭만큼 구멍을 판다 (바닥 판 구멍) — 위·아래가 공기일 때만
+    //   두꺼운 바위는 아래에서 잘라 낸다 (방·바닥을 뚫고 지나던 덩굴)
+    for (let y = r.y0 - 4; y < r.y1; ) {
+      if (!solid(cx, y + 2)) {
+        y += 4;
+        continue;
+      }
+      // 판 윗면 t ~ 밑면 e: 판 위아래가 모두 공기이고, 사다리가 판 밑으로 8px 넘게 이어질 때만 (사다리 발밑 바닥은 파지 않는다)
+      let t = y, e = y;
+      while (t > r.y0 - 40 && solid(cx, t - 2)) t -= 4;
+      while (e < r.y1 && solid(cx, e + 2)) e += 4;
+      // 사다리 꼭대기를 덮은 판은 48px까지 판다 (막다른 사다리를 위층으로 잇는다)
+      const lim = r.t === 6 && t < r.y0 ? 48 : 32;
+      // 판 위가 물이면 파지 않는다 (호수 바닥에 구멍 → 물이 샌다)
+      const wet = WAT.some((w) => cx >= w.x0 - 4 && cx < w.x1 + 4 && t - 6 >= w.y0 - 4 && t - 6 < w.y1 + 4);
+      // 물 밑 판은 파지도 자르지도 않는다 (원래대로: 자르면 호수에 갇힌다) → 아래 나누기에서 공기로 본다
+      wet && e - t <= lim && keep.push([t - 2, e + 2]);
+      if (!wet && e - t <= lim && !solid(cx, t - 6) && !solid(cx, e + 6) && e <= r.y1 - 8) {
+        const x0 = r.x0 - 2, x1 = r.x1 + 2, y0 = t - 2, y1 = e + 2;
+        cutShape(P, x0, y0, x1, y1, (px, py) => Math.min(px - x0, x1 - px, py - y0, y1 - py) + 0.5);
+        carved++;
+        (P.carves ??= []).push({ x: cx, y: (t + e) >> 1, h: e - t });
+      }
+      y = e;
+    }
+    const runs = [];
+    let a = null;
+    for (let y = r.y0; y < r.y1; y += 4) {
+      const s = solid(cx, y + 2) && !keep.some(([k0, k1]) => y + 2 >= k0 && y + 2 <= k1);
+      if (!s && a == null) a = y;
+      if (s && a != null) (runs.push([a, y]), (a = null));
+    }
+    a != null && runs.push([a, r.y1]);
+    const pieces = [];
+    for (let [y0, y1] of runs) {
+      if (y1 - y0 < 24) continue;
+      // 위 끝에서 내려서거나 뛰어 닿을 곳이 없으면 막다른 끝 (천장에 막혔든, 하늘로 트였든)
+      if (exitIn(r, cx, y0 - 80, y0 + 40, y0) == null) {
+        // 막다른 위 끝: 아래로 내려가며 처음 옆으로 내려설 수 있는 높이를 찾는다
+        //   그 위쪽은 그림으로만 남기고(nc: 탈 수 없음), 아래쪽만 탈 수 있게 한다 — 모양은 그대로, 막다른 길로 끌고 가지 않는다
+        let ny = null;
+        for (let y = y0 + 44; y <= y1 + 8 && ny == null; y += 8) ny = exitIn(r, cx, y - 8, y, y);
+        //   사다리는 탈 수 없는 사다리가 헷갈리므로 막다른 부분을 잘라 내고, 밧줄·덩굴은 그림으로 남긴다
+        const cut = ny == null ? y1 : Math.min(y1, Math.max(y0, Math.floor((ny - 24) / 8) * 8));
+        cut > y0 && r.t !== 6 && pieces.push([y0, cut, 1]);
+        y1 - cut >= 24 && pieces.push([cut, y1, 0]);
+        continue;
+      }
+      pieces.push([y0, y1, 0]);
+    }
+    if (pieces.length === 1 && pieces[0][0] === r.y0 && pieces[0][1] === r.y1 && !pieces[0][2]) {
+      out.push(r);
+      continue;
+    }
+    changed++;
+    for (const [y0, y1, nc] of pieces) out.push(nc ? { ...r, y0, y1, nc: 1 } : { ...r, y0, y1 });
+  }
+  // 겹친 같은 장치는 하나로 (나란히 두 개 그려져 이중 사다리로 보이던 곳) · 허공에서 끝나는 아래 끝은 바닥까지 늘린다 (640px 안)
+  const CLs = out.filter((r) => (r.t === 6 || r.t === 7 || r.t === 8) && !r.nc);
+  const gone = new Set();
+  for (let i = 0; i < CLs.length; i++) {
+    let a = CLs[i];
+    if (gone.has(a)) continue;
+    for (let j = i + 1; j < CLs.length; j++) {
+      const b = CLs[j];
+      if (gone.has(b) || b.t !== a.t || Math.abs((a.x0 + a.x1) / 2 - (b.x0 + b.x1) / 2) >= 8 || b.y0 > a.y1 + 4 || b.y1 < a.y0 - 4) continue;
+      // 원래 물체는 되돌리기용으로 그대로 두고 새 물체로 바꾼다
+      const na = { ...a, y0: Math.min(a.y0, b.y0), y1: Math.max(a.y1, b.y1), x0: Math.min(a.x0, b.x0), x1: Math.max(a.x1, b.x1) };
+      out[out.indexOf(a)] = na;
+      CLs[i] = a = na;
+      gone.add(b);
+      changed++;
+    }
+  }
+  for (const r of CLs) {
+    if (gone.has(r)) continue;
+    const cx = Math.round((r.x0 + r.x1) / 2);
+    let y = r.y1;
+    while (y < HP && y < r.y1 + 660 && !foot(cx, y + 2)) y += 4;
+    const fall = y - r.y1;
+    if (fall > 16 && fall <= 640 && y < HP && foot(cx, y + 2)) {
+      out[out.indexOf(r)] = { ...r, y1: Math.floor((y + 2) / 8) * 8 };
+      changed++;
+    }
+  }
+  const fin = gone.size ? out.filter((r) => !gone.has(r)) : out;
+  carved && blockSnap(P);
+  P.climbCarve = carved;
+  if (changed) ((P.spec = fin), (P.climbFix = changed));
+  return carved;
+}
+// 못 가는 발판 잇기 (2026-11-28): 길 검사에서 닿지 못한 발판 무리(마디 6개 이상)의 가장자리 바로 바깥에
+//   덩굴(동굴은 사다리)을 늘어뜨려, 480px 안 아래의 닿는 바닥과 잇는다 — 오두막 발판·섬·가지 위 막힌 곳
+export function linkUnreached(P, A, why = null) {
+  if (!A?.reach) return 0;
+  const { nC, nY, NN, reach, colN } = A;
+  const { F, WP, HP } = P, NCOL = colN.length - 1;
+  const rock = (x, y) => y >= HP || x < 0 || x >= WP || (y >= 0 && F.solid(x, y));
+  const seen = new Uint8Array(NN), clusters = [];
+  for (let n = 0; n < NN; n++) {
+    if (reach[n] || seen[n]) continue;
+    const st = [n], cl = [];
+    seen[n] = 1;
+    while (st.length) {
+      const a = st.pop();
+      cl.push(a);
+      // 마디는 2열마다 있다
+      for (const dc of [-2, -1, 0, 1, 2]) {
+        const c = nC[a] + dc;
+        if (c < 0 || c >= NCOL) continue;
+        for (let m = colN[c]; m < colN[c + 1]; m++) if (!seen[m] && !reach[m] && Math.abs(nY[m] - nY[a]) <= 12) ((seen[m] = 1), st.push(m));
+      }
+    }
+    cl.length >= 6 && clusters.push(cl);
+  }
+  why && (why.clusters = clusters.length, why.sizes = clusters.map((c) => c.length).sort((a, b) => b - a).slice(0, 12).join(","));
+  const reachNear = (x, y) => {
+    const c0 = Math.floor(x / 8);
+    for (let c = c0 - 3; c <= c0 + 3; c++) {
+      if (c < 0 || c >= NCOL) continue;
+      for (let m = colN[c]; m < colN[c + 1]; m++) if (reach[m] && Math.abs(nY[m] - y) <= 12) return !0;
+    }
+    return !1;
+  };
+  const t = P.kind === "cave" ? 6 : 8, lim = Math.min(WP, P.arenaFrom) - 64;
+  let added = 0;
+  for (const cl of clusters) {
+    let lo = cl[0], hi = cl[0];
+    for (const n of cl) (nC[n] < nC[lo] && (lo = n), nC[n] > nC[hi] && (hi = n));
+    let done = !1;
+    for (const [n, dir] of [[lo, -1], [hi, 1]]) {
+      const fy = nY[n];
+      for (const off of [12, 20, 28]) {
+        if (done) break;
+        const x = Math.round((nC[n] * 8 + 4 + dir * off) / 8) * 8;
+        const W = (k) => (why && (why[k] = (why[k] ?? 0) + 1), 0);
+        if (x < 64 || x > lim || rock(x, fy - 4) || rock(x, fy - 24)) { W("edge"); continue; }
+        let y = fy;
+        while (y < HP && y < fy + 480 && !rock(x, y + 2)) y += 4;
+        if (y >= HP || y - fy >= 480) { W("far"); continue; }
+        if (y - fy < 40) { W("near"); continue; }
+        if (!reachNear(x, y)) { W("landUnreach"); continue; }
+        let clear = !0;
+        for (let yy = fy - 20; yy < y - 4 && clear; yy += 6) clear = !rock(x - 6, yy) && !rock(x + 6, yy);
+        if (!clear) { W("narrow"); continue; }
+        P.spec.push({ x0: x - 8, x1: x + 8, y0: Math.floor((fy - 24) / 8) * 8, y1: Math.floor((y + 2) / 8) * 8, t, link: 1 });
+        (P.links ??= []).push({ x, y: fy });
+        done = !0;
+        added++;
+      }
+      if (done) break;
+    }
+  }
+  return added;
+}
+// 위아래 문 자리 (2026-11-28): ▲ 문은 맵에서 가장 높은 설 자리, ▼ 문은 가장 낮은 설 자리로 — 맵 중간에 있던 문
+//   후보 = 평평하고 머리 위 48px가 빈 닿는 자리(P.spots), 맵 양 끝 8칸과 보스 결투장은 뺀다
+function relocateExits(P) {
+  // 함정 방·보물 방·함정 자리·물가는 뺀다 (가시 구덩이에 놓이던 ▼ 문)
+  const bad = (P.roomTags ?? []).filter((t) => t.role === "trap" || t.role === "treasure");
+  const pads = P.pads ?? [], wat = (P.spec ?? []).filter((r) => r.t === 3 || r.t === 11 || r.t === 12);
+  const S = (P.spots ?? []).filter(
+    (s) =>
+      s.x > 96 &&
+      s.x < Math.min(P.WP, P.arenaFrom) - 96 &&
+      !bad.some((t) => s.x >= t.x0 && s.x < t.x1 && s.y >= t.y0 && s.y <= t.y1) &&
+      !pads.some((q) => s.x > q.xa - 48 && s.x < q.xb + 48 && Math.abs((q.y ?? s.y) - s.y) < 48) &&
+      !wat.some((r) => s.x > r.x0 - 32 && s.x < r.x1 + 32 && s.y > r.y0 - 40 && s.y < r.y1 + 24),
+  );
+  if (!S.length) return;
+  const snap = (x) => Math.round((x - 8) / TS) * TS + 8;
+  if (P.upX >= 0 && P.peak) {
+    const top = S.reduce((b, s) => (s.y < b.y ? s : b), S[0]);
+    top.y < P.peak.y - 40 && ((P.peak0 = P.peak), (P.peak = { x: snap(top.x), y: top.y }));
+  }
+  if (P.downX >= 0 && P.deep) {
+    const bot = S.reduce((b, s) => (s.y > b.y ? s : b), S[0]);
+    bot.y > P.deep.y + 40 && ((P.deep0 = P.deep), (P.deep = { x: snap(bot.x), y: bot.y }));
+  }
+}
+// 뒷벽 메우기 (2026-11-28): 뒷벽이 있는 건물 옆의 좁은 틈(사다리 굴·벽과 바위 사이)에 뒷벽이 비어 배경이 보이던 곳
+//   8px 칸: 공기이고 뒷벽이 없는데, 좌우(또는 위아래) 2칸 안이 양쪽 다 바위·뒷벽이고, 바로 옆 칸 하나는 뒷벽인 칸을 채운다 (3번 되풀이)
+function patchWalls(P) {
+  if (!P.walls?.length) return;
+  const { F, WP, HP } = P, G = 8, GW = Math.ceil(WP / G), GH = Math.ceil(HP / G);
+  const mats = ["rock", "brick", "wood", "inwood"], WL = new Uint8Array(GW * GH);
+  for (const w of P.walls) {
+    if (w.m === "leaf" || w.m === "stem") continue;
+    const v = Math.max(1, mats.indexOf(w.m) + 1);
+    const x0 = Math.max(0, Math.floor(w.x0 / G)), x1 = Math.min(GW, Math.ceil(w.x1 / G)), y0 = Math.max(0, Math.floor(w.y0 / G)), y1 = Math.min(GH, Math.ceil(w.y1 / G));
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) WL[y * GW + x] = v;
+  }
+  const AIR = (x, y) => x >= 0 && y >= 0 && x < GW && y < GH && !F.solid(x * G + 4, y * G + 4);
+  const W = (x, y) => (x < 0 || y < 0 || x >= GW || y >= GH ? 0 : WL[y * GW + x]);
+  const full = (x, y) => !AIR(x, y) || W(x, y) > 0;
+  let added = 0;
+  for (let it = 0; it < 3; it++) {
+    const add = [];
+    for (let y = 1; y < GH - 1; y++)
+      for (let x = 1; x < GW - 1; x++) {
+        if (W(x, y) || !AIR(x, y)) continue;
+        const h = (full(x - 1, y) || full(x - 2, y)) && (full(x + 1, y) || full(x + 2, y)) && (W(x - 1, y) || W(x + 1, y));
+        const v = (full(x, y - 1) || full(x, y - 2)) && (full(x, y + 1) || full(x, y + 2)) && (W(x, y - 1) || W(x, y + 1));
+        if (!h && !v) continue;
+        add.push([x, y, W(x - 1, y) || W(x + 1, y) || W(x, y - 1) || W(x, y + 1)]);
+      }
+    if (!add.length) break;
+    for (const [x, y, v] of add) WL[y * GW + x] = v;
+    added += add.length;
+    // 줄마다 같은 재질끼리 이어 붙여 사각형으로
+    const byRow = new Map();
+    for (const [x, y, v] of add) {
+      byRow.has(y) || byRow.set(y, []);
+      byRow.get(y).push([x, v]);
+    }
+    for (const [y, xs] of byRow) {
+      xs.sort((p, q) => p[0] - q[0]);
+      let s0 = xs[0][0], px = s0, pv = xs[0][1];
+      for (let i = 1; i <= xs.length; i++) {
+        const q = xs[i];
+        if (q && q[0] === px + 1 && q[1] === pv) {
+          px = q[0];
+          continue;
+        }
+        P.walls.push({ x0: s0 * G, y0: y * G, x1: (px + 1) * G, y1: (y + 1) * G, m: mats[pv - 1] ?? "rock", keep: 1 });
+        if (q) ((s0 = q[0]), (px = q[0]), (pv = q[1]));
+      }
+    }
+  }
+  P.wallFix = added;
+}
+// 소품 받침 (2026-11-28): 바닥 소품은 가운데 밑이 바위·발판이어야, 매다는 소품은 바로 위가 바위여야 한다 — 아니면 뺀다
+function propSupport(P) {
+  if (!P.props?.length) return;
+  const { F, WP, HP } = P;
+  const PLAT = P.spec.filter((r) => r.t === 1 || r.t === 2);
+  const rock = (x, y) => y >= HP || x < 0 || x >= WP || (y >= 0 && F.solid(x, y));
+  const foot = (x, y) => rock(x, y) || PLAT.some((r) => x >= r.x0 && x < r.x1 && y >= r.y0 - 1 && y < r.y1);
+  const n0 = P.props.length;
+  P.props = P.props.filter((p) => {
+    if (p.bg || p.ext) return !0;
+    if (p.hang) return rock(p.x, p.y + 3) || rock(p.x, p.y) || rock(p.x, p.y - 3);
+    return foot(p.x, p.y + 1) || foot(p.x, p.y + 3) || foot(p.x, p.y - 1);
+  });
+  P.propFix = n0 - P.props.length;
 }
 // 지표를 가로지르는 뒷벽은 지표선 아래(언덕 속)만 남긴다.
 //   정문 복도·동굴 입구처럼 비탈이 방을 비스듬히 자르는 곳에서, 네모난 뒷벽이 비탈 바깥 하늘에 그대로 보이던 문제
@@ -356,8 +727,18 @@ function placeProps(P) {
   for (const q of P.fixedProps ?? []) {
     const hang = (q.hang ?? propHangs(q.k)) ? 1 : 0, s = q.s ?? 1, sc = q.sc ?? 1;
     const [w0] = propSize(q.k, s);
-    placed.push({ x: q.x, y: q.y, w: w0 * sc });
-    out.push({ x: Math.round(q.x), y: Math.round(hang ? q.y - 6 : q.y + 2), k: q.k, s, v: q.v ?? 0, sc, acc: q.acc ?? null, hang, g: 0 });
+    let qy = q.y;
+    // 매다는 소품(깃발·사슬…)인데 자리가 바닥(밑이 바위, 위가 공기)이면 바로 위 천장 밑면으로 옮긴다
+    //   바닥에서 아래로 그려져 조각만 떠 보이던 문제 (2026-11-28)
+    if (hang && !solid(q.x, qy - 4) && solid(q.x, qy + 4)) {
+      let c = qy - 8;
+      while (c > qy - 320 && !solid(q.x, c)) c -= 2;
+      if (!solid(q.x, c)) continue;
+      while (solid(q.x, c + 1)) c++;
+      qy = c + 4;
+    }
+    placed.push({ x: q.x, y: qy, w: w0 * sc });
+    out.push({ x: Math.round(q.x), y: Math.round(hang ? qy - 6 : qy + 2), k: q.k, s, v: q.v ?? 0, sc, acc: q.acc ?? null, hang, g: 0 });
   }
   // 지역 장식 표: 그린스텝은 고원 풀밭 소품, 굴·계단엔 종유석·수정 대신 이끼·뿌리·고사리
   const GS = P.z?.reg?.look === "greenstep" || P.z?.reg?.deco === "green";
@@ -441,11 +822,12 @@ function placeProps(P) {
         const k = home ? pickW([["p_crates", 18], ["p_hay", 16], ["p_urn", 14], ["p_wool", 8], ["p_cheese", 6], ["p_shelf", 6]]) : ctx === "open" ? pickW(T_OPEN) : ctx === "ugb" ? pickW(T_UGB) : ctx === "skb" ? pickW(T_SKB) : CAVE_FLOOR ? pickW(CAVE_FLOOR) : pickW([["p_stalag", 28], ["p_shroom", 16], ["p_crystal", deep ? 24 : 12], ["p_boulder", 14], ["p_bones", 7], ["p_rubble", 8], ["p_skulls", 3]]);
         tryPut(x, yy, k, false, { room: clear, g: ug ? 1 : 0, acc: k === "p_crystal" ? CRY[R.int(0, 2)] : k === "p_shroom" ? SHR[R.int(0, SHR.length - 1)] : null });
         // 벽돌 방: 뒷벽 횃불 (천장이 높은 방, 220px마다)
+        //   뒷벽 층(bg)에 그린다: 앞 지형 층에 그리면 입체 깊이 차이로 벽에서 미끄러져 허공에 떠 보였다 (2026-11-28)
         const mineW = CS === "mine" && woodAt(x + 40, yy - 60);
         if ((brk || mineW) && clear >= 110 && !torchAt.some((t) => Math.abs(t.x - x) < (mineW ? 300 : 220) && Math.abs(t.y - yy) < 60) && free(x + 40, yy, 12)) {
           let c2 = 0;
           for (let q = yy - 4; q > yy - 120 && !solid(x + 40, q); q -= 4) c2 += 4;
-          c2 >= 110 && (wallAt(x + 40, yy - 60) || mineW) && (torchAt.push({ x: x + 40, y: yy }), out.push({ x: x + 40, y: yy - 46, k: "p_torch", s: 0, v: 0, acc: null, hang: 0 }));
+          c2 >= 110 && (wallAt(x + 40, yy - 60) || mineW) && (torchAt.push({ x: x + 40, y: yy }), out.push({ x: x + 40, y: yy - 46, k: "p_torch", s: 0, v: 0, acc: null, hang: 0, bg: 1, dim: 0 }));
         }
       } else {
         // ── 천장 (바위 밑) ──
@@ -5130,6 +5512,8 @@ export function analyze(P) {
       // 물(3·11·12)도: 점프 키로 헤엄쳐 올라 물 밖으로 뛰어나온다
       // 레버로 잠긴 승강기는 없는 것으로 (지름길: 주 길이 따로 있어야 한다)
       if (r.t === 15 && r.lock) continue;
+      // 장식 전용(nc: 막다른 사다리·밧줄을 그림으로만 남긴 것)은 붙을 수 없다
+      if (r.nc) continue;
       if (CLIMB_SPEC.has(r.t) || r.fallw || ((r.t === 3 || r.t === 11 || r.t === 12) && r.y1 - r.y0 >= 16)) {
         const X = new Set(nodesIn(r.x0 - 12, r.x1 + 12, r.y0 - 6, r.y1 + 24));
         const cols = [];
@@ -5485,11 +5869,12 @@ export function drawChunk(P, z, S, r, l, s, o) {
   out.trees = (P.trees ?? []).filter((T) => T.x + T.w / 2 + 8 > x0 && T.x - T.w / 2 - 8 < x0 + vt * TS).map((T) => ({ key: T.key, x: (T.x - x0 - 8) / TS, py: T.y, row: Math.floor(T.y / TS), nat: 1 }));
   const inC = (px) => px >= x0 && px < x0 + vt * TS;
   // ▲·▼ 문
-  if (P.peak && S === o.up && inC(P.peak.x)) {
+  // 문 자리는 맵 맨 위·맨 아래로 옮겨질 수 있다 (relocateExits) — 정해진 조각이 아니라 문이 든 조각에 둔다
+  if (P.peak && o.up >= 0 && inC(P.peak.x)) {
     out.peak = { x: Math.floor((P.peak.x - x0) / TS), row: P.peak.y / TS, py: P.peak.y };
     P.chest && inC(P.chest.x) && out.chests.push({ x: Math.floor((P.chest.x - x0) / TS), row: P.chest.y / TS, py: P.chest.y, tier: R() < 0.35 ? 2 : 1 });
   }
-  if (P.deep && S === o.down && inC(P.deep.x)) out.deep = { x: Math.floor((P.deep.x - x0) / TS), row: P.deep.y / TS, py: P.deep.y };
+  if (P.deep && o.down >= 0 && inC(P.deep.x)) out.deep = { x: Math.floor((P.deep.x - x0) / TS), row: P.deep.y / TS, py: P.deep.y };
   // 지하 표시 (뒷벽·어둠)
   if (P.kind === "cave") out.ug = { top: 0, biome: o.biome, entrances: [], surface: new Array(vt).fill(0) };
   else if (P.kind === "ground")

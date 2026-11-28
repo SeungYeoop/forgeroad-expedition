@@ -228,10 +228,15 @@ const gm2_m1 = {
   place: (K, { tiers, T }) => hold(tiers, T, 2, 2, 300, 720, 72),
   sig: (K, { T, real, ri }) => {
     // 섬 배에서 늘어진 뿌리 덩굴 (아래 섬까지 닿지 않는 것도 있다)
+    //   섬 속에 방이 있으므로 섬 맨 아래(배 끝)부터 위로 올라가 진짜 밑면을 찾는다 — 방·바닥을 뚫고 지나던 덩굴 (2026-11-28)
     for (const s of real) if (s.tier > 0) for (let x = s.x0 + 10; x < s.x1 - 10; x += ri(24, 44)) {
-      let y = s.f + 2;
-      while (y < 1050 && K.get(x, y) === 1) y++;
-      K.vine(x - 1, x + 1, y - 2, Math.min(1048, y + ri(12, 36)));
+      let y = Math.min(1048, s.f + (s.D ?? 40) + 16);
+      while (y > s.f && K.get(x, y) !== 1) y--;
+      if (y <= s.f) continue;
+      y++;
+      let e = Math.min(1048, y + ri(12, 36));
+      for (let q = y; q < e; q++) if (K.get(x, q) === 1) { e = q - 1; break; }
+      e - y >= 6 && K.vine(x - 1, x + 1, y - 2, e);
     }
     K.struct("늪 뿌리 덩이", "섬", 300, T[2] - 14, 720, T[2] + 72);
   },

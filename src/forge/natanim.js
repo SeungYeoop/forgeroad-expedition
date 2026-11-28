@@ -163,7 +163,7 @@ export function update(sc, dt, src) {
     o.setTint(l.tint).setAlpha(l.a * f).setScale((l.r / 32) * PS(l.bg) * (l.fire ? 1 + 0.05 * Math.sin(t * 8.3 + l.ph) : 1)).setPosition(PX(l.bg, ox + l.x), PY(l.bg, l.y));
     // 불티: 화로·횃불에서 가끔 위로
     if (l.fire && (l.k === "p_brazier" || l.k === "p_torch") && Math.random() < dt * (l.k === "p_brazier" ? 4 : 1.6))
-      spawn(A, sc, { x: ox + l.x + (Math.random() - 0.5) * 6, y: l.y - 4, vx: (Math.random() - 0.5) * 10, vy: -26 - Math.random() * 24, sway: 12, life: 0.7 + Math.random() * 0.8, tint: Math.random() < 0.5 ? 0xffd070 : 0xff7a30, s: 0.5 });
+      spawn(A, sc, { x: PX(l.bg, ox + l.x) + (Math.random() - 0.5) * 6, y: PY(l.bg, l.y) - 4, vx: (Math.random() - 0.5) * 10, vy: -26 - Math.random() * 24, sway: 12, life: 0.7 + Math.random() * 0.8, tint: Math.random() < 0.5 ? 0xffd070 : 0xff7a30, s: 0.5 });
     // 수정·버섯: 가끔 떠오르는 빛 알갱이
     if (!l.fire && l.k !== "p_window" && Math.random() < dt * 0.6)
       spawn(A, sc, { x: PX(l.bg, ox + l.x) + (Math.random() - 0.5) * 14, y: PY(l.bg, l.y) + 4, vy: -10 - Math.random() * 8, sway: 6, life: 1.6 + Math.random(), tint: l.tint, s: 0.5, a: 0.8 });

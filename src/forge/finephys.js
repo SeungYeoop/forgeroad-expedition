@@ -84,7 +84,7 @@ export function installFinePhysics(proto, K) {
         continue;
       }
       if (zx < r.x0 || zx >= r.x1 || cy < r.y0 || cy >= r.y1) continue;
-      if (r.t === 6 || r.t === 7 || r.t === 8) out.sp = r.t;
+      if (r.t === 6 || r.t === 7 || r.t === 8) r.nc || (out.sp = r.t); // nc: 그림만 있는 막다른 사다리·밧줄 (2026-11-28)
       else if (r.t === 10) out.wind = r;
       else if (r.t === 11 || r.t === 12) out.cur = r.t === 11 ? -1 : 1;
     }

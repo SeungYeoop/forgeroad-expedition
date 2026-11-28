@@ -12874,6 +12874,8 @@ class ks {
       (t.onDone = m.onDone),
       (t.rotate = !t.ground && !S.spin),
       (t.bounceExplode = !1));
+    // 그림이 아직 없는 투사체(점액 덩이 등)는 만들어 두고, 끝내 없으면 기본 구슬로 (없는 그림 = 초록 상자로 보이던 문제)
+    S.sprite = FG.projTex(this.host, S.sprite);
     const v = this.host.ph.textures.get(S.sprite);
     return (
       t.sprite
@@ -16091,7 +16093,10 @@ class Cs {
       v = Math.hypot(t, a),
       // 자기 영역(태어난 구역·층·둘레)을 벗어난 플레이어는 보지도 쫓지도 않는다
       inT = FG.inTerritory(this, C),
-      o = inT && !C.dead && v < E.sight * (this.aggro ? 1.6 : 1) && Math.abs(a) < 140;
+      // 시야선: 벽 너머의 플레이어는 새로 알아채지 못한다. 싸우다 4초 넘게 못 보면 놓친다 (맞으면 시야와 상관없이 알아챈다)
+      los = FG.foeSees(this, C, S),
+      o = inT && !C.dead && v < E.sight * (this.aggro ? 1.6 : 1) && Math.abs(a) < 140 && (los || (this.aggro && this._blindFor < 4));
+    this.aggro && !los && this.sinceHit > 4 && this._blindFor >= 4 && !this.opts?.midBoss && !this.opts?.summoned && ((this.aggro = !1), this.def.foe ? FG.foeGoHome(this) : this.state === "chase" && this.setState("return", 5));
     if (
       (inT || FG.leashTick(this, S),
       o && this.state !== "hidden" && this.state !== "burrowed" && (this.aggro = !0),

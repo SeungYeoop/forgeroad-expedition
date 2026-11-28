@@ -8658,33 +8658,16 @@ class Bn extends zt.Scene {
     this.menuSel = 0;
     this.wipeArmed = false;
     this.wipeTimer = null;
-    const titleBackground = Ai(this, Ht[4]);
-    this.add.image(320,180,titleBackground + '_sky');
-    this.layers = [0,1,2].map(i => this.add.tileSprite(320,180,640,360,`${titleBackground}_${i}`).setData('f',[0.08,0.16,0.28][i]));
-    titleScene(this, ct, zt.BlendModes.ADD, it.data.equip.armor);
-    // Centered menu follows the sword and the title's central axis.
-    const veil = this.add.graphics();
-    for (let i = 48; i > 0; i--) {
-      veil.fillStyle(0x160d30, 0.022).fillEllipse(320, 274, 220 + i * 4, 70 + i * 2);
-    }
-    const ornament = this.add.graphics();
-    ornament.lineStyle(1, 0xe8bb7c, 0.65);
-    ornament.lineBetween(231, 229, 296, 229);
-    ornament.lineBetween(344, 229, 409, 229);
-    ornament.fillStyle(0xf6d49b, 1).fillPoints([{x:320,y:225},{x:324,y:229},{x:320,y:233},{x:316,y:229}], true);
-    ornament.lineStyle(1, 0xe8bb7c, 0.22).lineBetween(250, 322, 390, 322);
+    // 새 타이틀 (2026-11-28): 거점 마을 배경 · 단조 로고 · 철판 메뉴 (forge/title2.js)
     const items = [
-      { label: this.recovered ? "지난 탐험 이어보기" : "모험 시작", sub: this.recovered ? "끝나지 않은 탐험의 기록" : "당신의 다음 전설을 벼려라",
-        x: 210, y: 241, w: 220, h: 34, primary: true, act: () => this.go() },
-      { label: "기록 게시판", sub: "최고 기록 · 업적 · 도감", x: 210, y: 283, w: 106, h: 25,
-        act: () => this.openPanel(() => new (FG.panels().Board)(this, () => this.closePanel())) },
-      { label: "설정", sub: "소리 · 화면 · 조작법", x: 324, y: 283, w: 106, h: 25,
-        act: () => this.openPanel(() => new dr(this, () => this.closePanel(), () => {})) },
-      { label: "데이터 초기화", sub: "한 번 더 누르면 모든 진행이 삭제됩니다", x: 265, y: 325, w: 110, h: 17,
+      { label: this.recovered ? "지난 탐험 이어보기" : "모험 시작", sub: this.recovered ? "끝나지 않은 탐험의 기록" : "갈림길 요새에서 다음 전설을 벼려라", primary: true, act: () => this.go() },
+      { label: "기록 게시판", sub: "최고 기록 · 업적 · 도감", col: 0, act: () => this.openPanel(() => new (FG.panels().Board)(this, () => this.closePanel())) },
+      { label: "설정", sub: "소리 · 화면 · 조작법", col: 1, act: () => this.openPanel(() => new dr(this, () => this.closePanel(), () => {})) },
+      { label: "데이터 초기화", sub: "한 번 더 누르면 모든 진행이 삭제됩니다", small: true,
         act: () => {
           if (!this.wipeArmed) {
             this.wipeArmed = true;
-            this.menu[3].txt.setText("한 번 더 눌러 초기화").setColor("#ffb3bb");
+            this.menu[3].P.set("한 번 더 눌러 초기화");
             this.wipeTimer = this.time.delayedCall(4000, () => this.cancelWipe());
             j.play("error");
             return;
@@ -8693,20 +8676,19 @@ class Bn extends zt.Scene {
           this.scene.restart({ recovered: null });
         } },
     ];
-    this.menu = items.map((m, i) => {
-      const bg = this.add.graphics();
-      const txt = ct(this, m.x + m.w / 2, m.y + m.h / 2, m.label,
-        m.primary ? "big" : i === 3 ? "tiny" : "small", "#eee4ff").setOrigin(0.5);
-      const arrow = m.primary ? ct(this, m.x + m.w - 15, m.y + m.h / 2, "›", "big", "#45233b").setOrigin(0.5) : null;
-      const hit = this.add.zone(m.x, m.y, m.w, m.h).setOrigin(0).setInteractive({ useHandCursor: true });
-      hit.on("pointerover", () => { if (!this.panelOpen && !this.started) this.pick(i); })
-        .on("pointerdown", () => { if (!this.panelOpen && !this.started) { this.pick(i); this.activate(); } });
-      return { ...m, bg, txt, arrow, hit };
+    const T2 = FG.buildTitle(this, {
+      ground: bt,
+      items,
+      record: `탐험 ${it.data.runs ?? 0}회  ·  골드 ${yt(it.data.gold ?? 0)}`,
+      version: "v0.2",
+      onPick: (i, act) => { if (this.panelOpen || this.started) return; this.pick(i); act && this.activate(); },
     });
-    ct(this, 24, 333, "리포지 : 무한의 길", "tiny", "#eee0fb", { stroke: "#1a1030", strokeThickness: 2 });
-    ct(this, 24, 346, `최고 ${yt(it.data.best)}m   ·   탐험 ${it.data.runs ?? 0}회`, "tiny", "#c5b3da", { stroke: "#1a1030", strokeThickness: 2 });
-    this.subText = ct(this, 320, 210, "", "tiny", "#f2e2ff", { stroke: "#1a1030", strokeThickness: 2 }).setOrigin(0.5, 0);
-    ct(this, 480, 346, "↑↓ 선택  ·  ENTER 확인", "tiny", "#c5b3da", { stroke: "#1a1030", strokeThickness: 2 });
+    this.t2 = T2;
+    this.menu = items.map((m, i) => ({ ...m, P: T2.menu[i] }));
+    this.subText = T2.sub;
+    // 아무 키나 누르면 시작 연출 건너뛰기
+    this.input.keyboard.on("keydown", () => T2.isDone() || T2.finish());
+    this.input.on("pointerdown", () => T2.isDone() || T2.finish());
     this.pick(0, true);
     const key = (k, f) => this.input.keyboard.on("keydown-" + k, () => { if (!this.panelOpen && !this.started) f(); });
     const move = (d) => this.pick((this.menuSel + d + this.menu.length) % this.menu.length);
@@ -8719,38 +8701,17 @@ class Bn extends zt.Scene {
     key("ENTER", () => this.activate());
     key("SPACE", () => this.activate());
     this.pad = new ri(this);
-    this.cameras.main.fadeIn(850, 19, 10, 35);
+    // (어둠에서 밝아지는 연출은 title2가 한다)
   }
   cancelWipe() {
     this.wipeArmed = false;
     this.wipeTimer?.remove();
     this.wipeTimer = null;
-    this.menu[3].txt.setText(this.menu[3].label);
+    this.menu[3].P.set(this.menu[3].label);
     this.paintMenu();
   }
   paintMenu() {
-    this.menu.forEach((m, i) => {
-      const selected = i === this.menuSel;
-      const g = m.bg.clear();
-      if (m.primary) {
-        g.fillStyle(0x10091f, 0.7).fillRect(m.x - 3, m.y - 3, m.w + 6, m.h + 9);
-        g.lineStyle(1, 0xe9c18b, selected ? 0.8 : 0.35).strokeRect(m.x - 3.5, m.y - 3.5, m.w + 7, m.h + 7);
-        g.fillGradientStyle(selected ? 0xffe2a8 : 0xdcb77d, selected ? 0xffe2a8 : 0xdcb77d,
-          selected ? 0xd79750 : 0xb8804b, selected ? 0xd79750 : 0xb8804b, 1);
-        g.fillRect(m.x, m.y, m.w, m.h);
-        g.lineStyle(1, 0xffebc4, selected ? 1 : 0.6).strokeRect(m.x + 0.5, m.y + 0.5, m.w - 1, m.h - 1);
-        g.lineStyle(1, 0x7a482f, 0.6).lineBetween(m.x + 2, m.y + m.h - 2, m.x + m.w - 2, m.y + m.h - 2);
-        m.txt.setColor("#3b2036");
-        m.arrow.setX(m.x + m.w - (selected ? 12 : 16));
-      } else if (i !== 3) {
-        g.fillStyle(selected ? 0x6b4785 : 0x302141, selected ? 0.9 : 0.9).fillRect(m.x, m.y, m.w, m.h);
-        g.lineStyle(1, selected ? 0xf4d3a3 : 0x9e7dba, selected ? 0.95 : 0.4).strokeRect(m.x + 0.5, m.y + 0.5, m.w - 1, m.h - 1);
-        m.txt.setColor(selected ? "#ffe6b4" : "#e1d3ef");
-      } else {
-        if (selected) g.lineStyle(1, 0xcf9da8, 0.7).lineBetween(m.x + 8, m.y + m.h, m.x + m.w - 8, m.y + m.h);
-        m.txt.setColor(selected ? "#ffced3" : "#b8a3c6");
-      }
-    });
+    this.menu.forEach((m, i) => m.P?.select(i === this.menuSel));
   }
   pick(i, quiet) {
     if (this.wipeArmed && i !== 3) this.cancelWipe();
@@ -8780,7 +8741,7 @@ class Bn extends zt.Scene {
       }));
   }
   update(time) {
-    for (const layer of this.layers) layer.tilePositionX = time / 32 * layer.getData("f");
+    FG.titleUpdate(this);
     this.pad.poll();
     if (this.panelOpen || this.started) return;
     const direction = this.pad.navY() || this.pad.navX();

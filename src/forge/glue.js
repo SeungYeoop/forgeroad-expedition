@@ -11,6 +11,9 @@ import { warmProps, prepaintStep } from "./terrain.js";
 import * as PROPS from "./props3d.js";
 import * as FOES from "./foes/core.js";
 import * as SLIME from "./foes/slimefx.js";
+import * as UK from "./uikit.js";
+import * as T2 from "./title2.js";
+export { UK };
 import "./foes/rg0.js";
 import "./foes/regions.js"; // 새 지역 몬스터 행동 (모스바크·그린스텝·스톤브리지·리프크라운·아이언베인·드립스톤·루트홀로우)
 import { sahar } from "./foes/m6.js";
@@ -53,6 +56,8 @@ const ORIG_W = {};
 const ORIG_A = {};
 export function bind(refs) {
   R = refs;
+  UK.bindUikit(R);
+  T2.bindTitle(R);
   VFX.bindVfx(R.zt);
   LOOK.bindLook(R);
   ATMO.bindAtmo(R);
@@ -4099,6 +4104,9 @@ export function packSize(def, rng) {
 export const hubFx = (sc, gy, w) => ATMO.hubFx(sc, gy, w);
 export const buildHub = (sc, gy) => HUB4.buildHub(sc, { ...R, HUBW: HUB4.HUB_W }, gy);
 export const hubParallax = (sc, h2) => HUB4.hubParallax(sc, h2);
+// 타이틀 (거점 마을 배경 · 단조 로고 · 철판 메뉴)
+export const buildTitle = (sc, o) => T2.buildTitle(sc, { buildHub, hubParallax, HUB_W: HUB4.HUB_W }, o);
+export const titleUpdate = (sc) => T2.titleUpdate(sc, { hubParallax });
 
 export const _IT = IT;
 export const _interp = interp;

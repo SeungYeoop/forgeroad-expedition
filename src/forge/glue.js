@@ -3148,7 +3148,8 @@ function hubFrOf() {
   return { hub: 1, equip: eq, bag: d.bag.map(mk).filter(Boolean), bagMax: BAG_MAX, stones: 0, mats: d.mats ?? {}, pickups: [], chain: {}, sp: 0, attr: { str: 0, vit: 0, int: 0, agi: 0, luk: 0 }, ents: [], zones: [] };
 }
 // 거점 카메라는 움직이므로, 가방은 카메라가 고정된 작은 UI 장면에 그린다
-function bagUI(sc) {
+// (장면 추가는 다음 틱에 처리되므로, 준비될 때까지 기다렸다가 cb — 게임 업데이트 도중 열면 null이라 거점이 멈추던 문제)
+function withBagUI(sc, cb) {
   const SM = sc.scene;
   if (!SM.get("FrBagUI")) {
     class FrBagUI extends R.zt.Scene {
@@ -3158,8 +3159,13 @@ function bagUI(sc) {
     }
     SM.add("FrBagUI", FrBagUI, !0);
   } else SM.isActive("FrBagUI") || SM.launch("FrBagUI");
-  SM.bringToTop("FrBagUI");
-  return SM.get("FrBagUI");
+  let n = 0;
+  const go = () => {
+    const ui = SM.get("FrBagUI");
+    if (ui && ui.sys.settings.status >= 5) return void (SM.bringToTop("FrBagUI"), cb(ui));
+    ++n < 120 && sc.time.delayedCall(16, go);
+  };
+  go();
 }
 export const hubBagOpen = (sc) => !!sc?.scene?.get?.("FrBagUI")?.frBag;
 // ── 창고 (알비온식, 2026-11-28): 창고 시설에서 연다. 왼쪽 = 창고 칸(종류 탭·스크롤), 오른쪽 = 가방
@@ -3178,25 +3184,24 @@ export function openStashHub(sc) {
   const cur = sc.scene.get("FrBagUI");
   if (cur?.frBag) closeBag(cur);
   if (sc.leaving) return;
-  const ui = bagUI(sc);
   sc.fr = hubFrOf();
   sc.fr.stash = stashOf(sd());
   sc.frHubEq = { ...sd().equip };
-  const go = () => (ui.sys.settings.status >= 5 ? openBagOn(ui, sc, { free: !1, legend: !1, hub: !0, stash: !0 }) : sc.time.delayedCall(16, go));
-  go();
-  sc.events.once("shutdown", () => ui.frBag && closeBag(ui));
+  withBagUI(sc, (ui) => {
+    openBagOn(ui, sc, { free: !1, legend: !1, hub: !0, stash: !0 });
+    sc.events.once("shutdown", () => ui.frBag && closeBag(ui));
+  });
 }
 export function toggleBagHub(sc) {
   const cur = sc.scene.get("FrBagUI");
   if (cur?.frBag) return void closeBag(cur);
   if (sc.panelOpen || sc.leaving) return;
-  const ui = bagUI(sc);
   sc.fr = hubFrOf();
   sc.frHubEq = { ...sd().equip };
-  // 새로 만든 장면은 다음 틱에 준비된다
-  const go = () => (ui.sys.settings.status >= 5 ? openBagOn(ui, sc, { free: !1, legend: !1, hub: !0 }) : sc.time.delayedCall(16, go));
-  go();
-  sc.events.once("shutdown", () => ui.frBag && closeBag(ui));
+  withBagUI(sc, (ui) => {
+    openBagOn(ui, sc, { free: !1, legend: !1, hub: !0 });
+    sc.events.once("shutdown", () => ui.frBag && closeBag(ui));
+  });
 }
 export function closeBagHub(sc) {
   const ui = sc?.scene?.get?.("FrBagUI");
@@ -3642,7 +3647,8 @@ function renderBag(h) {
   }
   B.gridBox = { x: RX + 4, y: GY - 22, w: RW - 8, h: VR * CH + 6, rows, VR };
   // 설명 종이: 가운데 위에 (아이템에 마우스를 올렸거나 · 남은 능력치 포인트가 있거나 · 능력치 단추를 눌렀을 때만)
-  B.detArgs = [W / 2 - 110, 26, 220, 196];
+  // (화면 아래쪽 가운데로 · 2026-11-28 요청)
+  B.detArgs = [W / 2 - 110, Hh - 8 - 170, 220, 170];
   renderDetail(h, ...B.detArgs);
   // ── 오른쪽 아래: 융합 제단 (작게) ──
   const FX = RX + 6, FY = GY + VR * CH - 12, FW = RW - 12, FH = 88;

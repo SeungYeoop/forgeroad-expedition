@@ -19028,6 +19028,8 @@ class Er extends zt.Scene {
   update(T, C) {
     var a, v, o;
     if (this.cleaned) return;
+    // 로딩 중(입력 잠금)에는 일시정지를 열지 않는다 — Alt+Tab 자동 일시정지가 잠긴 로딩 화면 뒤에 열려 게임이 멈추던 문제
+    if (this.pauseReq && (this.frLoad || this.frInputLocked)) this.pauseReq = !1;
     if (this.pauseReq && ((this.pauseReq = !1), !this.dying)) {
       (a = this.hud()) == null || a.openPause();
       return;
